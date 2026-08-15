@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 01 · switchMap và nghệ thuật huỷ request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 01 · Core (RxJS)</span>
+
+    <h1>switchMap và nghệ thuật huỷ request</h1>
+
+    <p class="subtitle">
+      Ô tìm kiếm khoá học của EduCommerce — và lý do chọn nhầm operator sẽ hiển thị
+      kết quả của <em>từ khoá bạn đã xoá</em>.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Tự viết test chứng minh request cũ bị huỷ
+      · 🏷️ EduCommerce · Course search
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích được <strong>chính xác</strong> vì sao search-as-you-type phải dùng <code>switchMap</code>, không phải <code>mergeMap</code>.</li>
+      <li>Chứng minh bằng test rằng request cũ <strong>thực sự bị huỷ</strong> — không phải "chắc là bị huỷ".</li>
+      <li>Nói được <code>debounceTime</code> và <code>distinctUntilChanged</code> mỗi cái chặn loại request thừa nào.</li>
+      <li>Đọc một pipeline RxJS lạ và chỉ ra được đâu là <em>outer</em>, đâu là <em>inner</em> Observable.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bạn đã dùng <code>Promise</code> và biết một sự thật khó chịu: <strong>Promise không huỷ được</strong>.
+      Gọi <code>fetch()</code> rồi đổi ý — request vẫn bay tới server, callback vẫn chạy.
+      Muốn huỷ, bạn phải lôi <code>AbortController</code> vào và tự quản lý nó.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>Observable có sẵn nút tắt, và <code>switchMap</code> là thứ bấm nút đó giúp bạn.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: ô tìm kiếm nói dối</h2>
+
+    <p>
+      Trang danh sách khoá học của EduCommerce có ô tìm kiếm gọi API mỗi khi người dùng gõ.
+      Người dùng gõ <code>"an"</code>, rồi gõ thêm thành <code>"ang"</code>. Hai request bay đi.
+      Mạng hôm đó phập phù nên chúng về <strong>ngược thứ tự</strong>:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Thời điểm</th><th>Việc xảy ra</th><th>UI hiển thị</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0ms</td><td>gõ <code>"an"</code> → request A bay đi</td><td><span class="nullcell">—</span></td></tr>
+        <tr><td>150ms</td><td>gõ <code>"ang"</code> → request B bay đi</td><td><span class="nullcell">—</span></td></tr>
+        <tr><td>400ms</td><td>request <strong>B</strong> về (kết quả của "ang")</td><td>kết quả "ang" ✅</td></tr>
+        <tr><td>900ms</td><td>request <strong>A</strong> về (kết quả của "an")</td><td>kết quả "an" ❌</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      Ô input đang hiện chữ <code>"ang"</code>, nhưng danh sách bên dưới là kết quả của <code>"an"</code>.
+      Người dùng không hiểu chuyện gì. Bạn cũng không tái hiện được bug vì mạng công ty quá nhanh.
+      Đây là <strong>race condition</strong> — và nó là bug kinh điển bậc nhất của mọi ô tìm kiếm trên đời.
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Thử nghĩ cách sửa bằng công cụ bạn đã biết. Rất nhiều người sửa bằng cách gắn số thứ tự
+        cho request rồi bỏ qua response cũ. Nó chạy được. Nhưng nó <strong>vẫn để request A bay tới server</strong>
+        và vẫn tốn băng thông, tốn quota API, và server vẫn chạy query nặng cho một từ khoá không ai cần nữa.
+        Có cách nào <em>chặn từ gốc</em> không?
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model</h2>
+
+    <p>
+      Điều then chốt cần hiểu là: khi bạn viết <code>source$.pipe(switchMap(x =&gt; api(x)))</code>,
+      có <strong>hai tầng</strong> Observable chứ không phải một:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Tầng</th><th>Là ai ở ví dụ này</th><th>Vòng đời</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Outer</strong> (nguồn)</td>
+          <td>luồng từ khoá người dùng gõ</td>
+          <td>sống suốt thời gian component còn tồn tại</td>
+        </tr>
+        <tr>
+          <td><strong>Inner</strong> (được sinh ra)</td>
+          <td><code>api("an")</code>, <code>api("ang")</code>… — mỗi từ khoá đẻ ra một cái mới</td>
+          <td>ngắn, và <strong>có thể bị giết giữa chừng</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Toàn bộ họ operator <code>switchMap</code> / <code>mergeMap</code> / <code>concatMap</code> /
+      <code>exhaustMap</code> làm <strong>cùng một việc</strong>: nhận giá trị từ outer, đẻ ra một inner.
+      Chúng chỉ khác nhau ở đúng một câu hỏi:
+      <em>"khi inner cũ chưa xong mà outer đã bắn giá trị mới thì xử sao?"</em>
+    </p>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>switch</code> trong <code>switchMap</code> nghĩa là "chuyển kênh":
+          bật kênh mới thì kênh cũ <em>tắt hẳn</em>, không phát song song.
+        </strong>
+      </p>
+    </div>
+
+    <p>
+      Và "tắt hẳn" ở đây không phải cách nói ẩn dụ. Nó gọi <code>unsubscribe()</code> lên inner cũ,
+      chạy hàm dọn dẹp của inner đó — với <code>HttpClient</code> thì hàm dọn dẹp gọi thẳng
+      <code>xhr.abort()</code>, tức là <strong>request bị huỷ ở tầng mạng</strong>.
+      Đây chính là thứ <code>Promise</code> không làm được nếu không có <code>AbortController</code>.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>3. Nhìn mental model bằng code</h2>
+
+    <p>
+      Vấn đề của việc học RxJS qua <code>console.log</code> là bạn chỉ thấy <em>kết quả</em>,
+      không thấy <em>việc huỷ</em>. Nên ta sẽ dựng một API giả có ghi nhật ký lúc bị huỷ.
+      Chìa khoá nằm ở <strong>hàm teardown</strong> — thứ bạn <code>return</code> ra từ constructor của <code>Observable</code>:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/search-api.ts</span>
+<pre><code><span class="kw">import</span> { Observable } <span class="kw">from</span> <span class="str">'rxjs'</span>;
+
+<span class="cmt">/** Nhật ký dùng chung để test quan sát được API nào chạy, API nào bị huỷ. */</span>
+<span class="kw">export type</span> ApiLog = <span class="kw">string</span>[];
+
+<span class="cmt">/**
+ * API tìm kiếm GIẢ LẬP.
+ * Điểm mấu chốt: hàm teardown (phần `return () => {...}`) chạy khi có người
+ * unsubscribe — nhờ vậy ta CHỨNG MINH được request đã bị huỷ, thay vì chỉ tin.
+ */</span>
+<span class="kw">export function</span> <span class="fn">fakeSearchApi</span>(term: <span class="kw">string</span>, delayMs: <span class="kw">number</span>, log: ApiLog): Observable&lt;<span class="kw">string</span>[]&gt; {
+  <span class="kw">return new</span> <span class="fn">Observable</span>&lt;<span class="kw">string</span>[]&gt;((subscriber) => {
+    <span class="cmt">// Chạy khi CÓ NGƯỜI subscribe — không phải khi hàm được gọi.</span>
+    <span class="cmt">// Đây là tính "lazy" của Observable: không ai nghe thì không có gì xảy ra.</span>
+    log.<span class="fn">push</span>(<span class="str">`START ${term}`</span>);
+    <span class="kw">let</span> xong = <span class="kw">false</span>;
+
+    <span class="kw">const</span> id = <span class="fn">setTimeout</span>(() => {
+      xong = <span class="kw">true</span>;
+      subscriber.<span class="fn">next</span>([<span class="str">`${term} result`</span>]);
+      subscriber.<span class="fn">complete</span>();
+    }, delayMs);
+
+    <span class="cmt">// TEARDOWN: chạy khi unsubscribe HOẶC khi complete.</span>
+    <span class="cmt">// Cờ `xong` để phân biệt hai trường hợp — chỉ ghi CANCEL khi bị cắt giữa chừng.</span>
+    <span class="kw">return</span> () => {
+      <span class="fn">clearTimeout</span>(id);
+      <span class="kw">if</span> (!xong) log.<span class="fn">push</span>(<span class="str">`CANCEL ${term}`</span>);
+    };
+  });
+}</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Điều cần quan sát</div>
+      <p>
+        Hàm teardown chạy ở <strong>cả hai</strong> trường hợp: bị huỷ giữa chừng, và hoàn thành bình thường.
+        Rất nhiều người tưởng nó chỉ chạy khi unsubscribe. Cờ <code>xong</code> tồn tại chính là để
+        tách bạch hai trường hợp đó — và bản thân chi tiết nhỏ này là một câu phỏng vấn.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Pipeline hoàn chỉnh và vai trò từng mắt xích</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · pipeline search-as-you-type</span>
+<pre><code>tuKhoa$
+  .<span class="fn">pipe</span>(
+    <span class="cmt">// (1) Chờ người dùng NGỪNG gõ 300ms rồi mới tính.</span>
+    <span class="cmt">//     Chặn loại rác: gõ 8 ký tự → 8 request.</span>
+    <span class="fn">debounceTime</span>(<span class="num">300</span>),
+
+    <span class="cmt">// (2) Bỏ qua nếu từ khoá y hệt lần trước.</span>
+    <span class="cmt">//     Chặn loại rác: gõ "ang" rồi xoá "x" thừa → vẫn "ang" → không gọi lại.</span>
+    <span class="fn">distinctUntilChanged</span>(),
+
+    <span class="cmt">// (3) Đẻ inner Observable, và GIẾT inner trước đó nếu nó chưa xong.</span>
+    <span class="cmt">//     Chặn loại rác: response cũ về muộn ghi đè kết quả mới.</span>
+    <span class="fn">switchMap</span>((term) => <span class="fn">fakeSearchApi</span>(term, <span class="num">500</span>, log)),
+  )
+  .<span class="fn">subscribe</span>((r) => ketQua.<span class="fn">push</span>(r));</code></pre>
+    </div>
+
+    <p>
+      Ba operator này hay bị gộp chung thành "combo search" và học vẹt. Nhưng chúng chặn
+      <strong>ba loại rác khác nhau</strong>, và bỏ cái nào cũng để lại một lỗ:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Bỏ đi</th><th>Hậu quả cụ thể</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>không có <code>debounceTime</code></td>
+          <td>Gõ "angular" = 7 request. Server ăn đủ 7. Bill API nhân 7.</td>
+        </tr>
+        <tr>
+          <td>không có <code>distinctUntilChanged</code></td>
+          <td>Người dùng gõ rồi xoá về đúng chữ cũ → gọi lại API cho một từ khoá vừa gọi xong.</td>
+        </tr>
+        <tr>
+          <td>không có <code>switchMap</code> (dùng <code>mergeMap</code>)</td>
+          <td><strong>Race condition</strong> ở mục 1 — UI hiện kết quả của từ khoá đã xoá.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Thứ tự có quan trọng không?</div>
+      <p>
+        Có. <code>debounceTime</code> phải đứng <strong>trước</strong> <code>switchMap</code>.
+        Đảo lại thành <code>switchMap</code> rồi <code>debounceTime</code> thì API đã bị gọi rồi
+        mới đi debounce cái kết quả — tức là bạn debounce nhầm thứ, và mọi phím gõ vẫn thành một request.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Experiment nhỏ — nhìn tận mắt việc huỷ</h2>
+
+    <div class="callout bridge">
+      <div class="ct">🔮 Dự đoán trước khi chạy</div>
+      <p>
+        Với pipeline ở mục 4 (debounce 300ms, API mất 500ms), kịch bản:
+        gõ <code>"an"</code> → đợi 400ms → gõ <code>"ang"</code> → đợi 800ms.
+      </p>
+      <p>
+        Nhật ký <code>log</code> sẽ chứa những dòng nào, theo thứ tự nào?
+        <strong>Viết ra giấy trước khi đọc tiếp.</strong>
+      </p>
+    </div>
+
+    <p>
+      Ta dùng <strong>đồng hồ giả</strong> của Vitest (<code>vi.useFakeTimers()</code>) để tua thời gian
+      tức thì — test chạy trong vài mili-giây thay vì phải chờ thật, và kết quả tất định, không flaky.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ src/playground/search-stream.spec.ts</span>
+<pre><code><span class="fn">vi</span>.<span class="fn">useFakeTimers</span>();
+
+tuKhoa$.<span class="fn">next</span>(<span class="str">'an'</span>);
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">300</span>);   <span class="cmt">// debounce nhả → API "an" BẮT ĐẦU (cần 500ms)</span>
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">100</span>);   <span class="cmt">// API "an" mới chạy được 100/500ms</span>
+
+tuKhoa$.<span class="fn">next</span>(<span class="str">'ang'</span>);
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">300</span>);   <span class="cmt">// debounce nhả → switchMap GIẾT "an" (mới 400/500) → API "ang" bắt đầu</span>
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">500</span>);   <span class="cmt">// API "ang" xong</span>
+
+<span class="cmt">// Kết quả đã verify chạy XANH trên rxjs 7.8.2 / Vitest 4.1.10:</span>
+<span class="fn">expect</span>(log).<span class="fn">toEqual</span>([<span class="str">'START an'</span>, <span class="str">'CANCEL an'</span>, <span class="str">'START ang'</span>]);
+<span class="fn">expect</span>(ketQua).<span class="fn">toEqual</span>([[<span class="str">'ang result'</span>]]);</code></pre>
+    </div>
+
+    <p>
+      <strong>Kết quả cần quan sát:</strong> dòng <code>'CANCEL an'</code> xuất hiện
+      <em>ngay trước</em> <code>'START ang'</code>. Đó là bằng chứng vật lý: switchMap không
+      "bỏ qua kết quả cũ", nó <strong>ngắt kết nối tới nguồn cũ</strong>. Và
+      <code>ketQua</code> chỉ có <strong>một</strong> phần tử — kết quả của "an" chưa từng
+      chạm tới <code>subscribe</code>.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>6. Đưa nó vào EduCommerce</h2>
+
+    <p>
+      Pipeline này <strong>chính là</strong> logic tìm kiếm của <code>CourseListComponent</code>.
+      Ở Phase 5, thứ duy nhất thay đổi là <code>fakeSearchApi</code> bị thay bằng
+      <code>this.courseService.search(term)</code> gọi qua MSW. <strong>Cấu trúc pipeline giữ nguyên 100%.</strong>
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">Xem trước · Phase 5 sẽ trông như thế này</span>
+<pre><code><span class="cmt">// Hôm nay bạn viết bản này (chạy trong test, không cần Angular):</span>
+<span class="fn">switchMap</span>((term) => <span class="fn">fakeSearchApi</span>(term, <span class="num">500</span>, log))
+
+<span class="cmt">// Phase 5 chỉ đổi đúng dòng đó thành:</span>
+<span class="fn">switchMap</span>((term) => <span class="kw">this</span>.courseService.<span class="fn">search</span>(term))
+<span class="cmt">// → HttpClient huỷ request bằng xhr.abort() khi switchMap unsubscribe.</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Vì sao học RxJS tách khỏi Angular trước?</div>
+      <p>
+        Vì nếu học chung, bạn sẽ không phân biệt được lỗi do RxJS hay do Angular change detection.
+        Tách ra, feedback loop chỉ còn <strong>chưa tới 1 giây</strong> và mỗi lần đỏ bạn biết chắc
+        vấn đề nằm ở luồng dữ liệu. Đây cũng là câu trả lời cho <em>Câu hỏi tư duy</em> ở Bài 00:
+        RxJS lo <strong>luồng bất đồng bộ và vòng đời của nó</strong>; Angular chỉ đóng góp
+        <code>HttpClient</code> (tạo Observable từ XHR) và <code>async</code> pipe (subscribe hộ rồi render).
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>7. Happy path chưa đủ</h2>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Production scenario: API trả lỗi 500</div>
+      <p>
+        Người dùng gõ một từ khoá làm server sập. Inner Observable phát <code>error</code>.
+        Câu hỏi: sau đó người dùng gõ tiếp từ khoá khác — ô tìm kiếm còn hoạt động không?
+      </p>
+    </div>
+
+    <p>
+      <strong>Không.</strong> Và đây là cái bẫy khiến rất nhiều ô tìm kiếm "chết im lặng" trên production.
+      Lý do nằm ở hợp đồng cơ bản của Observable: <code>error</code> là một
+      <strong>trạng thái kết thúc</strong>. Lỗi từ inner nổi lên outer, giết luôn cả subscription gốc.
+      Từ đó về sau <code>tuKhoa$.next(...)</code> vẫn chạy nhưng <strong>không còn ai nghe</strong>.
+    </p>
+
+    <p>
+      Cách chữa là <code>catchError</code> đặt <strong>bên trong</strong> <code>switchMap</code>,
+      để lỗi được nuốt ở tầng inner và không bao giờ chạm tới outer:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · đặt catchError ĐÚNG chỗ</span>
+<pre><code><span class="cmt">// ❌ SAI: lỗi đã leo lên outer rồi mới bắt → stream chết luôn sau lần lỗi đầu.</span>
+<span class="fn">switchMap</span>((term) => <span class="fn">searchApi</span>(term)),
+<span class="fn">catchError</span>(() => <span class="fn">of</span>([])),
+
+<span class="cmt">// ✅ ĐÚNG: lỗi bị nuốt NGAY TRONG inner, outer không hề hay biết → stream sống tiếp.</span>
+<span class="fn">switchMap</span>((term) =>
+  <span class="fn">searchApi</span>(term).<span class="fn">pipe</span>(
+    <span class="fn">catchError</span>(() => <span class="fn">of</span>([])),   <span class="cmt">// lỗi → trả mảng rỗng, coi như "không tìm thấy"</span>
+  ),
+),</code></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p>
+        <strong>Hỏi:</strong> "Đặt <code>catchError</code> trong hay ngoài <code>switchMap</code> thì khác gì nhau?"
+      </p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Ngoài thì bắt được lỗi nhưng stream chết vĩnh viễn, vì
+        <code>error</code> là trạng thái kết thúc của Observable — nó đã giết outer subscription
+        trước khi <code>catchError</code> kịp thay thế. Trong thì lỗi được xử lý ở phạm vi
+        một request, outer vẫn sống và ô tìm kiếm dùng tiếp được. Với search box thì gần như
+        luôn phải đặt bên trong."
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>8. Đối chiếu tài liệu chính thức</h2>
+
+    <p>
+      JSDoc gốc của
+      <a href="https://github.com/ReactiveX/rxjs/blob/7.x/src/internal/operators/switchMap.ts" target="_blank" rel="noopener noreferrer">
+        <code>switchMap</code> trong source RxJS 7.x
+      </a>
+      mô tả: <em>"Projects each source value to an Observable which is merged in the output Observable,
+      emitting values only from the most recently projected Observable"</em> — và nói rõ:
+      <em>"When a new inner Observable is emitted, <code>switchMap</code> stops emitting items from
+      the earlier-emitted inner Observable and begins emitting items from the new one."</em>
+    </p>
+
+    <p>
+      Còn phần "huỷ tới tận tầng mạng" thì
+      <a href="https://angular.dev/guide/http/making-requests" target="_blank" rel="noopener noreferrer">docs Angular về HttpClient</a>
+      nói thẳng: <em>"Unsubscribing will abort the in-progress request. This is very useful if the
+      <code>Observable</code> is subscribed via the <code>async</code> pipe, as it will automatically
+      cancel the request if the user navigates away from the current page."</em>
+      Ghép hai mảnh lại: <code>switchMap</code> unsubscribe inner cũ → Angular abort XHR đó.
+      Không có phép màu nào ở giữa.
+    </p>
+
+    <div class="callout warn">
+      <div class="ct">⚠️ Vì sao trích từ GitHub chứ không phải rxjs.dev</div>
+      <p>
+        <code>rxjs.dev</code> là một SPA — nội dung render bằng JavaScript nên nhiều công cụ đọc
+        tự động chỉ nhận được trang trắng. JSDoc trong source là <strong>chính nguồn</strong> mà
+        trang docs được sinh ra từ đó. Mẹo này hữu ích cho cả bạn khi cần tra nhanh hành vi thật.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Nút "Lưu" trong form sửa khoá học. Người dùng bấm 3 lần liên tiếp vì mạng lag.
+      Bạn muốn: bỏ qua cú bấm mới nếu request trước <strong>chưa xong</strong>. Dùng operator nào?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="switchMap sẽ HUỶ request lưu đang chạy để chạy cái mới. Với thao tác ghi dữ liệu, huỷ giữa chừng là chuyện rất tệ: server có thể đã ghi một phần. switchMap hợp với ĐỌC, không hợp với GHI.">
+      A. <code>switchMap</code> — huỷ cái cũ, giữ cái mới nhất.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. exhaustMap có nghĩa 'đang bận thì bỏ ngoài tai': nó bỏ qua mọi giá trị outer mới cho tới khi inner hiện tại xong. Đây chính xác là hành vi chống double-submit. Quy tắc nhớ: đọc dùng switchMap, ghi/submit dùng exhaustMap.">
+      B. <code>exhaustMap</code> — bỏ qua giá trị mới khi inner đang chạy.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="concatMap xếp hàng và chạy TUẦN TỰ cả 3 — tức là bạn lưu 3 lần, chỉ là lần lượt thay vì song song. Không giải quyết được double-submit, chỉ làm nó chậm hơn.">
+      C. <code>concatMap</code> — xếp hàng chạy lần lượt.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Trong pipeline ở mục 4, bạn đổi <code>switchMap</code> thành <code>mergeMap</code>.
+      Test <code>expect(log).toEqual(['START an', 'CANCEL an', 'START ang'])</code> sẽ ra sao?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không. mergeMap không huỷ gì cả — nó cho mọi inner chạy song song. Dòng CANCEL sẽ KHÔNG xuất hiện.">
+      A. Vẫn xanh — <code>mergeMap</code> cũng huỷ inner cũ, chỉ khác cách gộp kết quả.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. mergeMap để cả hai inner chạy song song tới cùng, nên log chỉ có ['START an', 'START ang'] — không có CANCEL. Và quan trọng hơn: subscribe nhận ĐỦ HAI kết quả, kết quả của 'an' về sau sẽ ghi đè lên 'ang' trên UI. Đó chính là bug ở mục 1, được tái hiện trong một test chạy 5ms.">
+      B. Đỏ — log thành <code>['START an', 'START ang']</code>, không có <code>CANCEL</code>, và nhận đủ 2 kết quả.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai — mergeMap là operator hợp lệ và biên dịch bình thường. Nó không báo lỗi, nó chỉ âm thầm cho ra hành vi khác. Đó mới là điều nguy hiểm: chọn nhầm operator không gây lỗi biên dịch nào cả.">
+      C. Lỗi biên dịch vì <code>mergeMap</code> không dùng được với Observable trả mảng.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>9. 🎯 Your turn</h2>
+
+    <p>
+      Đừng copy code phía trên. File <code>search-api.ts</code> ở mục 3 là <em>đồ nghề</em> — cứ dán nguyên.
+      Thứ bạn phải tự viết là <strong>pipeline và các assertion chứng minh nó</strong>.
+    </p>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/search-stream.spec.ts</code></div>
+
+      <p>
+        Viết một file test chứa 4 test case dưới đây. Mỗi test phải <strong>chứng minh</strong>
+        hành vi bằng assertion trên <code>log</code>, không được chỉ kiểm tra kết quả cuối.
+      </p>
+
+      <strong>Tiêu chí (Definition of Done — cả 4 phải xanh)</strong>
+
+      <ul class="checklist">
+        <li>
+          <strong>TC1</strong> — <code>switchMap</code> huỷ request cũ: gõ <code>"an"</code>, chờ 400ms,
+          gõ <code>"ang"</code>, chờ 800ms. Khẳng định <code>log</code> đúng bằng
+          <code>['START an', 'CANCEL an', 'START ang']</code> và chỉ nhận <strong>một</strong> kết quả.
+        </li>
+        <li>
+          <strong>TC2</strong> — <code>debounceTime</code> gộp phím: bắn <code>'a'</code>, <code>'an'</code>,
+          <code>'ang'</code> cách nhau 100ms rồi chờ. Khẳng định <code>log</code> chỉ có
+          <strong>đúng một</strong> dòng <code>START</code>.
+        </li>
+        <li>
+          <strong>TC3</strong> — <code>distinctUntilChanged</code>: bắn <code>'angular'</code>,
+          <code>'angular'</code>, <code>'vue'</code> (mỗi lần đều chờ qua debounce).
+          Khẳng định chỉ có <strong>2</strong> dòng <code>START</code>.
+        </li>
+        <li>
+          <strong>TC4</strong> — đổi sang <code>mergeMap</code>, giữ nguyên kịch bản TC1.
+          Khẳng định <strong>không có</strong> <code>CANCEL</code> và nhận <strong>đủ 2</strong> kết quả.
+          Đây là test tái hiện bug — nó phải xanh, vì nó mô tả đúng hành vi (sai) của <code>mergeMap</code>.
+        </li>
+      </ul>
+
+      <p>
+        Chạy <code>npm test</code>. Xong thì <strong>dán output thật + dán file spec</strong> vào chat.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚠️ Một bẫy sẽ làm bạn mất 15 phút nếu không biết trước</div>
+      <p>
+        Nhớ <code>afterEach(() =&gt; vi.useRealTimers())</code>. Quên dòng này thì đồng hồ giả rò rỉ
+        sang test sau và bạn sẽ ngồi debug một test đỏ hoàn toàn không liên quan.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi thật sự bí</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Với đồng hồ giả, "chờ" không phải <code>await</code> — nó là <code>vi.advanceTimersByTime(ms)</code>,
+      chạy đồng bộ tức thì. Nghĩa là cả test của bạn <strong>không cần <code>async</code></strong>.
+    </p>
+
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>new Subject&lt;string&gt;()</code> làm nguồn từ khoá ·
+      <code>vi.useFakeTimers()</code> mở đầu mỗi test ·
+      <code>vi.advanceTimersByTime(ms)</code> tua ·
+      <code>expect(log).toEqual([...])</code> để so khớp <strong>chính xác cả thứ tự</strong>
+      (đừng dùng <code>toContain</code> — nó không bắt được thứ tự sai).
+    </p>
+
+    <p>
+      <strong>Hint 3 · Khung sườn:</strong><br>
+      <code>const log: ApiLog = []</code> → <code>const tuKhoa$ = new Subject&lt;string&gt;()</code> →
+      <code>tuKhoa$.pipe(debounceTime(300), distinctUntilChanged(), switchMap(t =&gt; fakeSearchApi(t, 500, log))).subscribe(r =&gt; ketQua.push(r))</code>
+      → bắn giá trị xen kẽ với <code>advanceTimersByTime</code> → assert.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải thích được <code>switchMap</code> giải quyết vấn đề gì: <strong>race condition</strong>, không phải "gọi API gọn hơn".</li>
+      <li>Tôi hiểu <strong>vì sao</strong> nó huỷ được: teardown của Observable → <code>xhr.abort()</code>.</li>
+      <li>Tôi biết khi nào <strong>không</strong> nên dùng nó: thao tác ghi/submit — chỗ đó dùng <code>exhaustMap</code>.</li>
+      <li>Tôi biết <code>catchError</code> phải nằm trong <code>switchMap</code>, và giải thích được vì sao.</li>
+      <li>Tôi đã chứng minh tất cả bằng test chạy được, không phải bằng niềm tin.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>10. Câu hỏi tư duy</h2>
+
+    <p>
+      Trong mọi test của bài này, ta gọi <code>.subscribe(...)</code> mà <strong>không bao giờ</strong>
+      gọi <code>.unsubscribe()</code>. Test vẫn xanh, không sao cả.
+    </p>
+    <p>
+      Nhưng khi pipeline này nằm trong <code>CourseListComponent</code> và người dùng rời trang
+      giữa lúc request đang bay: <code>tuKhoa$</code> là một <code>Subject</code> sống trong component,
+      còn subscription thì đang giữ tham chiếu tới component đó.
+      <strong>Ai giải phóng ai?</strong> Và chuyện gì xảy ra nếu response về sau khi component đã bị huỷ?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Nếu reasoning hiện tại của bạn chưa trả lời được, đó chính xác là lỗ hổng
+        Bài 02 sinh ra để lấp — và là nguyên nhân số một gây memory leak trong Angular Classic.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 02 · <code>takeUntil(destroy$)</code> — tự dọn rác khi không có ai dọn hộ</div>
+    <p class="nd">
+      Angular Classic không có <code>takeUntilDestroyed</code>. Bạn sẽ tự tay tạo leak, nhìn nó
+      bằng test, rồi vá bằng pattern mà mọi codebase Angular cũ đều dùng.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0000-dung-san-tap-educommerce.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi file <code>search-stream.spec.ts</code> bạn viết + output thật của <code>npm test</code>.
+    Tôi sẽ đọc file thật và chạy lại test trước khi nhận xét — review theo kiểu PR:
+    reasoning trước, syntax sau.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

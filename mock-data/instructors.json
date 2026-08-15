@@ -1,0 +1,134 @@
+[
+  {
+    "id": "inst_1",
+    "name": "Mohammad Crist",
+    "email": "mohammad_crist@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_1",
+    "title": "Senior Software Engineer",
+    "bio": "Tristis benevolentia attonbitus auctus cognomen esse custodia clamo perspiciatis apud. Copiose defleo territo aveho doloribus.",
+    "rating": 4.7,
+    "studentCount": 4192,
+    "courseCount": 2
+  },
+  {
+    "id": "inst_2",
+    "name": "Arnold Schowalter-Haag",
+    "email": "arnold_schowalter-haag44@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_2",
+    "title": "AI Researcher",
+    "bio": "Verbera caute somniculosus. Eius incidunt audacia volubilis terga.",
+    "rating": 5,
+    "studentCount": 71639,
+    "courseCount": 4
+  },
+  {
+    "id": "inst_3",
+    "name": "Art Hane",
+    "email": "art.hane82@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_3",
+    "title": "Product Designer",
+    "bio": "Aqua thorax aestas vos ter avarus abscido. Suffragium suspendo tepidus aer contego ancilla urbanus qui comptus.",
+    "rating": 4.2,
+    "studentCount": 25223,
+    "courseCount": 1
+  },
+  {
+    "id": "inst_4",
+    "name": "Lon Carter",
+    "email": "lon_carter@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_4",
+    "title": "AI Researcher",
+    "bio": "Cursus acies amita addo repellat comburo dolor. Carus cunae temeritas calco aestus clam arx vetus titulus recusandae.",
+    "rating": 4.9,
+    "studentCount": 64392,
+    "courseCount": 3
+  },
+  {
+    "id": "inst_5",
+    "name": "Kaley Hamill",
+    "email": "kaley.hamill@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_5",
+    "title": "Career Coach",
+    "bio": "Dolorem cur brevis. Confero vilitas commodi.",
+    "rating": 4.6,
+    "studentCount": 56390,
+    "courseCount": 3
+  },
+  {
+    "id": "inst_6",
+    "name": "Vilma Gutkowski",
+    "email": "vilma.gutkowski@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_6",
+    "title": "Senior Software Engineer",
+    "bio": "Ver capto arbor deporto voro. Spectaculum temptatio capio suscipit.",
+    "rating": 4.5,
+    "studentCount": 50768,
+    "courseCount": 3
+  },
+  {
+    "id": "inst_7",
+    "name": "Bill Dibbert",
+    "email": "bill_dibbert67@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_7",
+    "title": "Marketing Director",
+    "bio": "Similique ater studio crepusculum. Apto confugo amplitudo vesper utpote causa solutio totidem itaque ex.",
+    "rating": 4.4,
+    "studentCount": 7901,
+    "courseCount": 6
+  },
+  {
+    "id": "inst_8",
+    "name": "Lisandro Reinger",
+    "email": "lisandro_reinger@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_8",
+    "title": "Senior Software Engineer",
+    "bio": "Velociter pecto absque ambitus. Abscido arto inflammatio stultus solio caelestis summa capio.",
+    "rating": 4.4,
+    "studentCount": 59846,
+    "courseCount": 5
+  },
+  {
+    "id": "inst_9",
+    "name": "Mac Hilll",
+    "email": "mac.hilll97@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_9",
+    "title": "Career Coach",
+    "bio": "Theatrum desolo neque depromo autus suppono cicuta acidus. Atqui vilicus viriliter vergo corpus accendo vestrum cursus.",
+    "rating": 5,
+    "studentCount": 77108,
+    "courseCount": 4
+  },
+  {
+    "id": "inst_10",
+    "name": "Gerald D'Amore",
+    "email": "gerald_damore@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_10",
+    "title": "Senior Software Engineer",
+    "bio": "Vulariter apud eaque utpote talio subiungo subvenio. Claudeo tolero tollo usque vereor.",
+    "rating": 4.6,
+    "studentCount": 40371,
+    "courseCount": 6
+  },
+  {
+    "id": "inst_11",
+    "name": "Mauricio Hauck",
+    "email": "mauricio.hauck57@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_11",
+    "title": "AI Researcher",
+    "bio": "Cito officiis adaugeo adfero traho contigo antepono. Tepesco bibo qui ait admoneo excepturi hic.",
+    "rating": 4.7,
+    "studentCount": 58224,
+    "courseCount": 0
+  },
+  {
+    "id": "inst_12",
+    "name": "Enrique Kessler",
+    "email": "enrique.kessler@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=inst_12",
+    "title": "Full-stack Developer",
+    "bio": "Atavus aro carus inflammatio summopere solutio. Virtus taceo iste perspiciatis curia.",
+    "rating": 4.4,
+    "studentCount": 28800,
+    "courseCount": 3
+  }
+]

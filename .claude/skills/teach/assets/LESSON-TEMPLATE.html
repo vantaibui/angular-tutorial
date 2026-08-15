@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  TEMPLATE BÀI HỌC /teach
+
+  KHÔNG sửa <head> hoặc dependency dùng chung nếu không có yêu cầu rõ ràng.
+
+  ĐƯỢC PHÉP:
+  - Thay đổi / thêm / bớt section bên trong <body> để phù hợp nội dung bài.
+  - Bỏ những section không cần thiết.
+  - Thêm section khi bài học cần experiment, migration, edge case, challenge...
+
+  PHẢI GIỮ CONTRACT:
+  - .wrap
+  - .lesson-tag
+  - .callout + bridge|why|warn|danger|tip
+  - .code-block
+  - .code-label
+  - .quiz
+  - .opt[data-correct][data-explain]
+  - .feedback
+  - .next-box
+  - .navbar
+  - lesson-enhance.js
+
+  MỤC TIÊU:
+  Mỗi bài chỉ dạy MỘT mental model / engineering idea chính.
+
+  FLOW ƯU TIÊN:
+  Problem
+    → Mental Model
+    → Why
+    → Small Experiment
+    → Project Application
+    → Production Edge Case
+    → Quiz
+    → Challenge
+    → Senior Takeaway
+    → Bridge sang bài tiếp theo
+
+  QUY ƯỚC CODE:
+  - Comment tiếng Việt trong MỌI khối code.
+  - Mỗi <pre> phải nằm trong .code-block.
+  - lesson-enhance.js tự gắn nút Copy.
+  - Không đưa code dài không liên quan tới mục tiêu bài.
+  - Nếu có Legacy vs Modern, giải thích WHY chứ không chỉ so syntax.
+
+  QUIZ:
+  - Ưu tiên câu hỏi tình huống / reasoning.
+  - Không hỏi thuộc lòng API nếu không cần.
+  - Mỗi đáp án phải có data-explain có giá trị học tập.
+
+  ============================================================================
+-->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài {{NN}} · {{Tiêu đề bài}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+
+  <!-- ================================================================
+       LESSON HEADER
+       ================================================================ -->
+
+  <header>
+
+    <span class="lesson-tag">
+      {{Module X}} · Bài {{NN}} · {{Legacy | Modern | Migration | Project | Core}}
+    </span>
+
+    <h1>
+      {{Tiêu đề bài — DẠY MỘT THỨ duy nhất}}
+    </h1>
+
+    <p class="subtitle">
+      {{Một câu nói rõ "win" của bài này}}
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~{{N}} phút
+      · 🎯 {{Kết quả quan sát được sau bài}}
+      · {{🏷️ Feature/domain nếu có}}
+    </p>
+
+  </header>
+
+
+  <!-- ================================================================
+       LEARNING CONTRACT
+       Outcome phải kiểm chứng được.
+       ================================================================ -->
+
+  <section class="callout tip">
+
+    <div class="ct">
+      🎯 Sau bài này bạn phải làm được
+    </div>
+
+    <ul class="checklist">
+      <li>{{Outcome cụ thể 1}}</li>
+      <li>{{Outcome cụ thể 2}}</li>
+      <li>{{Outcome cụ thể 3}}</li>
+    </ul>
+
+  </section>
+
+
+  <!-- ================================================================
+       BRIDGE
+       Chỉ dùng kiến thức learner đã có.
+       ================================================================ -->
+
+  <section class="callout bridge">
+
+    <div class="ct">
+      🌉 Bắc cầu từ cái bạn đã biết
+    </div>
+
+    <p>
+      {{Liên hệ concept mới với kiến thức learner đã nắm:
+      JavaScript, browser, TypeScript, bài trước, project hiện tại...}}
+    </p>
+
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>{{mental model mới}}</strong>.
+    </p>
+
+  </section>
+
+
+  <!-- ================================================================
+       1. REAL PROBLEM
+       Không bắt đầu bằng syntax/framework API.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      1. {{Bài toán thật trước khi có concept}}
+    </h2>
+
+    <p>
+      {{Mô tả problem bằng tình huống thực tế.
+      Nếu có project xuyên suốt, ưu tiên lấy ví dụ từ project.}}
+    </p>
+
+
+    <div class="callout why">
+
+      <div class="ct">
+        🤔 Trước khi nhìn code
+      </div>
+
+      <p>
+        {{Một câu hỏi khiến learner phải tự nhận ra vấn đề cần giải quyết.}}
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       2. MENTAL MODEL
+       Đây là phần quan trọng nhất.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      2. Mental model
+    </h2>
+
+    <p>
+      {{Giải thích concept bằng causal reasoning:
+      chuyện gì xảy ra, tại sao nó xảy ra, ai chịu trách nhiệm.}}
+    </p>
+
+
+    <div class="callout why">
+
+      <div class="ct">
+        💡 Hãy giữ câu này trong đầu
+      </div>
+
+      <p>
+        <strong>
+          {{Một câu mental model ngắn, chính xác, có thể nhớ lâu}}
+        </strong>
+      </p>
+
+    </div>
+
+
+    <!-- Tuỳ chọn: dùng khi concept có nhiều boundary/trạng thái -->
+    <table class="data">
+
+      <thead>
+        <tr>
+          <th>{{Khía cạnh}}</th>
+          <th>{{Ý nghĩa}}</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <tr>
+          <td>{{...}}</td>
+          <td>{{...}}</td>
+        </tr>
+
+        <tr>
+          <td>{{...}}</td>
+          <td>{{...}}</td>
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </section>
+
+
+  <!-- ================================================================
+       3. FIRST CODE
+       Code nhỏ nhất chứng minh mental model.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      3. Nhìn mental model bằng code
+    </h2>
+
+    <p>
+      {{Giải thích code sắp làm chứng minh điều gì.
+      Không đưa code trước rồi mới cố giải thích.}}
+    </p>
+
+
+    <div class="code-block">
+
+      <span class="code-label">
+        {{TypeScript / Angular / HTML / RxJS / context}}
+      </span>
+
+<pre><code><span class="cmt">// {{Comment tiếng Việt giải thích ý nghĩa quan trọng}}</span>
+{{code tối thiểu}}</code></pre>
+
+    </div>
+
+
+    <div class="callout why">
+
+      <div class="ct">
+        🔎 Điều cần quan sát
+      </div>
+
+      <p>
+        {{Behavior nào trong đoạn code chứng minh mental model phía trên?}}
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       4. LEGACY VS MODERN
+       KHỐI TUỲ CHỌN.
+
+       Chỉ dùng nếu API / architecture thực sự có evolution đáng học:
+       - NgModule → Standalone
+       - constructor DI → inject()
+       - RouterModule → provideRouter()
+       - class interceptor → functional interceptor
+       - @Input → signal input
+       - zone → zoneless
+       ...
+
+       KHÔNG ép bài RxJS hoặc JS thuần phải có section này.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      4. Angular trước đây giải quyết việc này thế nào?
+    </h2>
+
+    <p>
+      {{Legacy approach là gì, và quan trọng hơn:
+      tại sao nó từng là một thiết kế hợp lý?}}
+    </p>
+
+
+    <div class="code-block">
+
+      <span class="code-label">
+        Legacy Angular · {{version/context}}
+      </span>
+
+<pre><code><span class="cmt">// Cách thường gặp trong codebase Angular cũ</span>
+{{legacy code}}</code></pre>
+
+    </div>
+
+
+    <h3>
+      Angular hiện đại thay đổi điều gì?
+    </h3>
+
+    <p>
+      {{Modern API thay đổi mental model / dependency / ergonomics như thế nào?}}
+    </p>
+
+
+    <div class="code-block">
+
+      <span class="code-label">
+        Modern Angular · {{version/context}}
+      </span>
+
+<pre><code><span class="cmt">// Cùng bài toán nhưng dùng API hiện đại</span>
+{{modern code}}</code></pre>
+
+    </div>
+
+
+    <div class="callout warn">
+
+      <div class="ct">
+        ⚖️ Mới không đồng nghĩa luôn tốt hơn
+      </div>
+
+      <p>
+        {{Trade-off, compatibility concern, migration risk,
+        hoặc lý do codebase cũ chưa nên migrate ngay.}}
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       5. SMALL EXPERIMENT
+       Cô lập concept khỏi complexity của application.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      5. Experiment nhỏ
+    </h2>
+
+    <p>
+      Trước khi đưa concept vào project lớn,
+      hãy cô lập behavior bằng một thử nghiệm nhỏ.
+    </p>
+
+
+    <div class="callout bridge">
+
+      <div class="ct">
+        🔮 Dự đoán trước khi chạy
+      </div>
+
+      <p>
+        {{Prediction question.
+        Buộc learner dự đoán behavior trước khi xem output.}}
+      </p>
+
+    </div>
+
+
+    <div class="code-block">
+
+      <span class="code-label">
+        experiment · {{file/context}}
+      </span>
+
+<pre><code><span class="cmt">// Thay đổi dữ liệu này và quan sát behavior</span>
+{{experiment code}}</code></pre>
+
+    </div>
+
+
+    <p>
+      <strong>Kết quả cần quan sát:</strong>
+      {{Kết quả + giải thích WHY.}}
+    </p>
+
+  </section>
+
+
+  <!-- ================================================================
+       6. PROJECT APPLICATION
+       Áp dụng vào project xuyên suốt.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      6. Đưa nó vào {{Project / feature}}
+    </h2>
+
+    <p>
+      Bây giờ mới áp dụng concept vào bài toán thực tế:
+      <strong>{{Product / Search / Cart / Auth / Checkout / ...}}</strong>.
+    </p>
+
+
+    <div class="code-block">
+
+      <span class="code-label">
+        {{feature}} · {{file path}}
+      </span>
+
+<pre><code><span class="cmt">// Chỉ chứa phần code liên quan trực tiếp tới mental model của bài</span>
+{{project code}}</code></pre>
+
+    </div>
+
+
+    <div class="callout why">
+
+      <div class="ct">
+        💡 Vì sao đặt logic ở đây?
+      </div>
+
+      <p>
+        {{Giải thích responsibility/boundary.
+        Không chỉ nói file nào chứa code.}}
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       7. PRODUCTION EDGE CASE
+       Senior training phải có failure mode.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      7. Happy path chưa đủ
+    </h2>
+
+
+    <div class="callout danger">
+
+      <div class="ct">
+        🔥 Production scenario
+      </div>
+
+      <p>
+        {{Một edge case thực tế:
+        - network chậm
+        - request trả sai thứ tự
+        - user double-click
+        - component destroy
+        - token expire
+        - stock thay đổi
+        - price thay đổi
+        - multi-tab
+        - API failure
+        ...}}
+      </p>
+
+    </div>
+
+
+    <p>
+      {{Phân tích:
+      điều gì xảy ra → vì sao → impact → cách reasoning để xử lý.}}
+    </p>
+
+  </section>
+
+
+  <!-- ================================================================
+       8. SOURCE OF TRUTH
+       Chỉ cite docs chính chủ cho API/behavior quan trọng.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      8. Đối chiếu tài liệu chính thức
+    </h2>
+
+    <p>
+      Theo
+      <a
+        href="{{URL docs official}}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        tài liệu chính thức
+      </a>,
+      {{Khẳng định quan trọng có dẫn nguồn}}.
+    </p>
+
+
+    <div class="callout bridge">
+
+      <div class="ct">
+        📚 Docs và mental model có vai trò khác nhau
+      </div>
+
+      <p>
+        Docs giúp xác nhận <strong>API contract</strong>.
+        Mental model giúp bạn reasoning khi API, architecture
+        hoặc version Angular thay đổi.
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       9. QUIZ
+       Hỏi reasoning, không ưu tiên syntax trivia.
+       ================================================================ -->
+
+  <section class="quiz">
+
+    <h3>
+      🧠 Kiểm tra mental model
+    </h3>
+
+
+    <div class="q">
+      Câu 1. {{Câu hỏi tình huống}}
+    </div>
+
+
+    <button
+      class="opt"
+      data-correct="false"
+      data-explain="{{Vì sao sai + mental model đúng nên là gì}}"
+    >
+      A. {{...}}
+    </button>
+
+
+    <button
+      class="opt"
+      data-correct="true"
+      data-explain="{{Vì sao đúng — giải thích causal reasoning}}"
+    >
+      B. {{...}}
+    </button>
+
+
+    <button
+      class="opt"
+      data-correct="false"
+      data-explain="{{Vì sao sai + misconception đang mắc phải}}"
+    >
+      C. {{...}}
+    </button>
+
+
+    <div class="feedback"></div>
+
+  </section>
+
+
+  <!-- ================================================================
+       10. YOUR TURN
+       Người học phải code / reasoning.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      10. 🎯 Your turn
+    </h2>
+
+    <p>
+      Không copy đoạn code phía trên.
+      Hãy tự giải quyết task sau bằng mental model vừa học.
+    </p>
+
+
+    <div class="callout tip">
+
+      <div class="ct">
+        🛠 {{Tên task}}
+      </div>
+
+      <p>
+        {{Mô tả task ngắn gọn}}
+      </p>
+
+
+      <strong>Acceptance criteria</strong>
+
+      <ul class="checklist">
+        <li>{{Criterion 1}}</li>
+        <li>{{Criterion 2}}</li>
+        <li>{{Criterion 3}}</li>
+      </ul>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       11. HINT LADDER
+       Không spoil solution ngay.
+       Có thể được JS biến thành collapsible về sau.
+       ================================================================ -->
+
+  <section class="callout bridge">
+
+    <div class="ct">
+      🧩 Hint ladder — chỉ đọc khi bị stuck
+    </div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      {{Gợi ý mental model}}
+    </p>
+
+    <p>
+      <strong>Hint 2 · API / concept:</strong><br>
+      {{Gợi ý Angular API / RxJS operator / browser concept}}
+    </p>
+
+    <p>
+      <strong>Hint 3 · Skeleton:</strong><br>
+      {{Pseudocode ngắn, không full implementation}}
+    </p>
+
+  </section>
+
+
+  <!-- ================================================================
+       12. SENIOR TAKEAWAY
+       Checklist không phải "đã đọc", mà là "đã hiểu".
+       ================================================================ -->
+
+  <section class="callout tip">
+
+    <div class="ct">
+      ✅ Senior takeaway
+    </div>
+
+    <ul class="checklist">
+
+      <li>
+        Tôi giải thích được
+        <strong>{{concept}}</strong>
+        giải quyết vấn đề gì.
+      </li>
+
+      <li>
+        Tôi hiểu
+        <strong>vì sao</strong>
+        behavior đó xảy ra.
+      </li>
+
+      <li>
+        Tôi biết trade-off và khi nào không nên áp dụng nó.
+      </li>
+
+      <li>
+        {{Nếu phù hợp:
+        Tôi hiểu legacy approach và modern approach khác nhau ở đâu.}}
+      </li>
+
+      <li>
+        Tôi đã áp dụng concept vào một tình huống project thực tế.
+      </li>
+
+    </ul>
+
+  </section>
+
+
+  <!-- ================================================================
+       13. THINKING QUESTION
+       Cầu nối tự nhiên tới lesson sau.
+       ================================================================ -->
+
+  <section>
+
+    <h2>
+      13. Câu hỏi tư duy
+    </h2>
+
+    <p>
+      {{Một câu hỏi mở buộc learner suy luận từ mental model hiện tại
+      và dẫn trực tiếp tới bài kế tiếp.}}
+    </p>
+
+
+    <div class="callout why">
+
+      <div class="ct">
+        🧠 Đừng tìm đáp án ngay
+      </div>
+
+      <p>
+        Hãy thử giải thích bằng mental model vừa học.
+        Nếu reasoning hiện tại bắt đầu không đủ,
+        đó chính là vấn đề bài tiếp theo sẽ giải quyết.
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       NEXT LESSON
+       ================================================================ -->
+
+  <aside class="next-box">
+
+    <div class="nl">
+      → Bài tiếp theo
+    </div>
+
+    <div class="nt">
+      Bài {{NN+1}} · {{Tiêu đề bài sau}}
+    </div>
+
+    <p class="nd">
+      {{Teaser 1 câu dựa trên vấn đề còn bỏ ngỏ ở bài hiện tại.}}
+    </p>
+
+  </aside>
+
+
+  <!-- ================================================================
+       NAVIGATION
+
+       Bài đầu:
+       <a class="disabled" ...>← Trước</a>
+
+       Bài cuối:
+       <a class="disabled" ...>Sau →</a>
+       ================================================================ -->
+
+  <nav
+    class="navbar"
+    aria-label="Điều hướng bài học"
+  >
+
+    <a href="{{00NN-1-slug.html}}">
+      ← Trước
+    </a>
+
+    <a href="index.html">
+      🏠 Mục lục
+    </a>
+
+    <a href="{{00NN+1-slug.html}}">
+      Sau →
+    </a>
+
+  </nav>
+
+
+  <!-- ================================================================
+       MENTOR CTA
+       ================================================================ -->
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+
+    Đừng chỉ nói “tôi hiểu rồi”.
+    Hãy gửi code bạn vừa làm, giải thích mental model bằng lời của bạn,
+    hoặc chỉ ra chính xác phần nào vẫn còn mơ hồ.
+
+    Tôi sẽ review từ reasoning trước rồi mới đến syntax.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

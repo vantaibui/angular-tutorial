@@ -1,0 +1,58 @@
+[
+  {
+    "id": "cat_1",
+    "name": "Web Development",
+    "slug": "web-development",
+    "icon": "code",
+    "courseCount": 11
+  },
+  {
+    "id": "cat_2",
+    "name": "Data Science",
+    "slug": "data-science",
+    "icon": "bar-chart",
+    "courseCount": 6
+  },
+  {
+    "id": "cat_3",
+    "name": "Mobile Development",
+    "slug": "mobile-development",
+    "icon": "smartphone",
+    "courseCount": 2
+  },
+  {
+    "id": "cat_4",
+    "name": "UI/UX Design",
+    "slug": "uiux-design",
+    "icon": "figma",
+    "courseCount": 1
+  },
+  {
+    "id": "cat_5",
+    "name": "DevOps & Cloud",
+    "slug": "devops--cloud",
+    "icon": "server",
+    "courseCount": 5
+  },
+  {
+    "id": "cat_6",
+    "name": "Artificial Intelligence",
+    "slug": "artificial-intelligence",
+    "icon": "cpu",
+    "courseCount": 1
+  },
+  {
+    "id": "cat_7",
+    "name": "Business & Marketing",
+    "slug": "business--marketing",
+    "icon": "briefcase",
+    "courseCount": 5
+  },
+  {
+    "id": "cat_8",
+    "name": "Personal Development",
+    "slug": "personal-development",
+    "icon": "user",
+    "courseCount": 9
+  }
+]

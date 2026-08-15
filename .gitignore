@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Angular build output
+dist/
+tmp/
+out-tsc/
+.angular/
+
+# Test output
+coverage/
+
+# Môi trường & bí mật
+.env
+.env.*
+
+# Cấu hình máy cá nhân — KHÔNG commit
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp

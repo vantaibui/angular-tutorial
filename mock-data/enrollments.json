@@ -1,0 +1,49 @@
+[
+  {
+    "id": "enroll_1",
+    "userId": "user_student_demo",
+    "courseId": "course_25",
+    "progress": 100,
+    "completedLessonIds": [],
+    "enrolledAt": "2026-02-22T02:13:35.975Z",
+    "lastAccessedAt": "2026-08-10T23:32:49.824Z"
+  },
+  {
+    "id": "enroll_2",
+    "userId": "user_student_demo",
+    "courseId": "course_6",
+    "progress": 33,
+    "completedLessonIds": [
+      "course_6_lesson_1",
+      "course_6_lesson_2",
+      "course_6_lesson_3",
+      "course_6_lesson_4",
+      "course_6_lesson_5",
+      "course_6_lesson_6",
+      "course_6_lesson_7",
+      "course_6_lesson_8",
+      "course_6_lesson_9",
+      "course_6_lesson_10"
+    ],
+    "enrolledAt": "2026-07-11T14:14:54.113Z",
+    "lastAccessedAt": "2026-08-10T11:03:57.615Z"
+  },
+  {
+    "id": "enroll_3",
+    "userId": "user_student_demo",
+    "courseId": "course_17",
+    "progress": 16,
+    "completedLessonIds": [],
+    "enrolledAt": "2026-01-25T18:22:48.837Z",
+    "lastAccessedAt": "2026-08-12T03:37:21.511Z"
+  },
+  {
+    "id": "enroll_4",
+    "userId": "user_student_demo",
+    "courseId": "course_28",
+    "progress": 66,
+    "completedLessonIds": [],
+    "enrolledAt": "2026-02-11T02:46:02.797Z",
+    "lastAccessedAt": "2026-08-13T12:50:11.643Z"
+  }
+]

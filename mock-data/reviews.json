@@ -1,0 +1,2392 @@
+[
+  {
+    "id": "course_1_review_1",
+    "courseId": "course_1",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-16T20:24:04.647Z"
+  },
+  {
+    "id": "course_1_review_2",
+    "courseId": "course_1",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-13T02:19:06.709Z"
+  },
+  {
+    "id": "course_1_review_3",
+    "courseId": "course_1",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-04-05T22:41:49.206Z"
+  },
+  {
+    "id": "course_1_review_4",
+    "courseId": "course_1",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-05-31T02:57:47.346Z"
+  },
+  {
+    "id": "course_2_review_1",
+    "courseId": "course_2",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-03-10T06:53:35.426Z"
+  },
+  {
+    "id": "course_2_review_2",
+    "courseId": "course_2",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-08-07T21:06:06.811Z"
+  },
+  {
+    "id": "course_2_review_3",
+    "courseId": "course_2",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-07-11T21:36:48.126Z"
+  },
+  {
+    "id": "course_2_review_4",
+    "courseId": "course_2",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-22T04:15:17.372Z"
+  },
+  {
+    "id": "course_2_review_5",
+    "courseId": "course_2",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-07-18T17:46:51.860Z"
+  },
+  {
+    "id": "course_2_review_6",
+    "courseId": "course_2",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-08-07T00:31:55.697Z"
+  },
+  {
+    "id": "course_2_review_7",
+    "courseId": "course_2",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-23T18:53:18.548Z"
+  },
+  {
+    "id": "course_2_review_8",
+    "courseId": "course_2",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-07-30T06:11:02.857Z"
+  },
+  {
+    "id": "course_3_review_1",
+    "courseId": "course_3",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-29T17:00:31.785Z"
+  },
+  {
+    "id": "course_3_review_2",
+    "courseId": "course_3",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-03-15T19:18:08.658Z"
+  },
+  {
+    "id": "course_3_review_3",
+    "courseId": "course_3",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-12T06:58:32.308Z"
+  },
+  {
+    "id": "course_3_review_4",
+    "courseId": "course_3",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-04-09T04:36:46.112Z"
+  },
+  {
+    "id": "course_4_review_1",
+    "courseId": "course_4",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-30T08:08:58.867Z"
+  },
+  {
+    "id": "course_4_review_2",
+    "courseId": "course_4",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-13T18:26:53.120Z"
+  },
+  {
+    "id": "course_4_review_3",
+    "courseId": "course_4",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-05-08T02:33:12.197Z"
+  },
+  {
+    "id": "course_4_review_4",
+    "courseId": "course_4",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-03-21T11:33:51.308Z"
+  },
+  {
+    "id": "course_4_review_5",
+    "courseId": "course_4",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-03-06T10:13:49.692Z"
+  },
+  {
+    "id": "course_5_review_1",
+    "courseId": "course_5",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-11T09:42:37.009Z"
+  },
+  {
+    "id": "course_5_review_2",
+    "courseId": "course_5",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-07-31T20:37:00.374Z"
+  },
+  {
+    "id": "course_5_review_3",
+    "courseId": "course_5",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-05-23T07:07:41.369Z"
+  },
+  {
+    "id": "course_5_review_4",
+    "courseId": "course_5",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-04-04T11:39:18.846Z"
+  },
+  {
+    "id": "course_5_review_5",
+    "courseId": "course_5",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-29T02:19:31.424Z"
+  },
+  {
+    "id": "course_5_review_6",
+    "courseId": "course_5",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-20T02:34:35.781Z"
+  },
+  {
+    "id": "course_6_review_1",
+    "courseId": "course_6",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-31T10:30:47.630Z"
+  },
+  {
+    "id": "course_6_review_2",
+    "courseId": "course_6",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-07-29T10:08:39.842Z"
+  },
+  {
+    "id": "course_6_review_3",
+    "courseId": "course_6",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-05-05T09:14:32.326Z"
+  },
+  {
+    "id": "course_6_review_4",
+    "courseId": "course_6",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-08-03T22:08:27.052Z"
+  },
+  {
+    "id": "course_6_review_5",
+    "courseId": "course_6",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-02T02:21:17.631Z"
+  },
+  {
+    "id": "course_6_review_6",
+    "courseId": "course_6",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-09T13:25:44.748Z"
+  },
+  {
+    "id": "course_6_review_7",
+    "courseId": "course_6",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-02-20T15:34:56.266Z"
+  },
+  {
+    "id": "course_6_review_8",
+    "courseId": "course_6",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-07-13T17:28:21.396Z"
+  },
+  {
+    "id": "course_7_review_1",
+    "courseId": "course_7",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-06T22:17:01.516Z"
+  },
+  {
+    "id": "course_7_review_2",
+    "courseId": "course_7",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-13T03:06:06.557Z"
+  },
+  {
+    "id": "course_7_review_3",
+    "courseId": "course_7",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-14T21:39:05.384Z"
+  },
+  {
+    "id": "course_7_review_4",
+    "courseId": "course_7",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-08T16:58:24.948Z"
+  },
+  {
+    "id": "course_8_review_1",
+    "courseId": "course_8",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-10T11:36:18.766Z"
+  },
+  {
+    "id": "course_8_review_2",
+    "courseId": "course_8",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-04-24T16:25:14.573Z"
+  },
+  {
+    "id": "course_8_review_3",
+    "courseId": "course_8",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-08T22:19:49.273Z"
+  },
+  {
+    "id": "course_8_review_4",
+    "courseId": "course_8",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-07-13T08:09:53.601Z"
+  },
+  {
+    "id": "course_9_review_1",
+    "courseId": "course_9",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-31T03:01:03.061Z"
+  },
+  {
+    "id": "course_9_review_2",
+    "courseId": "course_9",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-06T20:19:38.895Z"
+  },
+  {
+    "id": "course_9_review_3",
+    "courseId": "course_9",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-21T14:33:02.417Z"
+  },
+  {
+    "id": "course_9_review_4",
+    "courseId": "course_9",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-05-22T20:25:51.394Z"
+  },
+  {
+    "id": "course_9_review_5",
+    "courseId": "course_9",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-04T08:37:40.614Z"
+  },
+  {
+    "id": "course_10_review_1",
+    "courseId": "course_10",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-06-04T08:41:32.362Z"
+  },
+  {
+    "id": "course_10_review_2",
+    "courseId": "course_10",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-03-04T10:16:26.431Z"
+  },
+  {
+    "id": "course_10_review_3",
+    "courseId": "course_10",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-03-25T15:48:23.382Z"
+  },
+  {
+    "id": "course_10_review_4",
+    "courseId": "course_10",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-16T20:08:42.554Z"
+  },
+  {
+    "id": "course_10_review_5",
+    "courseId": "course_10",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-04-29T19:21:35.560Z"
+  },
+  {
+    "id": "course_10_review_6",
+    "courseId": "course_10",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-02-19T04:22:49.656Z"
+  },
+  {
+    "id": "course_10_review_7",
+    "courseId": "course_10",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-02-16T22:20:17.381Z"
+  },
+  {
+    "id": "course_10_review_8",
+    "courseId": "course_10",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-06-27T09:17:02.994Z"
+  },
+  {
+    "id": "course_10_review_9",
+    "courseId": "course_10",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-25T12:35:38.140Z"
+  },
+  {
+    "id": "course_11_review_1",
+    "courseId": "course_11",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-04-03T01:57:18.644Z"
+  },
+  {
+    "id": "course_11_review_2",
+    "courseId": "course_11",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-05-14T09:49:33.978Z"
+  },
+  {
+    "id": "course_11_review_3",
+    "courseId": "course_11",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-08-13T19:17:03.421Z"
+  },
+  {
+    "id": "course_11_review_4",
+    "courseId": "course_11",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-30T14:28:59.073Z"
+  },
+  {
+    "id": "course_12_review_1",
+    "courseId": "course_12",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-05-15T05:07:22.478Z"
+  },
+  {
+    "id": "course_12_review_2",
+    "courseId": "course_12",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-30T06:12:54.829Z"
+  },
+  {
+    "id": "course_12_review_3",
+    "courseId": "course_12",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-06-09T06:22:08.175Z"
+  },
+  {
+    "id": "course_12_review_4",
+    "courseId": "course_12",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-03-05T10:24:30.868Z"
+  },
+  {
+    "id": "course_12_review_5",
+    "courseId": "course_12",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-27T06:31:47.329Z"
+  },
+  {
+    "id": "course_12_review_6",
+    "courseId": "course_12",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-23T11:07:09.986Z"
+  },
+  {
+    "id": "course_12_review_7",
+    "courseId": "course_12",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-08-11T19:27:53.985Z"
+  },
+  {
+    "id": "course_12_review_8",
+    "courseId": "course_12",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-07T07:03:40.276Z"
+  },
+  {
+    "id": "course_12_review_9",
+    "courseId": "course_12",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-31T18:27:38.185Z"
+  },
+  {
+    "id": "course_13_review_1",
+    "courseId": "course_13",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-07-26T05:33:49.086Z"
+  },
+  {
+    "id": "course_13_review_2",
+    "courseId": "course_13",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-08-12T10:19:02.780Z"
+  },
+  {
+    "id": "course_13_review_3",
+    "courseId": "course_13",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-25T18:17:17.822Z"
+  },
+  {
+    "id": "course_13_review_4",
+    "courseId": "course_13",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-03-29T18:22:53.815Z"
+  },
+  {
+    "id": "course_13_review_5",
+    "courseId": "course_13",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-04-18T01:40:52.946Z"
+  },
+  {
+    "id": "course_13_review_6",
+    "courseId": "course_13",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-07-14T03:59:51.063Z"
+  },
+  {
+    "id": "course_13_review_7",
+    "courseId": "course_13",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-06T12:28:23.731Z"
+  },
+  {
+    "id": "course_13_review_8",
+    "courseId": "course_13",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-04-22T22:59:23.878Z"
+  },
+  {
+    "id": "course_14_review_1",
+    "courseId": "course_14",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-04-29T18:00:58.412Z"
+  },
+  {
+    "id": "course_14_review_2",
+    "courseId": "course_14",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-07-28T23:37:32.583Z"
+  },
+  {
+    "id": "course_14_review_3",
+    "courseId": "course_14",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-07-08T00:33:34.067Z"
+  },
+  {
+    "id": "course_14_review_4",
+    "courseId": "course_14",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-04-08T15:13:36.341Z"
+  },
+  {
+    "id": "course_14_review_5",
+    "courseId": "course_14",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-23T08:26:51.950Z"
+  },
+  {
+    "id": "course_14_review_6",
+    "courseId": "course_14",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-08-07T10:52:53.748Z"
+  },
+  {
+    "id": "course_14_review_7",
+    "courseId": "course_14",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-28T14:55:32.417Z"
+  },
+  {
+    "id": "course_14_review_8",
+    "courseId": "course_14",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-02-17T23:28:19.891Z"
+  },
+  {
+    "id": "course_14_review_9",
+    "courseId": "course_14",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-02-28T14:03:30.015Z"
+  },
+  {
+    "id": "course_15_review_1",
+    "courseId": "course_15",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-03-14T11:25:33.686Z"
+  },
+  {
+    "id": "course_15_review_2",
+    "courseId": "course_15",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-06-05T22:45:33.766Z"
+  },
+  {
+    "id": "course_15_review_3",
+    "courseId": "course_15",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-02-28T17:01:07.279Z"
+  },
+  {
+    "id": "course_15_review_4",
+    "courseId": "course_15",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-07-12T19:05:18.700Z"
+  },
+  {
+    "id": "course_15_review_5",
+    "courseId": "course_15",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-07-01T05:06:42.492Z"
+  },
+  {
+    "id": "course_15_review_6",
+    "courseId": "course_15",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-03T16:37:16.545Z"
+  },
+  {
+    "id": "course_15_review_7",
+    "courseId": "course_15",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-05T10:48:14.694Z"
+  },
+  {
+    "id": "course_15_review_8",
+    "courseId": "course_15",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-10T18:57:23.503Z"
+  },
+  {
+    "id": "course_16_review_1",
+    "courseId": "course_16",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-07-07T14:12:19.792Z"
+  },
+  {
+    "id": "course_16_review_2",
+    "courseId": "course_16",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-24T01:06:34.639Z"
+  },
+  {
+    "id": "course_16_review_3",
+    "courseId": "course_16",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-06-02T10:20:32.392Z"
+  },
+  {
+    "id": "course_16_review_4",
+    "courseId": "course_16",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-21T15:36:00.297Z"
+  },
+  {
+    "id": "course_16_review_5",
+    "courseId": "course_16",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-12T05:16:38.686Z"
+  },
+  {
+    "id": "course_16_review_6",
+    "courseId": "course_16",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-05-23T00:16:24.962Z"
+  },
+  {
+    "id": "course_16_review_7",
+    "courseId": "course_16",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-05-11T12:42:58.001Z"
+  },
+  {
+    "id": "course_16_review_8",
+    "courseId": "course_16",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-04-29T05:18:13.148Z"
+  },
+  {
+    "id": "course_17_review_1",
+    "courseId": "course_17",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-08T11:58:59.313Z"
+  },
+  {
+    "id": "course_17_review_2",
+    "courseId": "course_17",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-03-30T13:54:30.324Z"
+  },
+  {
+    "id": "course_17_review_3",
+    "courseId": "course_17",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-09T12:12:13.424Z"
+  },
+  {
+    "id": "course_17_review_4",
+    "courseId": "course_17",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-05-24T12:38:47.404Z"
+  },
+  {
+    "id": "course_17_review_5",
+    "courseId": "course_17",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-08-08T09:08:04.328Z"
+  },
+  {
+    "id": "course_18_review_1",
+    "courseId": "course_18",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-07-02T07:13:27.223Z"
+  },
+  {
+    "id": "course_18_review_2",
+    "courseId": "course_18",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-01T23:53:15.884Z"
+  },
+  {
+    "id": "course_18_review_3",
+    "courseId": "course_18",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-24T11:36:27.453Z"
+  },
+  {
+    "id": "course_18_review_4",
+    "courseId": "course_18",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-23T06:18:20.632Z"
+  },
+  {
+    "id": "course_18_review_5",
+    "courseId": "course_18",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-14T01:09:02.141Z"
+  },
+  {
+    "id": "course_18_review_6",
+    "courseId": "course_18",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-15T07:59:14.642Z"
+  },
+  {
+    "id": "course_19_review_1",
+    "courseId": "course_19",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-04-24T07:32:15.342Z"
+  },
+  {
+    "id": "course_19_review_2",
+    "courseId": "course_19",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-22T00:27:34.837Z"
+  },
+  {
+    "id": "course_19_review_3",
+    "courseId": "course_19",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-16T13:23:39.343Z"
+  },
+  {
+    "id": "course_20_review_1",
+    "courseId": "course_20",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-07-09T23:55:10.365Z"
+  },
+  {
+    "id": "course_20_review_2",
+    "courseId": "course_20",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-03-14T19:33:32.629Z"
+  },
+  {
+    "id": "course_20_review_3",
+    "courseId": "course_20",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-05-23T17:26:10.230Z"
+  },
+  {
+    "id": "course_21_review_1",
+    "courseId": "course_21",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-08-02T13:29:25.942Z"
+  },
+  {
+    "id": "course_21_review_2",
+    "courseId": "course_21",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-04-21T16:29:41.193Z"
+  },
+  {
+    "id": "course_21_review_3",
+    "courseId": "course_21",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-17T20:22:03.114Z"
+  },
+  {
+    "id": "course_22_review_1",
+    "courseId": "course_22",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-05-30T22:42:35.512Z"
+  },
+  {
+    "id": "course_22_review_2",
+    "courseId": "course_22",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 3,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-03-21T07:26:07.740Z"
+  },
+  {
+    "id": "course_22_review_3",
+    "courseId": "course_22",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-12T01:51:37.050Z"
+  },
+  {
+    "id": "course_22_review_4",
+    "courseId": "course_22",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-04-01T09:40:39.116Z"
+  },
+  {
+    "id": "course_22_review_5",
+    "courseId": "course_22",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-04-29T22:05:57.592Z"
+  },
+  {
+    "id": "course_22_review_6",
+    "courseId": "course_22",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-02-25T02:18:18.878Z"
+  },
+  {
+    "id": "course_22_review_7",
+    "courseId": "course_22",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-18T17:40:19.701Z"
+  },
+  {
+    "id": "course_23_review_1",
+    "courseId": "course_23",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-13T23:23:17.315Z"
+  },
+  {
+    "id": "course_23_review_2",
+    "courseId": "course_23",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 3,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-08-09T05:00:07.477Z"
+  },
+  {
+    "id": "course_23_review_3",
+    "courseId": "course_23",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-10T02:03:44.230Z"
+  },
+  {
+    "id": "course_23_review_4",
+    "courseId": "course_23",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 3,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-06-11T07:01:18.091Z"
+  },
+  {
+    "id": "course_23_review_5",
+    "courseId": "course_23",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-15T15:22:33.569Z"
+  },
+  {
+    "id": "course_23_review_6",
+    "courseId": "course_23",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-02-28T15:23:37.629Z"
+  },
+  {
+    "id": "course_23_review_7",
+    "courseId": "course_23",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-12T15:11:56.845Z"
+  },
+  {
+    "id": "course_24_review_1",
+    "courseId": "course_24",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-04-28T23:51:44.180Z"
+  },
+  {
+    "id": "course_24_review_2",
+    "courseId": "course_24",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-28T18:17:20.749Z"
+  },
+  {
+    "id": "course_24_review_3",
+    "courseId": "course_24",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-15T04:50:27.622Z"
+  },
+  {
+    "id": "course_25_review_1",
+    "courseId": "course_25",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-22T21:19:24.884Z"
+  },
+  {
+    "id": "course_25_review_2",
+    "courseId": "course_25",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-06-08T15:56:58.999Z"
+  },
+  {
+    "id": "course_25_review_3",
+    "courseId": "course_25",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-26T19:55:40.162Z"
+  },
+  {
+    "id": "course_25_review_4",
+    "courseId": "course_25",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-18T23:55:50.915Z"
+  },
+  {
+    "id": "course_25_review_5",
+    "courseId": "course_25",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-06-12T17:13:35.604Z"
+  },
+  {
+    "id": "course_26_review_1",
+    "courseId": "course_26",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-24T12:43:17.667Z"
+  },
+  {
+    "id": "course_26_review_2",
+    "courseId": "course_26",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-17T14:37:07.099Z"
+  },
+  {
+    "id": "course_26_review_3",
+    "courseId": "course_26",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-10T01:45:20.558Z"
+  },
+  {
+    "id": "course_26_review_4",
+    "courseId": "course_26",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-04-28T15:31:20.342Z"
+  },
+  {
+    "id": "course_26_review_5",
+    "courseId": "course_26",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-07-16T02:52:32.294Z"
+  },
+  {
+    "id": "course_26_review_6",
+    "courseId": "course_26",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-15T18:39:52.969Z"
+  },
+  {
+    "id": "course_26_review_7",
+    "courseId": "course_26",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-08-11T05:50:15.648Z"
+  },
+  {
+    "id": "course_26_review_8",
+    "courseId": "course_26",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-04-19T14:07:37.097Z"
+  },
+  {
+    "id": "course_26_review_9",
+    "courseId": "course_26",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-06-01T22:38:22.229Z"
+  },
+  {
+    "id": "course_27_review_1",
+    "courseId": "course_27",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-03-22T16:15:00.377Z"
+  },
+  {
+    "id": "course_27_review_2",
+    "courseId": "course_27",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-24T00:52:51.676Z"
+  },
+  {
+    "id": "course_27_review_3",
+    "courseId": "course_27",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-04T08:50:21.912Z"
+  },
+  {
+    "id": "course_27_review_4",
+    "courseId": "course_27",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-26T16:27:18.384Z"
+  },
+  {
+    "id": "course_27_review_5",
+    "courseId": "course_27",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-07-24T05:06:00.350Z"
+  },
+  {
+    "id": "course_27_review_6",
+    "courseId": "course_27",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-12T15:49:49.592Z"
+  },
+  {
+    "id": "course_27_review_7",
+    "courseId": "course_27",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-07-05T14:39:56.945Z"
+  },
+  {
+    "id": "course_27_review_8",
+    "courseId": "course_27",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-04-22T17:00:29.955Z"
+  },
+  {
+    "id": "course_28_review_1",
+    "courseId": "course_28",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-06-16T07:38:21.324Z"
+  },
+  {
+    "id": "course_28_review_2",
+    "courseId": "course_28",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-25T19:45:59.590Z"
+  },
+  {
+    "id": "course_28_review_3",
+    "courseId": "course_28",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-06-06T20:18:07.332Z"
+  },
+  {
+    "id": "course_28_review_4",
+    "courseId": "course_28",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-03-02T06:03:52.605Z"
+  },
+  {
+    "id": "course_28_review_5",
+    "courseId": "course_28",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-05-10T14:10:06.603Z"
+  },
+  {
+    "id": "course_28_review_6",
+    "courseId": "course_28",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-05-23T10:39:58.308Z"
+  },
+  {
+    "id": "course_28_review_7",
+    "courseId": "course_28",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-17T20:52:45.740Z"
+  },
+  {
+    "id": "course_29_review_1",
+    "courseId": "course_29",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-11T17:31:25.833Z"
+  },
+  {
+    "id": "course_29_review_2",
+    "courseId": "course_29",
+    "userId": "user_10",
+    "userName": "Woodrow Waters",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_10",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-02-28T17:49:29.892Z"
+  },
+  {
+    "id": "course_29_review_3",
+    "courseId": "course_29",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-06-23T08:09:41.063Z"
+  },
+  {
+    "id": "course_29_review_4",
+    "courseId": "course_29",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-29T01:10:18.319Z"
+  },
+  {
+    "id": "course_30_review_1",
+    "courseId": "course_30",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-08-04T16:34:15.535Z"
+  },
+  {
+    "id": "course_30_review_2",
+    "courseId": "course_30",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-03-30T19:57:20.917Z"
+  },
+  {
+    "id": "course_30_review_3",
+    "courseId": "course_30",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-04-20T19:20:44.939Z"
+  },
+  {
+    "id": "course_30_review_4",
+    "courseId": "course_30",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-06-15T02:37:48.137Z"
+  },
+  {
+    "id": "course_30_review_5",
+    "courseId": "course_30",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-03-25T06:28:56.728Z"
+  },
+  {
+    "id": "course_30_review_6",
+    "courseId": "course_30",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-08-08T19:16:19.392Z"
+  },
+  {
+    "id": "course_30_review_7",
+    "courseId": "course_30",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-02-20T14:22:14.631Z"
+  },
+  {
+    "id": "course_30_review_8",
+    "courseId": "course_30",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 4,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-05-26T21:25:30.585Z"
+  },
+  {
+    "id": "course_30_review_9",
+    "courseId": "course_30",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-03T10:52:18.711Z"
+  },
+  {
+    "id": "course_30_review_10",
+    "courseId": "course_30",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-08-12T21:40:25.488Z"
+  },
+  {
+    "id": "course_31_review_1",
+    "courseId": "course_31",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-07-19T20:07:18.193Z"
+  },
+  {
+    "id": "course_31_review_2",
+    "courseId": "course_31",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-22T19:01:01.868Z"
+  },
+  {
+    "id": "course_31_review_3",
+    "courseId": "course_31",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 5,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-04-13T05:06:57.196Z"
+  },
+  {
+    "id": "course_31_review_4",
+    "courseId": "course_31",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-04-19T23:44:06.408Z"
+  },
+  {
+    "id": "course_31_review_5",
+    "courseId": "course_31",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-03T01:12:29.319Z"
+  },
+  {
+    "id": "course_32_review_1",
+    "courseId": "course_32",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-08-12T11:51:28.702Z"
+  },
+  {
+    "id": "course_32_review_2",
+    "courseId": "course_32",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-05-05T01:55:18.308Z"
+  },
+  {
+    "id": "course_32_review_3",
+    "courseId": "course_32",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-04T21:05:52.909Z"
+  },
+  {
+    "id": "course_32_review_4",
+    "courseId": "course_32",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-07-24T06:45:42.705Z"
+  },
+  {
+    "id": "course_32_review_5",
+    "courseId": "course_32",
+    "userId": "user_8",
+    "userName": "Sherry Breitenberg",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_8",
+    "rating": 5,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-05-26T01:46:40.981Z"
+  },
+  {
+    "id": "course_32_review_6",
+    "courseId": "course_32",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-04-04T23:34:45.114Z"
+  },
+  {
+    "id": "course_33_review_1",
+    "courseId": "course_33",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-05-23T15:24:51.983Z"
+  },
+  {
+    "id": "course_33_review_2",
+    "courseId": "course_33",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 4,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-25T21:23:21.360Z"
+  },
+  {
+    "id": "course_33_review_3",
+    "courseId": "course_33",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-04-14T05:47:16.359Z"
+  },
+  {
+    "id": "course_34_review_1",
+    "courseId": "course_34",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-02-22T23:34:23.534Z"
+  },
+  {
+    "id": "course_34_review_2",
+    "courseId": "course_34",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-08-05T08:52:19.508Z"
+  },
+  {
+    "id": "course_34_review_3",
+    "courseId": "course_34",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-05-23T10:46:48.046Z"
+  },
+  {
+    "id": "course_34_review_4",
+    "courseId": "course_34",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-14T00:26:26.997Z"
+  },
+  {
+    "id": "course_34_review_5",
+    "courseId": "course_34",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-24T02:23:43.927Z"
+  },
+  {
+    "id": "course_34_review_6",
+    "courseId": "course_34",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-05-21T15:49:30.031Z"
+  },
+  {
+    "id": "course_34_review_7",
+    "courseId": "course_34",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-06-07T15:37:22.601Z"
+  },
+  {
+    "id": "course_34_review_8",
+    "courseId": "course_34",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-08-05T16:16:21.076Z"
+  },
+  {
+    "id": "course_34_review_9",
+    "courseId": "course_34",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-06-04T06:28:54.994Z"
+  },
+  {
+    "id": "course_34_review_10",
+    "courseId": "course_34",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-08-08T11:18:35.403Z"
+  },
+  {
+    "id": "course_35_review_1",
+    "courseId": "course_35",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-06T01:43:57.000Z"
+  },
+  {
+    "id": "course_35_review_2",
+    "courseId": "course_35",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 3,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-02-17T09:09:52.164Z"
+  },
+  {
+    "id": "course_35_review_3",
+    "courseId": "course_35",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-07-30T07:29:48.656Z"
+  },
+  {
+    "id": "course_35_review_4",
+    "courseId": "course_35",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 5,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-07-06T12:00:11.560Z"
+  },
+  {
+    "id": "course_36_review_1",
+    "courseId": "course_36",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 4,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-07-17T17:55:21.573Z"
+  },
+  {
+    "id": "course_36_review_2",
+    "courseId": "course_36",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-03-28T04:58:06.006Z"
+  },
+  {
+    "id": "course_36_review_3",
+    "courseId": "course_36",
+    "userId": "user_4",
+    "userName": "Tavares Mante",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_4",
+    "rating": 5,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-02-27T14:04:04.242Z"
+  },
+  {
+    "id": "course_36_review_4",
+    "courseId": "course_36",
+    "userId": "user_15",
+    "userName": "Suzanne Beatty",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_15",
+    "rating": 3,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-04-22T08:28:55.390Z"
+  },
+  {
+    "id": "course_36_review_5",
+    "courseId": "course_36",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 4,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-08-01T07:15:03.035Z"
+  },
+  {
+    "id": "course_36_review_6",
+    "courseId": "course_36",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-06-16T01:32:23.322Z"
+  },
+  {
+    "id": "course_36_review_7",
+    "courseId": "course_36",
+    "userId": "user_14",
+    "userName": "Ismael Schuster",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_14",
+    "rating": 4,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-03-21T12:25:00.158Z"
+  },
+  {
+    "id": "course_36_review_8",
+    "courseId": "course_36",
+    "userId": "user_13",
+    "userName": "Melanie Gleichner",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_13",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-05-15T15:44:43.340Z"
+  },
+  {
+    "id": "course_36_review_9",
+    "courseId": "course_36",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-03-13T14:03:46.693Z"
+  },
+  {
+    "id": "course_37_review_1",
+    "courseId": "course_37",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-02-17T02:47:53.866Z"
+  },
+  {
+    "id": "course_37_review_2",
+    "courseId": "course_37",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-02-25T02:46:50.253Z"
+  },
+  {
+    "id": "course_37_review_3",
+    "courseId": "course_37",
+    "userId": "user_12",
+    "userName": "Anthony Ward",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_12",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-04-14T19:43:25.105Z"
+  },
+  {
+    "id": "course_37_review_4",
+    "courseId": "course_37",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 4,
+    "comment": "The instructor explains complex topics in a simple way.",
+    "createdAt": "2026-04-20T16:51:18.488Z"
+  },
+  {
+    "id": "course_37_review_5",
+    "courseId": "course_37",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 4,
+    "comment": "Good content but could use more advanced examples.",
+    "createdAt": "2026-05-02T05:34:32.023Z"
+  },
+  {
+    "id": "course_37_review_6",
+    "courseId": "course_37",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 3,
+    "comment": "Great course, very clear explanations and hands-on projects!",
+    "createdAt": "2026-07-24T05:07:55.225Z"
+  },
+  {
+    "id": "course_38_review_1",
+    "courseId": "course_38",
+    "userId": "user_11",
+    "userName": "Luciano O'Hara",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_11",
+    "rating": 5,
+    "comment": "Loved the real-world project at the end of the course.",
+    "createdAt": "2026-04-23T06:37:13.095Z"
+  },
+  {
+    "id": "course_38_review_2",
+    "courseId": "course_38",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 5,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-06-28T17:00:37.531Z"
+  },
+  {
+    "id": "course_38_review_3",
+    "courseId": "course_38",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-05-11T07:31:32.109Z"
+  },
+  {
+    "id": "course_39_review_1",
+    "courseId": "course_39",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Exactly what I needed to level up my skills.",
+    "createdAt": "2026-04-10T21:16:41.516Z"
+  },
+  {
+    "id": "course_39_review_2",
+    "courseId": "course_39",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-05T14:29:59.420Z"
+  },
+  {
+    "id": "course_39_review_3",
+    "courseId": "course_39",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Helped me pass my technical interview, highly recommend!",
+    "createdAt": "2026-05-31T06:33:39.661Z"
+  },
+  {
+    "id": "course_40_review_1",
+    "courseId": "course_40",
+    "userId": "user_9",
+    "userName": "Carol Welch",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_9",
+    "rating": 4,
+    "comment": "Practical, to the point, and well structured.",
+    "createdAt": "2026-05-20T18:41:37.862Z"
+  },
+  {
+    "id": "course_40_review_2",
+    "courseId": "course_40",
+    "userId": "user_student_demo",
+    "userName": "Student Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=student_demo",
+    "rating": 3,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-08-03T04:04:49.731Z"
+  },
+  {
+    "id": "course_40_review_3",
+    "courseId": "course_40",
+    "userId": "user_5",
+    "userName": "Andy Hagenes",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_5",
+    "rating": 5,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-04-01T04:38:49.500Z"
+  },
+  {
+    "id": "course_40_review_4",
+    "courseId": "course_40",
+    "userId": "user_admin_demo",
+    "userName": "Admin Demo",
+    "userAvatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "rating": 3,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-23T12:40:14.202Z"
+  },
+  {
+    "id": "course_40_review_5",
+    "courseId": "course_40",
+    "userId": "user_6",
+    "userName": "Maybell Schowalter",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_6",
+    "rating": 4,
+    "comment": "Some sections felt outdated, would love an update.",
+    "createdAt": "2026-03-07T23:15:22.507Z"
+  },
+  {
+    "id": "course_40_review_6",
+    "courseId": "course_40",
+    "userId": "user_7",
+    "userName": "Ana Kerluke",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_7",
+    "rating": 4,
+    "comment": "Pace was a bit fast for a complete beginner, but manageable.",
+    "createdAt": "2026-07-12T21:24:54.513Z"
+  },
+  {
+    "id": "course_40_review_7",
+    "courseId": "course_40",
+    "userId": "user_3",
+    "userName": "Mercedes Schroeder",
+    "userAvatar": "https://i.pravatar.cc/150?u=user_3",
+    "rating": 5,
+    "comment": "Best course on this topic I have taken so far.",
+    "createdAt": "2026-05-26T15:27:32.983Z"
+  }
+]

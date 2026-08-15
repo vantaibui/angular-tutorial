@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lộ trình Angular Senior — Classic → Modern</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+<style>
+  .hero { text-align: center; margin-bottom: 14px; }
+  .hero h1 { font-size: 2.4rem; }
+  .progress-wrap { margin: 26px 0 40px; }
+  .progress-bar { height: 10px; background: var(--bg-card); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; }
+  .progress-label { text-align: center; color: var(--text-dim); font-size: 14px; margin-top: 8px; }
+  .module { margin: 30px 0; }
+  .module-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .module-num { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 14px; }
+  .module-head h2 { border: none; margin: 14px 0 2px; padding: 0; font-size: 1.35rem; }
+  .module-why { color: var(--text-dim); font-size: 14px; margin: 0 0 12px; }
+  .lessons-list { list-style: none; padding: 0; margin: 0; }
+  .lessons-list li { margin: 6px 0; }
+  .lessons-list a, .lessons-list span.soon {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-soft); font-size: 15px;
+  }
+  .lessons-list a { color: var(--text); }
+  .lessons-list a:hover { border-color: var(--accent); background: var(--bg-card); }
+  .lessons-list span.soon { color: var(--text-dim); border-style: dashed; }
+  .badge { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
+  .badge.done { background: rgba(74,222,128,.15); color: var(--green); }
+  .badge.now  { background: rgba(56,189,248,.15); color: var(--accent); }
+  .badge.soon { background: #232838; color: var(--text-dim); }
+  .lcount { margin-left: auto; font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+  .intro-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent-2); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 10px; }
+  .stage-sep { margin: 46px 0 10px; padding: 14px 18px; border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent); }
+  .stage-sep h2 { border: none; margin: 0 0 4px; padding: 0; font-size: 1.15rem; }
+  .stage-sep p { margin: 0; color: var(--text-dim); font-size: 14px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="lesson-tag">🅰️ Angular · Senior path · EduCommerce</span>
+
+    <h1>Lộ trình Angular Senior</h1>
+
+    <p class="subtitle">
+      Từ <strong>Classic</strong> (NgModule · RxJS · class Guard/Interceptor) tới
+      <strong>Modern</strong> (Standalone · Signals) — bằng cách <em>migrate chính app mình đã build</em>,
+      không build lại từ đầu.
+    </p>
+  </header>
+
+
+  <section class="intro-card">
+    <strong>🎯 Cách học</strong>
+
+    <p>
+      Mỗi bài: bài toán thật → mental model → experiment nhỏ chạy được →
+      áp dụng vào project → edge case production → quiz → tự code → review kiểu PR.
+      Không bài nào qua được nếu tiêu chí ✅ chưa đạt.
+    </p>
+
+    <p>
+      <strong>Project xuyên suốt:</strong> <strong>EduCommerce</strong> — nền tảng e-learning kiêm bán
+      khoá học. Data giả lập qua <strong>MSW</strong> dùng bộ mock có sẵn trong <code>mock-data/</code>.
+      Mỗi bài đóng góp một mẩu <em>chạy được</em> vào app này.
+    </p>
+
+    <p>
+      <strong>Môi trường:</strong> Angular <code>22.1.4</code> chạy chế độ NgModule
+      (<code>--no-standalone</code>) trên Node <code>v24.18.0</code>.
+      Angular 16 "classic" thật không chạy được trên Node 24 — chỗ nào Angular 22 đã khác v12–v16,
+      bài học sẽ chỉ đích danh.
+    </p>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">📍 Bạn đang ở đâu?</div>
+
+    <p>
+      <strong>Module 0 — Setup</strong> · Bài <strong>00</strong> · Dựng sân tập EduCommerce
+    </p>
+
+    <p>
+      Milestone gần nhất:
+      <strong>project chạy được + tự viết test chứng minh <code>switchMap</code> huỷ request cũ</strong>
+      (hết Bài 01).
+    </p>
+  </section>
+
+
+  <section class="progress-wrap">
+    <div class="progress-bar" role="progressbar" aria-label="Tiến độ lộ trình"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" style="width: 0%"></div>
+    </div>
+    <div class="progress-label">
+      <strong>0</strong> / ~62 bài · <strong>0%</strong> · 2 bài đã sẵn sàng để học
+    </div>
+  </section>
+
+
+  <!-- ============================ GIAI ĐOẠN 1 ============================ -->
+  <div class="stage-sep">
+    <h2>🏛 Giai đoạn 1 — Angular Classic (NgModule)</h2>
+    <p>Phase 0–10 · ~44 bài · Xây toàn bộ EduCommerce bằng kiến trúc mà 80% codebase production đang chạy.</p>
+  </div>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 0</span>
+      <span class="lcount">1 bài</span>
+    </div>
+    <h2>Setup — sân tập</h2>
+    <p class="module-why">
+      Không học chay. Phải có project chạy được trước khi học dòng lý thuyết đầu tiên.
+    </p>
+    <ul class="lessons-list">
+      <li>
+        <a href="0000-dung-san-tap-educommerce.html" aria-current="page">
+          <span class="badge now">Bài 00</span>
+          <strong>Dựng sân tập EduCommerce (chế độ NgModule)</strong>
+          <span class="lcount">→ bắt đầu</span>
+        </a>
+      </li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 1</span>
+      <span class="lcount">7 bài</span>
+    </div>
+    <h2>Phase 0 — Nền tảng: RxJS · Generics · DI</h2>
+    <p class="module-why">
+      Angular Classic không có Signals để "trốn" RxJS. Và Generics là công cụ khiến
+      <code>GenericApiService&lt;T&gt;</code> ở Phase 1 và <code>DynamicForm</code> ở Phase 3 khả thi.
+      Ba thứ này phải vững trước, nếu không mọi phase sau chỉ là chép code.
+    </p>
+    <ul class="lessons-list">
+      <li>
+        <a href="0001-rxjs-search-as-you-type.html">
+          <span class="badge now">Bài 01</span>
+          <span><code>switchMap</code> và nghệ thuật huỷ request</span>
+          <span class="lcount">sẵn sàng</span>
+        </a>
+      </li>
+      <li><span class="soon"><span class="badge soon">Bài 02</span><span><code>takeUntil(destroy$)</code> — memory leak và cách tự dọn</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 03</span><span>Observable vs Promise · Subject / BehaviorSubject / ReplaySubject</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 04</span><span><code>combineLatest</code> và luồng dẫn xuất</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 05</span><span>Generics nền — function, interface, constraint <code>extends</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 06</span><span>Generic class — <code>InMemoryRepository&lt;T&gt;</code> type-safe</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 07</span><span>DI &amp; injector tree · <code>InjectionToken</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 2</span>
+      <span class="lcount">4 bài</span>
+    </div>
+    <h2>Phase 1 — Kiến trúc NgModule + Generic Service</h2>
+    <p class="module-why">
+      Pattern Core/Shared/Feature là bộ khung gần như mọi codebase Angular cũ đều theo.
+      Đọc hiểu nó = đọc hiểu codebase lạ.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 08</span><span>CoreModule · SharedModule · Feature Module</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 09</span><span>Cắm MSW + bộ <code>mock-data/</code> có sẵn</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 10</span><span><code>GenericApiService&lt;T&gt;</code> — Generics vào việc thật</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 11</span><span><code>CourseService</code> / <code>UserService</code> kế thừa</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 3</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 2 — Routing Classic</h2>
+    <p class="module-why">
+      <code>loadChildren</code> + class Guard — cú pháp bạn sẽ gặp ở mọi dự án cũ,
+      khác hẳn <code>loadComponent</code> + <code>CanActivateFn</code> của Modern.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 12</span><span><code>forRoot</code>/<code>forChild</code> &amp; lazy-load theo module</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 13</span><span>Class-based <code>AuthGuard implements CanActivate</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 14</span><span><code>RoleGuard</code> · <code>route.data</code> · redirect kèm <code>returnUrl</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 4</span>
+      <span class="lcount">9 bài ⭐</span>
+    </div>
+    <h2>Phase 3 — Reactive Forms &amp; Custom Complex Forms</h2>
+    <p class="module-why">
+      <strong>Trọng tâm số 1 của khoá</strong> theo yêu cầu của bạn. Đây là module dài nhất và
+      được giảng kỹ nhất: nhiều ví dụ nhỏ trước, bài tập lớn sau. <code>ControlValueAccessor</code>
+      là kỹ thuật phân biệt rõ nhất giữa mid và senior Angular.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 15</span><span>Reactive Forms nền + cross-field validator</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 16</span><span><code>ControlValueAccessor</code> — 4 method và ai gọi chúng</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 17</span><span><code>&lt;app-rating-input&gt;</code> — custom control đầu tiên</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 18</span><span><code>&lt;app-tag-input&gt;</code> + <code>NG_VALIDATORS</code> (tối đa 5 tag)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 19</span><span><code>FormArray</code> động — thêm/xoá không mất data</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 20</span><span>Nested <code>FormArray</code> — Course Builder (Section → Lesson)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 21</span><span>CDK Drag &amp; Drop — sắp xếp thứ tự trong FormArray</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 22</span><span><code>DynamicFormComponent</code> — render form từ schema</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 23</span><span>Async Validator — check email tồn tại, không spam API</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 5</span>
+      <span class="lcount">4 bài</span>
+    </div>
+    <h2>Phase 4 — Auth Flow Classic</h2>
+    <p class="module-why">
+      Class-based interceptor + refresh token là bài toán RxJS khó nhất của app —
+      và là câu phỏng vấn senior kinh điển.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 24</span><span>Class <code>HttpInterceptor</code> + <code>HTTP_INTERCEPTORS</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 25</span><span>Refresh token — 401 → refresh → retry, không gọi refresh 5 lần</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 26</span><span>Auth state bằng <code>BehaviorSubject</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 27</span><span>Quên / đổi mật khẩu (mock flow)</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 6</span>
+      <span class="lcount">4 bài</span>
+    </div>
+    <h2>Phase 5 — Course Listing + Generic Component</h2>
+    <p class="module-why">
+      Nơi pipeline RxJS ở Bài 01 được cắm vào app thật, và Generics quay lại lần hai — lần này ở tầng component.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 28</span><span><code>combineLatest</code> gộp filter + sync URL</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 29</span><span><code>async</code> pipe &amp; pagination không bắn API thừa</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 30</span><span><code>GenericListComponent&lt;T&gt;</code> + <code>ngTemplateOutlet</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 31</span><span><code>forkJoin</code> — fetch song song &amp; chịu lỗi từng phần</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 7</span>
+      <span class="lcount">4 bài</span>
+    </div>
+    <h2>Phase 6 — Cart &amp; Checkout</h2>
+    <p class="module-why">
+      Optimistic update + rollback là chỗ state management bắt đầu đau — chuẩn bị nền cho NgRx ở Module 10.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 32</span><span><code>CartService</code> · optimistic update + rollback</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 33</span><span>Checkout nhiều bước qua route con</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 34</span><span><code>Resolver</code> — preload data trước khi vào route</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 35</span><span><code>&lt;app-card-number-input&gt;</code> — CVA lần hai, tự format</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 8</span>
+      <span class="lcount">2 bài</span>
+    </div>
+    <h2>Phase 7 — Học bài &amp; Progress</h2>
+    <p class="module-why">
+      Cố tình làm progress tracking bằng <code>Subject</code> thủ công, để Module 13 migrate sang
+      <code>computed()</code> và bạn <em>cảm nhận</em> được khác biệt thay vì nghe kể.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 36</span><span>Video player · <code>ViewChild</code> + Directive <code>appAutoPause</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 37</span><span>Progress đồng bộ qua event stream RxJS</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 9</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 8 — Dashboard Admin</h2>
+    <p class="module-why">
+      Tái sử dụng <code>DynamicFormComponent</code> — bằng chứng thật cho việc component generic có đáng công không.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 38</span><span>CRUD Course bằng Dynamic Form</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 39</span><span>Material Table — sort / filter / paginate</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 40</span><span>500 dòng không lag · <code>trackBy</code> · <code>OnPush</code> · virtual scroll</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 10</span>
+      <span class="lcount">4 bài</span>
+    </div>
+    <h2>Phase 9 — NgRx</h2>
+    <p class="module-why">
+      Học <strong>khi nào KHÔNG nên dùng</strong> NgRx cũng quan trọng bằng học cách dùng.
+      Ta migrate <code>CartService</code> đã chạy tốt sang NgRx để thấy rõ cái giá phải trả.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 41</span><span>Khi nào Service + BehaviorSubject là đủ (và khi nào không)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 42</span><span>Action · Reducer · Selector</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 43</span><span>Effects — side-effect và RxJS quay lại</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 44</span><span>Redux DevTools &amp; time-travel debug</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 11</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 10 — Testing Classic</h2>
+    <p class="module-why">
+      Test custom form control là dạng test khó và hay bị hỏi khi phỏng vấn — cần biết giả lập
+      <code>formControl</code> trong test.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 45</span><span>Test Service với <code>HttpTestingController</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 46</span><span>Test Component &amp; form validation</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 47</span><span>Test <code>ControlValueAccessor</code> — <code>writeValue</code>, <code>registerOnChange</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <!-- ============================ GIAI ĐOẠN 2 ============================ -->
+  <div class="stage-sep">
+    <h2>🚀 Giai đoạn 2 — Angular Modern (Migration)</h2>
+    <p>
+      Phase 11–17 · ~15 bài · <strong>Không build lại từ đầu</strong> — migrate chính app vừa xong,
+      từng bước, mỗi bước so sánh code TRƯỚC/SAU và cân lợi ích ↔ rủi ro.
+    </p>
+  </div>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 12</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 11 — Standalone Migration</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 48</span><span>Schematic <code>ng g @angular/core:standalone</code> — chạy &amp; đọc diff</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 49</span><span>Migrate <code>CoursesModule</code> trước (module nhỏ, rủi ro thấp)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 50</span><span><code>bootstrapApplication</code> · xoá <code>AppModule</code> · <code>app.config.ts</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 13</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 12 — Signals Migration</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 51</span><span><code>signal()</code> / <code>computed()</code> vs <code>BehaviorSubject</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 52</span><span>Viết lại <code>AuthService</code> + <code>CartService</code> · <code>toSignal()</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 53</span><span>Progress bằng <code>computed()</code> — so với Subject ở Bài 37</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 14</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 13–14 — Control flow mới &amp; Functional Guard/Interceptor</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 54</span><span><code>@if</code>/<code>@for</code>/<code>@switch</code> — chạy schematic rồi review diff</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 55</span><span><code>AuthGuard</code> class → <code>CanActivateFn</code> + <code>inject()</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 56</span><span><code>HttpInterceptor</code> class → <code>HttpInterceptorFn</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 15</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 15–16 — <code>resource()</code> &amp; Zoneless</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 57</span><span><code>resource()</code> / <code>rxResource()</code> — triết lý kiểu TanStack Query</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 58</span><span>Migrate <code>CourseListComponent</code> · nhận xét ưu/nhược</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 59</span><span>Zoneless change detection — chỗ nào code cũ sẽ gãy</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 16</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 17 — Tổng kết &amp; phỏng vấn</h2>
+    <p class="module-why">
+      Mission của bạn có mục "phỏng vấn / đổi việc" nên khoá kết bằng bài mock interview thật,
+      tôi hỏi và phản biện như người phỏng vấn.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 60</span><span>Viết Migration Guide — tôi phản biện như review kế hoạch thật</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 61</span><span>Mock interview 1 — RxJS · Forms · DI</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 62</span><span>Mock interview 2 — kiến trúc · migration · đánh đổi</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">🧭 Roadmap này không phải syllabus đóng</div>
+    <p>
+      Con số ~62 là <strong>ước tính</strong>. Nắm nhanh một concept thì nhiều bài sẽ gộp;
+      vấp ở một mental model quan trọng thì tôi chèn thêm bài luyện ngay tại chỗ đó.
+      Tiến độ đo bằng <strong>khả năng reasoning và áp dụng</strong>, không phải số bài đã mở.
+    </p>
+    <p>
+      Lộ trình gốc của bạn có 38 lesson; ở đây thành ~62 vì các lesson quá lớn được
+      <strong>tách nhỏ</strong> (mỗi bài dạy đúng một thứ), cộng Bài 00 và 2 bài mock interview.
+      Không có chủ đề nào bị thêm ngoài lộ trình bạn đã soạn.
+    </p>
+  </section>
+
+
+  <footer>
+    <p class="try-it" style="text-align:center; margin-top:40px;">
+      📌 Muốn thêm, bớt hoặc đổi thứ tự — cứ nói với tôi bất cứ lúc nào.
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

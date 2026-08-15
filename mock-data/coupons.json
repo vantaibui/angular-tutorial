@@ -1,0 +1,23 @@
+[
+  {
+    "code": "WELCOME10",
+    "discountPercent": 10,
+    "expiresAt": "2026-11-20T06:52:23.203Z",
+    "maxUses": 1000,
+    "usedCount": 231
+  },
+  {
+    "code": "SAVE20",
+    "discountPercent": 20,
+    "expiresAt": "2027-01-11T10:56:31.741Z",
+    "maxUses": 500,
+    "usedCount": 498
+  },
+  {
+    "code": "EXPIRED5",
+    "discountPercent": 5,
+    "expiresAt": "2026-07-08T13:48:21.910Z",
+    "maxUses": 100,
+    "usedCount": 40
+  }
+]

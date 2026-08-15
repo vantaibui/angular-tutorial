@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 00 · Dựng sân tập EduCommerce (Angular chế độ NgModule)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 00 · Setup</span>
+
+    <h1>Dựng sân tập EduCommerce — Angular chế độ NgModule</h1>
+
+    <p class="subtitle">
+      Một project Angular chạy được, cố tình cấu hình theo kiểu <strong>Classic</strong>,
+      để mọi bài sau có chỗ đổ code vào.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~20 phút
+      · 🎯 <code>ng serve</code> lên trang, <code>npm test</code> ra xanh
+      · 🏷️ EduCommerce
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Có thư mục <code>educommerce-ng-classic/</code> chạy được bằng <code>ng serve</code>.</li>
+      <li>Mở <code>src/app/app.module.ts</code> và chỉ đúng ra đâu là <code>declarations</code>, đâu là <code>imports</code>, đâu là <code>bootstrap</code>.</li>
+      <li>Giải thích được cờ <code>--no-standalone</code> làm gì và vì sao khoá này cần nó.</li>
+      <li>Chạy được một file <code>.spec.ts</code> RxJS thuần (không cần Angular <code>TestBed</code>) — đây là sân tập của Bài 01.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bạn đã chạy <code>ng new</code> rồi. Bài này <strong>không</strong> dạy lại <code>ng new</code>.
+      Nó chỉ giải thích <strong>hai cờ</strong> khiến project sinh ra khác hẳn mặc định năm 2026,
+      và <strong>ba chỗ</strong> Angular hôm nay đã khác codebase Angular 12–16 mà bạn sẽ gặp ngoài đời.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>một project Angular hiện đại vẫn có thể bị "kéo ngược" về kiến trúc NgModule một cách hợp lệ.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Vì sao không cài thẳng Angular 16 cho giống thật?</h2>
+
+    <p>
+      Lộ trình của bạn định nghĩa "Angular Classic" là ~v12–v16. Đó là lựa chọn đúng về
+      <em>mục tiêu</em> — nhưng vấp một rào chắn vật lý:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Thứ</th>
+          <th>Máy bạn đang có</th>
+          <th>Angular 16 cần</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Node.js</td>
+          <td><code>v24.18.0</code></td>
+          <td><code>v16.14</code> hoặc <code>v18.10</code></td>
+        </tr>
+        <tr>
+          <td>TypeScript</td>
+          <td>đi kèm Angular 22: <code>~6.0.2</code></td>
+          <td><code>&gt;=4.9 &lt;5.2</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Angular 16 <strong>sẽ không chạy</strong> trên Node 24. Muốn dùng nó thật thì phải cài
+      <code>nvm</code>, nuôi song song hai bản Node, và Giai đoạn 2 phải <code>ng update</code>
+      qua 6 major version. Bạn đã chọn hướng còn lại:
+      <strong>dùng Angular mới nhất nhưng bật chế độ NgModule</strong>.
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Vậy học thế có "giả" không?</div>
+      <p>
+        Không, với điều kiện bạn biết chỗ nào lệch. Cái bạn cần học ở Giai đoạn 1 là
+        <strong>mental model</strong>: NgModule gom khai báo, DI phân tầng theo injector tree,
+        RxJS quản lý luồng bất đồng bộ, class Guard/Interceptor. Toàn bộ những thứ đó
+        <strong>vẫn còn nguyên và vẫn stable</strong> ở Angular 22. Thứ đã đổi chỉ là vài API
+        ngoại vi — và tôi sẽ chỉ đích danh từng cái, ngay khi bạn chạm vào nó.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Kiểm tra tiền đề trên máy bạn</h2>
+
+    <p>
+      Tôi đã dò máy bạn trước khi viết bài này, nên đây là trạng thái <strong>thật</strong>
+      chứ không phải hướng dẫn chung chung:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Công cụ</th><th>Máy bạn</th><th>Kết luận</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Node.js</td><td><code>v24.18.0</code></td><td>✅ hợp lệ với Angular 22 (cần <code>^24.15.0</code>)</td></tr>
+        <tr><td>npm</td><td><code>11.16.0</code></td><td>✅ dùng luôn</td></tr>
+        <tr><td>git</td><td><code>2.50.1</code></td><td>✅ đã có</td></tr>
+        <tr><td>Angular CLI global</td><td><span class="nullcell">chưa cài</span></td><td>✅ <strong>không cần cài</strong> — xem lý do bên dưới</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="ct">💡 Vì sao KHÔNG cài <code>ng</code> global</div>
+      <p>
+        CLI global là nguồn bug kinh điển: máy bạn có <code>ng</code> v17, project cần v22,
+        và bạn ngồi debug lỗi schematic suốt buổi chiều. Ta dùng <code>npx</code> để gọi đúng
+        version một lần cho bước <code>ng new</code>; sau đó project có <code>@angular/cli</code>
+        riêng trong <code>devDependencies</code> và mọi lệnh <code>ng</code> chạy qua
+        <code>npm run</code> sẽ tự lấy đúng bản của project.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>3. Tạo project</h2>
+
+    <p>
+      Chạy đúng chuỗi lệnh này, tại thư mục workspace (chỗ đang chứa <code>mock-data/</code>):
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">bash · tại thư mục angular-tutorial/</span>
+<pre><code><span class="cmt"># Gọi Angular CLI bản 22 qua npx, không cài global</span>
+<span class="fn">npx</span> -y -p @angular/cli@22 ng new educommerce-ng-classic \
+  --no-standalone \
+  --routing \
+  --style=scss \
+  --file-name-style-guide=2016 \
+  --skip-git \
+  --defaults \
+  --package-manager=npm</code></pre>
+    </div>
+
+    <p>Từng cờ có lý do, không cờ nào thừa:</p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Cờ</th><th>Nó làm gì</th><th>Vì sao khoá này cần</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--no-standalone</code></td>
+          <td>Sinh <code>app.module.ts</code> + <code>app-routing.module.ts</code>, và gắn <code>standalone: false</code> vào component</td>
+          <td><strong>Cờ quan trọng nhất của khoá.</strong> Không có nó, Angular 22 sinh project standalone và toàn bộ Giai đoạn 1 mất chỗ đứng.</td>
+        </tr>
+        <tr>
+          <td><code>--routing</code></td>
+          <td>Tạo sẵn <code>AppRoutingModule</code> với <code>RouterModule.forRoot([])</code></td>
+          <td>Phase 2 sẽ đổ lazy-load route vào đúng file này.</td>
+        </tr>
+        <tr>
+          <td><code>--style=scss</code></td>
+          <td>Component dùng <code>.scss</code></td>
+          <td>Gần như mọi codebase Angular doanh nghiệp đều SCSS.</td>
+        </tr>
+        <tr>
+          <td><code>--file-name-style-guide=2016</code></td>
+          <td>Đặt tên <code>app.component.ts</code> thay vì <code>app.ts</code></td>
+          <td>Angular 22 mặc định kiểu tên mới (<code>2025</code>). Codebase cũ bạn sẽ maintain dùng kiểu <code>2016</code> — tập đọc đúng thứ bạn sẽ gặp.</td>
+        </tr>
+        <tr>
+          <td><code>--skip-git</code></td>
+          <td>Không tạo git repo con</td>
+          <td>Workspace ngoài đã là một repo; lồng repo trong repo gây rối.</td>
+        </tr>
+        <tr>
+          <td><code>--defaults</code></td>
+          <td>Bỏ qua mọi câu hỏi tương tác</td>
+          <td>Để lệnh chạy y hệt nhau trên máy bạn và máy tôi — không lệch do trả lời prompt khác nhau.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Cờ <code>--standalone</code> vẫn còn, nhưng đừng chủ quan</div>
+      <p>
+        Tại thời điểm viết bài (Angular CLI <strong>22.1.4</strong>), <code>ng new --help</code>
+        vẫn liệt kê <code>--standalone [boolean] [default: true]</code> — nên <code>--no-standalone</code>
+        hợp lệ. Angular team đang đẩy mạnh standalone, nên một ngày nào đó cờ này có thể biến mất.
+        Cách kiểm nhanh, luôn đúng, không cần tin bài viết nào:
+        <code>npx -p @angular/cli@22 ng new --help</code>.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Đọc thứ vừa sinh ra — và ba chỗ đã khác v16</h2>
+
+    <p>
+      Đây là phần đáng giá nhất của bài. Mở <code>src/app/app.module.ts</code>:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/app.module.ts (nguyên văn CLI sinh ra)</span>
+<pre><code><span class="kw">import</span> { NgModule, provideBrowserGlobalErrorListeners } <span class="kw">from</span> <span class="str">'@angular/core'</span>;
+<span class="kw">import</span> { BrowserModule } <span class="kw">from</span> <span class="str">'@angular/platform-browser'</span>;
+
+<span class="kw">import</span> { AppRoutingModule } <span class="kw">from</span> <span class="str">'./app-routing.module'</span>;
+<span class="kw">import</span> { App } <span class="kw">from</span> <span class="str">'./app.component'</span>;
+
+<span class="fn">@NgModule</span>({
+  <span class="cmt">// declarations = component/directive/pipe THUỘC VỀ module này.</span>
+  <span class="cmt">// Một component chỉ được declare ở ĐÚNG MỘT module — nhớ kỹ, Phase 1 sẽ đá vào đây.</span>
+  declarations: [
+    App
+  ],
+  <span class="cmt">// imports = kéo module KHÁC vào để dùng những gì module đó export.</span>
+  imports: [
+    BrowserModule,
+    AppRoutingModule
+  ],
+  <span class="cmt">// providers = đăng ký service ở tầng injector của module này.</span>
+  <span class="cmt">// Bài 0.3 sẽ đào đúng dòng này: vì sao đặt ở đây khác đặt ở component.</span>
+  providers: [
+    <span class="fn">provideBrowserGlobalErrorListeners</span>(),
+  ],
+  <span class="cmt">// bootstrap = component gốc được dựng khi app khởi động.</span>
+  bootstrap: [App]
+})
+<span class="kw">export class</span> AppModule { }</code></pre>
+    </div>
+
+    <p>
+      Bốn khoá <code>declarations</code> / <code>imports</code> / <code>providers</code> /
+      <code>bootstrap</code> chính là toàn bộ Giai đoạn 1 thu nhỏ. Nhưng có ba chi tiết
+      <strong>khác</strong> codebase v12–v16 mà bạn phải biết ngay, kẻo sau này đọc code cũ lại tưởng mình sai:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>#</th><th>Angular 12–16</th><th>Angular 22 (bạn đang cầm)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>platformBrowserDynamic().bootstrapModule(AppModule)</code><br>từ <code>@angular/platform-browser-dynamic</code></td>
+          <td><code>platformBrowser().bootstrapModule(AppModule)</code><br>gói <code>platform-browser-dynamic</code> <strong>không còn trong deps</strong></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code>@Component</code> không có khoá <code>standalone</code></td>
+          <td><code>standalone: false</code> phải ghi <strong>tường minh</strong> ở mỗi component NgModule</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Test chạy bằng <strong>Karma + Jasmine</strong></td>
+          <td>Mặc định là <strong>Vitest</strong> (<code>describe/it/expect</code> + <code>vi</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Chỗ này cắn người thật</div>
+      <p>
+        Điểm số 2 là bẫy hay gặp nhất khi maintain codebase đang migrate dở: bạn tạo component mới
+        bằng <code>ng generate component</code>, quên <code>standalone: false</code>, rồi thêm nó vào
+        <code>declarations</code> → Angular ném lỗi kiểu
+        <em>"Component X is standalone, and cannot be declared in an NgModule"</em>.
+        Không phải lỗi cú pháp — là <strong>hai mô hình khai báo đang cãi nhau</strong>.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Sanity check 1 — app lên được trang</h2>
+
+    <div class="code-block">
+      <span class="code-label">bash · trong educommerce-ng-classic/</span>
+<pre><code><span class="fn">cd</span> educommerce-ng-classic
+<span class="fn">npm</span> start</code></pre>
+    </div>
+
+    <p>
+      Mở <code>http://localhost:4200</code> — phải thấy trang chào mặc định của Angular.
+      Nếu thấy, nghĩa là chuỗi <em>compile → bundle → serve → bootstrap NgModule</em> đã thông suốt.
+      Nhấn <code>Ctrl+C</code> để dừng.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>6. Sanity check 2 — sân tập cho Bài 01</h2>
+
+    <p>
+      Bài 01 học RxJS. RxJS <strong>không cần</strong> Angular để chạy — và ta sẽ tận dụng điều đó:
+      viết RxJS trong file test, chạy bằng Vitest, nhận phản hồi xanh/đỏ trong chưa tới một giây.
+      Đó là feedback loop chặt hơn hẳn việc mở browser bấm thử rồi nhìn <code>console.log</code>.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">bash · tạo thư mục sân tập</span>
+<pre><code><span class="cmt"># Thư mục này chưa tồn tại nên phải tạo tường minh</span>
+<span class="fn">mkdir</span> -p src/playground</code></pre>
+    </div>
+
+    <p>Tạo file <code>src/playground/sanity.spec.ts</code> trong editor rồi dán nội dung sau:</p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/sanity.spec.ts</span>
+<pre><code><span class="kw">import</span> { describe, it, expect } <span class="kw">from</span> <span class="str">'vitest'</span>;
+<span class="kw">import</span> { of, firstValueFrom } <span class="kw">from</span> <span class="str">'rxjs'</span>;
+<span class="kw">import</span> { map } <span class="kw">from</span> <span class="str">'rxjs/operators'</span>;
+
+<span class="fn">describe</span>(<span class="str">'sân tập'</span>, () => {
+
+  <span class="cmt">// Test 1: chứng minh test runner sống.</span>
+  <span class="fn">it</span>(<span class="str">'bộ máy test chạy'</span>, () => {
+    <span class="fn">expect</span>(<span class="num">1</span> + <span class="num">1</span>).<span class="fn">toBe</span>(<span class="num">2</span>);
+  });
+
+  <span class="cmt">// Test 2: chứng minh RxJS chạy được KHÔNG cần TestBed của Angular.</span>
+  <span class="cmt">// firstValueFrom biến Observable thành Promise để await trong test.</span>
+  <span class="fn">it</span>(<span class="str">'RxJS chạy không cần Angular TestBed'</span>, <span class="kw">async</span> () => {
+    <span class="kw">const</span> ketQua = <span class="kw">await</span> <span class="fn">firstValueFrom</span>(
+      <span class="fn">of</span>(<span class="num">1</span>).<span class="fn">pipe</span>(<span class="fn">map</span>((x) => x + <span class="num">1</span>))
+    );
+    <span class="fn">expect</span>(ketQua).<span class="fn">toBe</span>(<span class="num">2</span>);
+  });
+
+});</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">bash · chạy test</span>
+<pre><code><span class="fn">npm</span> test</code></pre>
+    </div>
+
+    <p><strong>Kết quả cần thấy</strong> — <code>Test Files</code> và <code>Tests</code> đều màu xanh:</p>
+
+    <div class="code-block">
+      <span class="code-label">output thật (đã verify trên Node v24.18.0)</span>
+<pre><code> RUN  v4.1.10
+
+ Test Files  2 passed (2)
+      Tests  4 passed (4)</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao 2 file / 4 test mà bạn chỉ viết 1 file / 2 test?</div>
+      <p>
+        File thứ hai là <code>app.component.spec.ts</code> do CLI sinh sẵn, chứa sẵn
+        <strong>2 test</strong> (tạo được component + render đúng tiêu đề). 2 + 2 = 4.
+        Nếu con số của bạn khớp đúng như trên, toàn bộ chuỗi công cụ đã đúng.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>7. Đối chiếu tài liệu chính thức</h2>
+
+    <p>
+      Theo
+      <a href="https://angular.dev/reference/versions" target="_blank" rel="noopener noreferrer">bảng version support chính thức</a>,
+      Angular 22.0.x yêu cầu Node <code>^22.22.3 || ^24.15.0 || ^26.0.0</code> và TypeScript
+      <code>&gt;=6.0.0 &lt;6.1.0</code> — Node <code>v24.18.0</code> của bạn nằm trong khoảng hợp lệ.
+      Danh sách cờ của <code>ng new</code> tra tại
+      <a href="https://angular.dev/cli/new" target="_blank" rel="noopener noreferrer">angular.dev/cli/new</a>.
+    </p>
+
+    <div class="callout bridge">
+      <div class="ct">📚 Docs và mental model có vai trò khác nhau</div>
+      <p>
+        Docs xác nhận <strong>API contract</strong> ở một thời điểm. Mental model giúp bạn
+        reasoning khi version đổi. Bảng "3 chỗ đã khác v16" ở mục 4 là mental model —
+        nó sẽ còn đúng kể cả khi con số version thay đổi.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Đồng nghiệp chạy <code>ng generate component course-card</code> trong project này,
+      thêm <code>CourseCard</code> vào <code>declarations</code> của <code>AppModule</code>, và app ném lỗi
+      <em>"Component CourseCard is standalone, and cannot be declared in an NgModule"</em>. Chuyện gì đã xảy ra?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không phải. Cờ --no-standalone lúc `ng new` đặt cấu hình cho schematic của project, nhưng lỗi này nói rõ component ĐANG là standalone — tức là khai báo trên chính component đó mới là thứ quyết định, không phải AppModule.">
+      A. <code>AppModule</code> thiếu <code>imports</code> nên không nhận được component.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. Ở Angular 19 trở đi `standalone` mặc định là true tại CẤP COMPONENT. Component phải ghi tường minh `standalone: false` mới được phép nằm trong `declarations`. Hai mô hình khai báo — standalone và NgModule — loại trừ nhau: một component hoặc tự khai báo dependency của nó, hoặc để module khai báo hộ, không thể cả hai.">
+      B. Component mới thiếu <code>standalone: false</code>, mà standalone và <code>declarations</code> loại trừ lẫn nhau.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai — và đây là hiểu nhầm đáng sửa. NgModule vẫn hoàn toàn được hỗ trợ ở Angular 22, `CanActivate` class-based cũng vẫn stable. Angular ưu tiên standalone nhưng chưa gỡ NgModule.">
+      C. Angular 22 đã gỡ bỏ NgModule, phải viết standalone.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao bài này bắt bạn dùng <code>npx -p @angular/cli@22</code> thay vì
+      <code>npm i -g @angular/cli</code> rồi <code>ng new</code>?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="npx không nhanh hơn — lần đầu nó còn phải tải gói về. Lợi ích nằm ở chỗ khác.">
+      A. Vì <code>npx</code> chạy nhanh hơn.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Ngược lại: sau khi `ng new` xong, `@angular/cli` NẰM TRONG devDependencies của project. Bạn vẫn dùng ng bình thường qua `npm run ng` hoặc `npx ng`.">
+      B. Vì project không cần Angular CLI sau khi tạo xong.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. CLI global là một biến toàn cục dùng chung cho mọi project trên máy. Khi bạn có project Angular 16 và project Angular 22 cùng lúc, CLI global chỉ có một version → schematic sinh sai code cho một trong hai. Ghim version ngay tại lệnh gọi thì mỗi project độc lập.">
+      C. Vì CLI global chỉ có một version, sẽ xung đột khi bạn giữ nhiều project khác version.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Checklist tự kiểm trước khi sang Bài 01</div>
+    <ul class="checklist">
+      <li>Có thư mục <code>educommerce-ng-classic/</code> cạnh <code>mock-data/</code>.</li>
+      <li><code>src/app/app.module.ts</code> tồn tại và có <code>declarations</code>.</li>
+      <li><code>src/app/app.component.ts</code> có dòng <code>standalone: false</code>.</li>
+      <li><code>npm start</code> → <code>localhost:4200</code> lên trang Angular.</li>
+      <li><code>npm test</code> → <strong>2 test files, 4 tests passed</strong>.</li>
+      <li>Tôi giải thích được vì sao khoá này cần <code>--no-standalone</code>.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+
+    <p>
+      Ở mục 6, RxJS chạy được trong file test mà <strong>không cần</strong> Angular <code>TestBed</code>,
+      không cần browser, không cần component nào cả.
+    </p>
+    <p>
+      Vậy chính xác thì <strong>Angular đóng góp gì</strong> vào một dòng như
+      <code>this.http.get('/api/courses')</code>? RxJS lo phần nào, Angular lo phần nào?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Trả lời được câu này là bạn đã tách bạch được hai lớp mà rất nhiều người trộn lẫn suốt sự nghiệp.
+        Bài 01 sẽ đứng hẳn ở phía RxJS để bạn thấy rõ ranh giới đó.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 01 · RxJS sâu — search-as-you-type và nghệ thuật huỷ request</div>
+    <p class="nd">
+      Bạn sẽ tự chứng minh bằng test rằng <code>switchMap</code> <em>giết</em> request cũ,
+      còn <code>mergeMap</code> thì không — và vì sao chọn nhầm sẽ khiến ô tìm kiếm hiển thị kết quả của từ khoá cũ.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a class="disabled">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0001-rxjs-search-as-you-type.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Chạy xong hãy dán output thật của <code>npm test</code> vào chat, và trả lời Câu hỏi tư duy ở mục 8
+    bằng lời của bạn. Tôi sẽ đọc project thật của bạn trước khi cho qua bài.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

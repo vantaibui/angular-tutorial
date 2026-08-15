@@ -1,0 +1,137 @@
+[
+  {
+    "id": "user_admin_demo",
+    "name": "Admin Demo",
+    "email": "admin@demo.com",
+    "avatar": "https://i.pravatar.cc/150?u=admin_demo",
+    "role": "admin",
+    "password": "Password123!",
+    "createdAt": "2026-03-15T04:13:42.631Z"
+  },
+  {
+    "id": "user_student_demo",
+    "name": "Student Demo",
+    "email": "student@demo.com",
+    "avatar": "https://i.pravatar.cc/150?u=student_demo",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-10-21T16:37:35.737Z"
+  },
+  {
+    "id": "user_3",
+    "name": "Mercedes Schroeder",
+    "email": "mercedes_schroeder@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_3",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-11-04T18:30:28.462Z"
+  },
+  {
+    "id": "user_4",
+    "name": "Tavares Mante",
+    "email": "tavares.mante@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_4",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2026-03-10T09:12:32.047Z"
+  },
+  {
+    "id": "user_5",
+    "name": "Andy Hagenes",
+    "email": "andy.hagenes25@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_5",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-10-02T05:40:02.857Z"
+  },
+  {
+    "id": "user_6",
+    "name": "Maybell Schowalter",
+    "email": "maybell_schowalter@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_6",
+    "role": "instructor",
+    "password": "Password123!",
+    "createdAt": "2026-04-07T12:37:32.967Z"
+  },
+  {
+    "id": "user_7",
+    "name": "Ana Kerluke",
+    "email": "ana.kerluke@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_7",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-10-13T05:04:56.391Z"
+  },
+  {
+    "id": "user_8",
+    "name": "Sherry Breitenberg",
+    "email": "sherry_breitenberg62@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_8",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-09-24T14:41:43.164Z"
+  },
+  {
+    "id": "user_9",
+    "name": "Carol Welch",
+    "email": "carol_welch@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_9",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-11-22T23:57:48.682Z"
+  },
+  {
+    "id": "user_10",
+    "name": "Woodrow Waters",
+    "email": "woodrow_waters@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_10",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2026-08-05T16:22:11.775Z"
+  },
+  {
+    "id": "user_11",
+    "name": "Luciano O'Hara",
+    "email": "luciano.ohara3@yahoo.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_11",
+    "role": "admin",
+    "password": "Password123!",
+    "createdAt": "2026-06-12T05:16:34.669Z"
+  },
+  {
+    "id": "user_12",
+    "name": "Anthony Ward",
+    "email": "anthony_ward@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_12",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2025-12-24T00:13:19.335Z"
+  },
+  {
+    "id": "user_13",
+    "name": "Melanie Gleichner",
+    "email": "melanie_gleichner@gmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_13",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2026-06-28T00:37:59.184Z"
+  },
+  {
+    "id": "user_14",
+    "name": "Ismael Schuster",
+    "email": "ismael_schuster87@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_14",
+    "role": "student",
+    "password": "Password123!",
+    "createdAt": "2026-03-03T13:05:45.609Z"
+  },
+  {
+    "id": "user_15",
+    "name": "Suzanne Beatty",
+    "email": "suzanne.beatty54@hotmail.com",
+    "avatar": "https://i.pravatar.cc/150?u=user_15",
+    "role": "admin",
+    "password": "Password123!",
+    "createdAt": "2026-05-17T18:19:15.453Z"
+  }
+]

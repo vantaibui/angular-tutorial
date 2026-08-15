@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  TEMPLATE MỤC LỤC /teach (lessons/index.html).
+
+  KHÔNG sửa <head> & khối <style> nếu không có yêu cầu rõ ràng.
+
+  MỤC TIÊU:
+  - Liệt kê TOÀN BỘ roadmap.
+  - Nhóm bài theo module.
+  - Cho người học biết:
+      1. Đang học gì?
+      2. Đang ở đâu?
+      3. Vì sao module này tồn tại?
+      4. Tiếp theo cần học gì?
+  - Có thanh tiến độ.
+  - Có trạng thái bài học.
+
+  QUY ƯỚC:
+  - Bài đã có file: dùng <a href="...">
+  - Bài chưa soạn: dùng <span class="soon">
+  - Badge:
+      done = đã học
+      now  = bài hiện tại / sẵn sàng học
+      soon = chưa soạn / sắp tới
+  - aria-current="page" chỉ dùng cho bài hiện tại.
+  - Cập nhật file này MỖI khi thêm bài mới.
+  ============================================================================
+-->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lộ trình {{Chủ đề}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+<style>
+  .hero { text-align: center; margin-bottom: 14px; }
+  .hero h1 { font-size: 2.4rem; }
+  .progress-wrap { margin: 26px 0 40px; }
+  .progress-bar { height: 10px; background: var(--bg-card); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; }
+  .progress-label { text-align: center; color: var(--text-dim); font-size: 14px; margin-top: 8px; }
+  .module { margin: 30px 0; }
+  .module-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .module-num { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 14px; }
+  .module-head h2 { border: none; margin: 14px 0 2px; padding: 0; font-size: 1.35rem; }
+  .module-why { color: var(--text-dim); font-size: 14px; margin: 0 0 12px; }
+  .lessons-list { list-style: none; padding: 0; margin: 0; }
+  .lessons-list li { margin: 6px 0; }
+  .lessons-list a, .lessons-list span.soon {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-soft); font-size: 15px;
+  }
+  .lessons-list a { color: var(--text); }
+  .lessons-list a:hover { border-color: var(--accent); background: var(--bg-card); }
+  .lessons-list span.soon { color: var(--text-dim); border-style: dashed; }
+  .badge { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; flex-shrink: 0; }
+  .badge.done { background: rgba(74,222,128,.15); color: var(--green); }
+  .badge.now  { background: rgba(56,189,248,.15); color: var(--accent); }
+  .badge.soon { background: #232838; color: var(--text-dim); }
+  .lcount { margin-left: auto; font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+  .intro-card { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent-2); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 10px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <!-- ================================================================
+       HERO
+       Nói rõ đây là roadmap gì và "mission" của toàn khóa.
+       ================================================================ -->
+  <header class="hero">
+    <span class="lesson-tag">
+      {{🏷️ tag ngắn — vd: 🅰️ Angular · Senior path · E-commerce}}
+    </span>
+
+    <h1>{{Lộ trình ...}}</h1>
+
+    <p class="subtitle">
+      {{Một câu mô tả outcome cuối cùng của roadmap — bám MISSION.}}
+    </p>
+  </header>
+
+
+  <!-- ================================================================
+       LEARNING APPROACH
+       Không chỉ nói "học gì", phải nói cách học.
+       ================================================================ -->
+  <section class="intro-card">
+    <strong>🎯 Cách học</strong>
+
+    <p>
+      {{Mô tả ngắn cách tiếp cận:
+      mental model → experiment → project thực tế → edge case →
+      test → review → refactor.}}
+    </p>
+
+    <p>
+      <strong>Project xuyên suốt:</strong>
+      {{Tên / mô tả project — vd: E-commerce sử dụng Mock API trước,
+      sau đó có thể chuyển sang backend thật.}}
+    </p>
+  </section>
+
+
+  <!-- ================================================================
+       CURRENT FOCUS
+       Giúp learner biết chính xác mình đang đứng ở đâu.
+       ================================================================ -->
+  <section class="callout bridge">
+    <div class="ct">📍 Bạn đang ở đâu?</div>
+
+    <p>
+      <strong>{{Module hiện tại}}</strong>
+      · Bài <strong>{{NN}}</strong>
+      · {{Tên bài hiện tại}}
+    </p>
+
+    <p>
+      Milestone gần nhất:
+      <strong>{{Kết quả cụ thể cần đạt trước khi sang module tiếp theo}}</strong>.
+    </p>
+  </section>
+
+
+  <!-- ================================================================
+       PROGRESS
+       ================================================================ -->
+  <section class="progress-wrap">
+
+    <div
+      class="progress-bar"
+      role="progressbar"
+      aria-label="Tiến độ lộ trình"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="{{%}}"
+    >
+      <div
+        class="progress-fill"
+        style="width: {{%}}%"
+      ></div>
+    </div>
+
+    <div class="progress-label">
+      <strong>{{x}}</strong> / ~{{tổng}} bài
+      · <strong>{{%}}%</strong>
+      · {{trạng thái}}
+    </div>
+
+  </section>
+
+
+  <!-- ================================================================
+       MODULE TEMPLATE
+       Nhân bản toàn bộ <section class="module"> cho mỗi module.
+       ================================================================ -->
+  <section class="module">
+
+    <div class="module-head">
+      <span class="module-num">Module {{X}}</span>
+      <span class="lcount">{{số bài}} bài</span>
+    </div>
+
+    <h2>{{Tên module}}</h2>
+
+    <p class="module-why">
+      {{Vì sao module này có mặt?
+      Nó giải quyết gap kiến thức nào?
+      Nó giúp gì cho MISSION cuối cùng?}}
+    </p>
+
+
+    <ul class="lessons-list">
+
+      <!-- ============================================================
+           BÀI ĐÃ HỌC
+           ============================================================ -->
+      <li>
+        <a href="{{00NN-slug.html}}">
+          <span class="badge done">Bài {{NN}}</span>
+
+          <span>
+            {{Tiêu đề bài đã học}}
+          </span>
+
+          <span class="lcount">✓ đã học</span>
+        </a>
+      </li>
+
+
+      <!-- ============================================================
+           BÀI HIỆN TẠI / SẴN SÀNG
+           Chỉ một bài nên dùng aria-current="page".
+           ============================================================ -->
+      <li>
+        <a
+          href="{{00NN-slug.html}}"
+          aria-current="page"
+        >
+          <span class="badge now">Bài {{NN}}</span>
+
+          <strong>
+            {{Tiêu đề bài hiện tại}}
+          </strong>
+
+          <span class="lcount">→ tiếp tục</span>
+        </a>
+      </li>
+
+
+      <!-- ============================================================
+           BÀI ĐÃ SOẠN NHƯNG CHƯA HỌC
+           Có file => vẫn dùng <a>.
+           ============================================================ -->
+      <li>
+        <a href="{{00NN-slug.html}}">
+          <span class="badge now">Bài {{NN}}</span>
+
+          <span>
+            {{Tiêu đề bài sẵn sàng}}
+          </span>
+
+          <span class="lcount">sẵn sàng</span>
+        </a>
+      </li>
+
+
+      <!-- ============================================================
+           BÀI CHƯA SOẠN
+           Không được gắn href giả.
+           ============================================================ -->
+      <li>
+        <span class="soon">
+          <span class="badge soon">Bài {{NN}}</span>
+
+          <span>
+            {{Tiêu đề bài sắp tới}}
+          </span>
+
+          <span class="lcount">sắp tới</span>
+        </span>
+      </li>
+
+    </ul>
+
+  </section>
+
+
+  <!-- ================================================================
+       ROADMAP PHILOSOPHY
+       ================================================================ -->
+  <section class="callout tip">
+
+    <div class="ct">🧭 Roadmap này không phải syllabus đóng</div>
+
+    <p>
+      Nếu bạn nắm nhanh một concept, nhiều bài có thể được gộp.
+      Nếu bạn vấp ở một mental model quan trọng, roadmap có thể chèn thêm
+      experiment hoặc bài luyện ngay tại vị trí đó.
+    </p>
+
+    <p>
+      Tiến độ được đo bằng <strong>khả năng reasoning và áp dụng</strong>,
+      không phải số lượng bài đã mở.
+    </p>
+
+  </section>
+
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer>
+
+    <p
+      class="try-it"
+      style="text-align:center; margin-top:40px;"
+    >
+      📌 Lộ trình <strong>co giãn theo năng lực thực tế</strong>:
+      nắm nhanh thì gộp bài, vấp thì tách thêm bài luyện.
+      <br>
+
+      Muốn thêm, bớt hoặc đổi thứ tự —
+      cứ nói với tôi (người dạy) bất cứ lúc nào.
+    </p>
+
+  </footer>
+
+</div>
+</body>
+</html>

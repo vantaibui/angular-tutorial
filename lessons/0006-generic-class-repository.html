@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 06 · Generic class — InMemoryRepository&lt;T&gt;</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 06 · Core (TypeScript)</span>
+
+    <h1>Generic class — <code>InMemoryRepository&lt;T&gt;</code></h1>
+
+    <p class="subtitle">
+      Một class dùng chung cho mọi entity, mà mỗi chỗ dùng vẫn giữ nguyên kiểu riêng.
+      Đây là bản thu nhỏ của <code>GenericApiService&lt;T&gt;</code> ở Bài 10.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Một class, hai entity, không một chữ <code>any</code>
+      · 🏷️ EduCommerce · nền cho tầng service
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết generic class và biết tham số kiểu của class <strong>sống ở đâu</strong>.</li>
+      <li>Dùng <code>Partial&lt;T&gt;</code> cho method <code>update</code> — patch vài field vẫn type-safe.</li>
+      <li>Chứng minh repo <code>Course</code> <strong>từ chối</strong> nhận <code>User</code>.</li>
+      <li>Giải thích được điều gì <strong>không làm được</strong> nếu bỏ ràng buộc <code>extends</code>.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 05: tham số kiểu của <em>function</em> được điền ở <strong>mỗi lần gọi</strong> —
+      <code>dauTien([course])</code> thì <code>T = Course</code> chỉ trong lời gọi đó.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>tham số kiểu của class được chốt <em>một lần</em> lúc <code>new</code>, rồi mọi method bên trong dùng chung nó.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: bốn service, một logic</h2>
+
+    <p>
+      Đây chính là câu hỏi tư duy cuối Bài 04. EduCommerce sẽ có
+      <code>CourseService</code>, <code>UserService</code>, <code>ReviewService</code>,
+      <code>EnrollmentService</code> — cả bốn đều cần <code>getAll</code> / <code>getById</code> /
+      <code>update</code> / <code>remove</code>, logic <strong>giống hệt</strong>, chỉ khác kiểu dữ liệu.
+    </p>
+
+    <p>
+      Trước khi đụng vào HTTP (Bài 10), ta luyện đúng kỹ thuật đó trên một phiên bản
+      <strong>không có gì để hỏng</strong>: kho lưu trong bộ nhớ.
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Tham số kiểu của function đặt sau tên hàm: <code>function f&lt;T&gt;(...)</code>.
+        Với class thì đặt ở đâu — để cả <code>add</code>, <code>findById</code>, <code>update</code>
+        đều thấy được cùng một <code>T</code>?
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model</h2>
+
+    <div class="code-block">
+      <span class="code-label">Đối chiếu — phạm vi sống của tham số kiểu</span>
+<pre><code><span class="cmt">// FUNCTION: T sinh ra và chết trong MỘT lời gọi.</span>
+<span class="kw">function</span> <span class="fn">dauTien</span>&lt;T&gt;(ds: T[]): T | <span class="kw">undefined</span> { ... }
+<span class="fn">dauTien</span>([course]);  <span class="cmt">// T = Course, xong việc là hết</span>
+<span class="fn">dauTien</span>([user]);    <span class="cmt">// T = User, hoàn toàn độc lập với lời gọi trên</span>
+
+<span class="cmt">// CLASS: T chốt lúc `new`, sống suốt đời instance đó.</span>
+<span class="kw">class</span> Repo&lt;T&gt; {          <span class="cmt">// ← đặt ngay sau TÊN CLASS</span>
+  <span class="kw">private</span> items: T[] = [];   <span class="cmt">// mọi field...</span>
+  <span class="fn">add</span>(item: T) { ... }       <span class="cmt">// ...và mọi method đều thấy CÙNG một T</span>
+}
+
+<span class="kw">const</span> repoCourse = <span class="kw">new</span> Repo&lt;Course&gt;();  <span class="cmt">// T = Course, VĨNH VIỄN cho instance này</span>
+<span class="kw">const</span> repoUser = <span class="kw">new</span> Repo&lt;User&gt;();      <span class="cmt">// instance khác, T khác, không liên quan</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Tham số kiểu của class là một lời hứa mà instance mang theo suốt đời:
+          "tôi chỉ làm việc với <em>đúng</em> kiểu này".
+        </strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>3. Viết <code>InMemoryRepository&lt;T&gt;</code></h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/repository.ts</span>
+<pre><code><span class="cmt">/** Ràng buộc `T extends { id: string }` là thứ cho phép class đụng vào item.id. */</span>
+<span class="kw">export class</span> InMemoryRepository&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt; {
+
+  <span class="cmt">// private: không ai bên ngoài sửa mảng trực tiếp được.</span>
+  <span class="kw">private</span> items: T[] = [];
+
+  <span class="fn">add</span>(item: T): <span class="kw">void</span> {
+    <span class="kw">this</span>.items.<span class="fn">push</span>(item);
+  }
+
+  <span class="cmt">// Trả về `T | undefined` chứ KHÔNG phải `T`: tìm không thấy là chuyện bình thường,</span>
+  <span class="cmt">// và kiểu trả về phải nói ra sự thật đó để nơi gọi buộc phải xử lý.</span>
+  <span class="fn">findById</span>(id: <span class="kw">string</span>): T | <span class="kw">undefined</span> {
+    <span class="kw">return</span> <span class="kw">this</span>.items.<span class="fn">find</span>((x) => x.id === id);   <span class="cmt">// ← .id dùng được NHỜ ràng buộc</span>
+  }
+
+  <span class="cmt">// Partial&lt;T&gt; = mọi field của T thành optional.</span>
+  <span class="cmt">// Nhờ vậy patch 1 field vẫn hợp lệ, nhưng field LẠ thì vẫn bị chặn.</span>
+  <span class="fn">update</span>(id: <span class="kw">string</span>, patch: Partial&lt;T&gt;): <span class="kw">void</span> {
+    <span class="kw">const</span> i = <span class="kw">this</span>.items.<span class="fn">findIndex</span>((x) => x.id === id);
+    <span class="kw">if</span> (i === -<span class="num">1</span>) <span class="kw">return</span>;                      <span class="cmt">// không thấy thì im lặng bỏ qua</span>
+    <span class="kw">this</span>.items[i] = { ...<span class="kw">this</span>.items[i], ...patch };  <span class="cmt">// tạo object MỚI, không sửa tại chỗ</span>
+  }
+
+  <span class="fn">remove</span>(id: <span class="kw">string</span>): <span class="kw">boolean</span> {
+    <span class="kw">const</span> i = <span class="kw">this</span>.items.<span class="fn">findIndex</span>((x) => x.id === id);
+    <span class="kw">if</span> (i === -<span class="num">1</span>) <span class="kw">return</span> <span class="kw">false</span>;
+    <span class="kw">this</span>.items.<span class="fn">splice</span>(i, <span class="num">1</span>);
+    <span class="kw">return</span> <span class="kw">true</span>;
+  }
+
+  <span class="cmt">// readonly T[]: người gọi đọc được nhưng không push/splice vào kho nội bộ.</span>
+  <span class="fn">getAll</span>(): <span class="kw">readonly</span> T[] {
+    <span class="kw">return</span> <span class="kw">this</span>.items;
+  }
+}</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Ba quyết định thiết kế đáng để ý</div>
+      <p>
+        <strong>1. <code>T | undefined</code> thay vì <code>T</code>:</strong> kiểu trả về nên
+        <em>nói thật</em>. Nếu khai là <code>T</code>, mọi nơi gọi sẽ tưởng luôn có kết quả và
+        crash ở runtime. Khai <code>| undefined</code> thì TypeScript ép người gọi xử lý.
+      </p>
+      <p>
+        <strong>2. Tạo object mới trong <code>update</code>:</strong> <code>{...cũ, ...patch}</code>
+        thay vì <code>Object.assign(cũ, patch)</code>. Object mới ⇒ so sánh tham chiếu phát hiện được
+        thay đổi — điều kiện sống còn cho <code>OnPush</code> change detection (Bài 40) và cho NgRx (Phase 9).
+      </p>
+      <p>
+        <strong>3. <code>readonly T[]</code>:</strong> chặn <code>repo.getAll().push(...)</code> ở
+        tầng kiểu. Đóng cửa ghi bằng compiler, không bằng lời dặn trong code review.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. <code>Partial&lt;T&gt;</code> — vừa lỏng vừa chặt đúng chỗ</h2>
+
+    <p>
+      <code>Partial&lt;T&gt;</code> là một <em>utility type</em> có sẵn: nó biến mọi field của
+      <code>T</code> thành optional. Điều tinh tế là nó lỏng ở chiều "được phép bỏ qua"
+      nhưng vẫn chặt ở chiều "tên field phải có thật":
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · đã verify bằng tsc</span>
+<pre><code>repo.<span class="fn">update</span>(<span class="str">'c1'</span>, { price: <span class="num">80</span> });                  <span class="cmt">// ✅ patch 1 field</span>
+repo.<span class="fn">update</span>(<span class="str">'c1'</span>, { price: <span class="num">80</span>, title: <span class="str">'Mới'</span> });     <span class="cmt">// ✅ patch nhiều field</span>
+repo.<span class="fn">update</span>(<span class="str">'c1'</span>, {});                             <span class="cmt">// ✅ hợp lệ (không đổi gì)</span>
+
+<span class="cmt">// @ts-expect-error 'gia' không phải field của Course</span>
+repo.<span class="fn">update</span>(<span class="str">'c1'</span>, { gia: <span class="num">80</span> });
+
+<span class="cmt">// @ts-expect-error price phải là number</span>
+repo.<span class="fn">update</span>(<span class="str">'c1'</span>, { price: <span class="str">'rẻ'</span> });</code></pre>
+    </div>
+
+    <table class="data">
+      <thead>
+        <tr><th>Utility type</th><th>Làm gì</th><th>Dùng ở đâu trong khoá</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Partial&lt;T&gt;</code></td><td>Mọi field thành optional</td><td><code>update()</code>, patch form</td></tr>
+        <tr><td><code>Required&lt;T&gt;</code></td><td>Mọi field thành bắt buộc</td><td>Sau khi validate xong</td></tr>
+        <tr><td><code>Omit&lt;T, K&gt;</code></td><td>Bỏ field K</td><td><code>create()</code> — chưa có <code>id</code></td></tr>
+        <tr><td><code>Pick&lt;T, K&gt;</code></td><td>Chỉ giữ field K</td><td>DTO gọn cho danh sách</td></tr>
+        <tr><td><code>Readonly&lt;T&gt;</code></td><td>Mọi field chỉ đọc</td><td>State trong NgRx</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="ct">💡 <code>Omit</code> giải đúng một bài toán thật</div>
+      <p>
+        Method <code>create</code> nhận entity <em>chưa có id</em> (server sẽ sinh). Chữ ký đúng là
+        <code>create(data: Omit&lt;T, 'id'&gt;): T</code> — người gọi <strong>không được phép</strong>
+        truyền <code>id</code>, và TypeScript ép đúng điều đó. Bài 10 sẽ dùng nó trong
+        <code>GenericApiService</code>.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Chứng minh nó thực sự type-safe</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · một class, hai entity — đã verify</span>
+<pre><code><span class="kw">const</span> courses = <span class="kw">new</span> InMemoryRepository&lt;Course&gt;();
+<span class="kw">const</span> users = <span class="kw">new</span> InMemoryRepository&lt;User&gt;();
+
+courses.<span class="fn">add</span>({ id: <span class="str">'c1'</span>, title: <span class="str">'Angular'</span>, price: <span class="num">100</span> });
+users.<span class="fn">add</span>({ id: <span class="str">'u1'</span>, name: <span class="str">'Tài'</span>, role: <span class="str">'admin'</span> });
+
+courses.<span class="fn">findById</span>(<span class="str">'c1'</span>)?.price;   <span class="cmt">// ✅ TS biết là number</span>
+users.<span class="fn">findById</span>(<span class="str">'u1'</span>)?.role;     <span class="cmt">// ✅ TS biết là 'student' | 'admin'</span>
+
+<span class="cmt">// @ts-expect-error repo Course KHÔNG nhận User</span>
+courses.<span class="fn">add</span>({ id: <span class="str">'u2'</span>, name: <span class="str">'x'</span>, role: <span class="str">'student'</span> });</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 So với bản dùng <code>any</code></div>
+      <p>
+        Một <code>InMemoryRepository</code> viết bằng <code>any</code> cũng chạy y hệt lúc runtime.
+        Khác biệt duy nhất: bản <code>any</code> để bạn nhét <code>User</code> vào kho
+        <code>Course</code> mà không kêu một tiếng, rồi crash ở một chỗ hoàn toàn khác, ba tuần sau.
+        <strong>Generics không làm code chạy đúng hơn — nó làm code sai không biên dịch được.</strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. Bỏ ràng buộc thì mất gì?</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · repo không ràng buộc</span>
+<pre><code><span class="kw">class</span> RepoKhongRangBuoc&lt;T&gt; {
+  <span class="kw">private</span> items: T[] = [];
+  <span class="fn">add</span>(i: T) { <span class="kw">this</span>.items.<span class="fn">push</span>(i); }
+  <span class="fn">count</span>() { <span class="kw">return</span> <span class="kw">this</span>.items.length; }
+
+  <span class="cmt">// KHÔNG viết được findById ở đây:</span>
+  <span class="cmt">// TS không biết T có .id hay không → `x.id` là lỗi biên dịch.</span>
+}
+
+<span class="cmt">// Nó vẫn hữu ích — chỉ là hữu ích cho việc KHÁC:</span>
+<span class="kw">const</span> r = <span class="kw">new</span> RepoKhongRangBuoc&lt;{ name: <span class="kw">string</span> }&gt;();
+r.<span class="fn">add</span>({ name: <span class="str">'không có id'</span> });   <span class="cmt">// ✅ nhận được kiểu KHÔNG có id</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Đánh đổi, không phải "cái nào tốt hơn"</div>
+      <p>
+        Ràng buộc <strong>hẹp</strong> tập kiểu được phép, đổi lại <strong>mở</strong> những gì làm được
+        bên trong. Không ràng buộc thì nhận được nhiều kiểu hơn nhưng làm được ít hơn.
+      </p>
+      <p>
+        Cách chọn: <strong>bắt đầu từ những gì class cần làm</strong>, rồi ràng buộc <em>vừa đủ</em>
+        để làm được. Repo cần tra theo id ⇒ cần <code>{id: string}</code>, không hơn.
+        Đừng viết <code>T extends Course</code> — nó biến generic thành không-generic.
+      </p>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p>
+        <strong>Hỏi:</strong> "Khi nào dùng generic class thay vì generic function?"
+      </p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Khi có <strong>state</strong> cần giữ đúng kiểu qua nhiều lời gọi.
+        Function generic chốt kiểu ở từng lời gọi, nên không nhớ được gì giữa các lần gọi.
+        Class generic chốt kiểu lúc khởi tạo, nên mọi field và method dùng chung kiểu đó — như
+        <code>Repository&lt;T&gt;</code> phải nhớ mảng nó đang giữ là mảng gì. Nếu chỉ biến đổi dữ liệu
+        vào–ra mà không giữ state thì function là đủ và nhẹ hơn."
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>7. Xem trước: đây chính là <code>GenericApiService</code></h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · Bài 10 sẽ là repo này + HttpClient</span>
+<pre><code><span class="cmt">// Bài 06 (hôm nay) — kho trong bộ nhớ, đồng bộ:</span>
+<span class="fn">findById</span>(id: <span class="kw">string</span>): T | <span class="kw">undefined</span> {
+  <span class="kw">return</span> <span class="kw">this</span>.items.<span class="fn">find</span>((x) => x.id === id);
+}
+
+<span class="cmt">// Bài 10 — cùng cấu trúc, đổi nguồn dữ liệu sang HTTP:</span>
+<span class="fn">getById</span>(id: <span class="kw">string</span>): Observable&lt;T&gt; {
+  <span class="kw">return</span> <span class="kw">this</span>.http.<span class="fn">get</span>&lt;T&gt;(<span class="str">`${<span class="kw">this</span>.endpoint}/${id}`</span>);
+}
+<span class="cmt">// Cùng một &lt;T&gt;, cùng một ràng buộc. Chỉ khác: đồng bộ → Observable.</span>
+<span class="cmt">// Và `http.get&lt;T&gt;` chính là một generic function do Angular viết sẵn (Bài 05).</span></code></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Generic không phải lúc nào cũng đáng</div>
+      <p>
+        Nếu app chỉ có <strong>một</strong> entity, <code>GenericApiService&lt;T&gt;</code> là
+        over-engineer thuần tuý: thêm một lớp trừu tượng để phục vụ đúng một trường hợp.
+        Generic đáng giá khi bạn <em>đã</em> lặp lại ít nhất ba lần và thấy rõ khuôn chung.
+        EduCommerce có 4–6 entity nên nó xứng đáng — nhưng hãy nhớ lý do, đừng generic vì thói quen.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. <code>const repo = new InMemoryRepository&lt;Course&gt;()</code>. Sau đó
+      <code>repo.add(user)</code> — chuyện gì xảy ra?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không. Kiểm tra kiểu xảy ra lúc BIÊN DỊCH. Lúc runtime, generic đã bị xoá sạch (type erasure) — JavaScript sinh ra không còn dấu vết nào của <Course>.">
+      A. Ném lỗi lúc runtime khi <code>add</code> chạy.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Và chi tiết quan trọng: generic KHÔNG tồn tại lúc runtime. TypeScript kiểm tra rồi xoá hết — file .js sinh ra không có gì để kiểm tra kiểu cả. Nghĩa là generic bảo vệ bạn ở tầng biên dịch, nhưng nếu dữ liệu bẩn từ API bay vào lúc runtime thì nó KHÔNG chặn được. Đó là lý do vẫn cần validate response, dù đã khai http.get<Course>().">
+      B. Lỗi <strong>biên dịch</strong>; lúc runtime generic đã bị xoá nên không kiểm tra gì.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai — TypeScript chặn ngay. Và câu này chạm vào một hiểu nhầm nguy hiểm: nghĩ rằng generic tạo ra kiểm tra ở runtime.">
+      C. Chạy bình thường, <code>user</code> được thêm vào kho <code>Course</code>.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Method <code>create</code> nhận entity <strong>chưa có</strong> <code>id</code>
+      (server sẽ sinh) và trả về entity <strong>đã có</strong> <code>id</code>. Chữ ký nào đúng nhất?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Partial<T> cho phép bỏ qua MỌI field — nghĩa là create({}) cũng hợp lệ, và người gọi vẫn truyền được id. Quá lỏng, không diễn đạt đúng ý định.">
+      A. <code>create(data: Partial&lt;T&gt;): T</code>
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Omit<T, 'id'> nói chính xác điều bạn muốn: mọi field của T TRỪ id, và các field đó vẫn BẮT BUỘC. Người gọi không thể truyền id (compile error), không thể quên field bắt buộc khác, và nhận về T đầy đủ. Kiểu chính là tài liệu — chữ ký này tự giải thích hợp đồng của method.">
+      B. <code>create(data: Omit&lt;T, 'id'&gt;): T</code>
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Buộc người gọi phải bịa ra một id giả để thoả mãn kiểu — rồi id đó bị server bỏ qua. Kiểu đang nói dối về hợp đồng thật của method.">
+      C. <code>create(data: T): T</code>
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>8. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>repository.ts</code> + <code>repository.spec.ts</code></div>
+
+      <p>
+        Tự viết <code>InMemoryRepository&lt;T&gt;</code> (đừng copy mục 3 — hãy tự dựng từ chữ ký),
+        rồi chứng minh bằng test. Chấm bằng <strong>cả</strong> <code>npm test</code> và
+        <code>npx tsc --noEmit -p tsconfig.spec.json</code>.
+      </p>
+
+      <strong>Tiêu chí (Definition of Done)</strong>
+
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Một class, hai entity: <code>InMemoryRepository&lt;Course&gt;</code> và <code>&lt;User&gt;</code> cùng hoạt động; truy cập field riêng của mỗi kiểu (<code>.price</code>, <code>.role</code>) đúng kiểu. Kèm <code>@ts-expect-error</code> khi thêm <code>User</code> vào repo <code>Course</code>.</li>
+        <li><strong>TC2</strong> — <code>update</code> với <code>Partial</code>: patch một field, khẳng định các field khác <strong>giữ nguyên</strong>. Kèm <code>@ts-expect-error</code> với tên field không tồn tại.</li>
+        <li><strong>TC3</strong> — <code>update</code> id không tồn tại: không ném lỗi, kho không đổi.</li>
+        <li><strong>TC4</strong> — <code>remove</code> trả <code>true</code> lần đầu, <code>false</code> lần hai.</li>
+        <li><strong>TC5</strong> — Bỏ ràng buộc: viết một class generic <em>không</em> có <code>extends</code>, chứng minh nó nhận được kiểu không có <code>id</code> — và giải thích (bằng comment trong code) vì sao không viết được <code>findById</code> trong đó.</li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm:</strong> thêm <code>create(data: Omit&lt;T, 'id'&gt;): T</code> tự sinh id,
+        kèm <code>@ts-expect-error</code> chứng minh người gọi <strong>không</strong> truyền <code>id</code> được.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Bắt đầu từ <strong>chữ ký</strong>, chưa viết thân hàm. Mỗi method tự hỏi:
+      "kiểu trả về có nói thật không?" — <code>findById</code> có thể không tìm thấy, nên phải
+      <code>| undefined</code>.
+    </p>
+
+    <p>
+      <strong>Hint 2 · Cú pháp:</strong><br>
+      <code>export class InMemoryRepository&lt;T extends { id: string }&gt; { ... }</code> ·
+      <code>Partial&lt;T&gt;</code> · <code>Omit&lt;T, 'id'&gt;</code> · <code>readonly T[]</code> ·
+      merge bằng spread: <code>{ ...cu, ...patch }</code>.
+    </p>
+
+    <p>
+      <strong>Hint 3 · Bẫy ở TC5:</strong><br>
+      Class không ràng buộc <strong>không được</strong> chứa <code>findById</code> — nếu bạn viết vào
+      thì file sẽ không biên dịch. Đó chính là điều bài học muốn bạn <em>tự đâm vào</em>: hãy thử viết
+      nó, đọc thông báo lỗi của TypeScript, rồi xoá đi và ghi lại lỗi đó thành comment.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết tham số kiểu class chốt lúc <code>new</code> và sống suốt đời instance.</li>
+      <li>Tôi dùng <code>Partial</code>/<code>Omit</code>/<code>Pick</code> để chữ ký nói đúng hợp đồng thật.</li>
+      <li>Tôi biết generic <strong>bị xoá lúc runtime</strong> — nên vẫn phải validate dữ liệu từ API.</li>
+      <li>Tôi ràng buộc vừa đủ để làm được việc, không chặt hơn.</li>
+      <li>Tôi biết khi nào generic là over-engineer và dám không dùng nó.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>9. Câu hỏi tư duy</h2>
+
+    <p>
+      Bài 10 sẽ viết <code>GenericApiService&lt;T&gt;</code> cần <code>HttpClient</code>.
+      Trong Angular, bạn không tự <code>new HttpClient()</code> — bạn khai nó ở constructor và
+      Angular "đưa" cho bạn.
+    </p>
+    <p>
+      Nhưng <code>CourseService</code> và <code>UserService</code> đều cần <code>HttpClient</code>.
+      Chúng nhận <strong>cùng một</strong> instance hay <strong>hai</strong> instance khác nhau?
+      Ai quyết định điều đó? Và nếu bạn muốn <code>CheckoutComponent</code> có
+      <code>CartService</code> <em>riêng</em>, không dùng chung với phần còn lại của app —
+      bạn khai ở đâu để đổi được điều đó?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Câu trả lời là <strong>injector tree</strong> — và nó là lý do NgModule
+        <code>providers</code> tồn tại. Bài 07 khép lại Phase 0 bằng chính chủ đề đó.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 07 · DI &amp; injector tree — "gần nhất thắng"</div>
+    <p class="nd">
+      Angular tìm service ở đâu, theo thứ tự nào — và vì sao đặt <code>providers</code> ở component
+      lại tạo ra một instance riêng cho <em>mỗi</em> component. Chứng minh bằng TestBed.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0005-generics-nen-tang.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0007-di-injector-tree.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>repository.ts</code> + <code>repository.spec.ts</code> + output cả hai lệnh.
+    TC5 là phần tôi sẽ đọc kỹ nhất: nếu bạn diễn đạt được <em>vì sao</em> không viết được
+    <code>findById</code> khi thiếu ràng buộc, bạn đã đạt tiêu chí ✅ của Lesson 0.2 trong lộ trình.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

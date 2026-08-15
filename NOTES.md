@@ -42,6 +42,8 @@
 | Guard class | `implements CanActivate` | **vẫn stable** (không deprecated) — dạy được đúng lộ trình | 2.2 |
 | Test | Karma + Jasmine | Vitest mặc định (`--test-runner=karma` vẫn còn) → cần chốt lại ở Phase 10 | 10.1 |
 | Standalone | chưa có | mặc định `true`, phải `standalone: false` cho từng component NgModule | 1.1 |
+| DI decorator | chỉ có `@Injectable` | **có thêm `@Service()`** (verify trong `@angular/core@22.1.2`: `declare const Service: ServiceDecorator`, có option `autoProvided`). `@Injectable` KHÔNG deprecated. Khoá dùng `@Injectable` có chủ đích. | Bài 07 |
+| Injector naming | `ModuleInjector` | docs gọi là `EnvironmentInjector` | Bài 07 |
 
 ## Điều chỉnh lộ trình so với file gốc (đã báo người học)
 - **Thêm Bài 00 — Dựng môi trường**: `ng new` được kéo từ Lesson 1.1 lên Bài 00 để có sân
@@ -49,7 +51,23 @@
 - Một số lesson gốc quá to cho "một bài dạy một thứ" → sẽ **tách** khi tới nơi
   (dự kiến: 3.2, 3.3, 9.1). Sẽ báo trước, không tách âm thầm.
 
+## Trạng thái soạn bài
+- **Đã soạn: Bài 00–07** (hết Module 1). Người học **chưa nộp bài nào** → chưa có learning-record,
+  chưa có `GLOSSARY.md` (theo A23: chỉ thêm thuật ngữ khi người học đã dùng ĐÚNG).
+- Người học yêu cầu soạn trước cả Module 1 (2026-08-15). Đã báo rõ đánh đổi: bài chưa hiệu chỉnh
+  theo năng lực thật → **phải sửa lại bài sau nếu họ vấp hoặc thấy quá dễ ở Bài 01–02**.
+- Sau khi người học nộp hết Module 1 → ra **mini-quiz trộn** 7 bài (A24) trước khi mở Phase 1.
+
+### Cheat-sheet (đếm theo A22)
+- `reference/rxjs-cheatsheet.html` — Bài 01–04.
+- `reference/generics-di-cheatsheet.html` — Bài 05–07.
+- Mốc kế tiếp: sau **Bài 12** (5 bài kể từ cheat-sheet gần nhất) HOẶC khi Module 2 xong.
+
+### Code đã verify trong sandbox (dùng lại khi chấm bài)
+Sandbox: `<scratchpad>/final-verify/educommerce-ng-classic/`. Toàn bộ 25 test xanh + `tsc` sạch.
+Đã chứng minh phương pháp `@ts-expect-error` là thật (cố tình thêm directive thừa → `TS2578`).
+
 ## Cần theo dõi
 - [ ] Chốt lại Karma vs Vitest trước Phase 10.
-- [ ] Kiểm MSW hoạt động với Angular 22 dev server trước khi soạn Lesson 1.2.
-- [ ] Đếm cheat-sheet: cứ 5 bài hoặc hết 1 module → soạn `reference/*.html` (A22).
+- [ ] Kiểm MSW hoạt động với Angular 22 dev server trước khi soạn Bài 09.
+- [ ] Bài 12 (lazy-load) phải quay lại chốt điểm "module eager gộp vào injector gốc" đã nêu ở Bài 07.

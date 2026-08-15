@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · TypeScript Generics &amp; Angular DI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>
+  h2 { margin-top: 34px; }
+  table.data td code, table.data th code { white-space: nowrap; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 05–07</span>
+    <h1>TypeScript Generics &amp; Angular DI — cheat-sheet</h1>
+    <p class="subtitle">
+      Hai nền tảng đứng sau <code>GenericApiService&lt;T&gt;</code>, <code>DynamicForm</code>
+      và toàn bộ tầng service của EduCommerce.
+    </p>
+    <p class="meta-line">
+      Đã kiểm chứng trên <strong>TypeScript 6.0.2</strong> · Angular 22.1.2 · tsc sạch + 25 test xanh
+    </p>
+  </header>
+
+
+  <!-- ==================== PHẦN A — GENERICS ==================== -->
+  <section>
+    <h2>A1. Cú pháp — bảng tra nhanh</h2>
+
+    <table class="data">
+      <thead><tr><th>Dạng</th><th>Cú pháp</th><th>Ghi chú</th></tr></thead>
+      <tbody>
+        <tr><td>Function</td><td><code>function f&lt;T&gt;(x: T): T[]</code></td><td>Tham số kiểu <strong>sau tên, trước ngoặc</strong></td></tr>
+        <tr><td>Interface</td><td><code>interface Res&lt;T&gt; { data: T }</code></td><td>Khuôn cho mọi entity</td></tr>
+        <tr><td>Class</td><td><code>class Repo&lt;T&gt; { }</code></td><td>Sau <strong>tên class</strong>; mọi member dùng chung <code>T</code></td></tr>
+        <tr><td>Ràng buộc</td><td><code>&lt;T extends { id: string }&gt;</code></td><td>Mở khoá quyền truy cập <code>.id</code></td></tr>
+        <tr><td>Mặc định</td><td><code>&lt;T = string&gt;</code>, <code>&lt;A, B = A&gt;</code></td><td>Như giá trị mặc định của tham số</td></tr>
+        <tr><td>Nhiều tham số</td><td><code>&lt;T, K extends keyof T&gt;</code></td><td>Mỗi cái giữ một mối liên hệ riêng</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout why">
+      <div class="ct">💡 Câu chốt</div>
+      <p>
+        <code>any</code> nói "tôi không quan tâm kiểu gì". <code>&lt;T&gt;</code> nói
+        "tôi chưa biết kiểu gì, nhưng đầu ra sẽ <strong>đúng bằng</strong> đầu vào".
+        Generics giữ <strong>quan hệ</strong> giữa các vị trí trong chữ ký — thứ <code>any</code> xoá sạch.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>A2. Constraint — cuộc trao đổi</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ T trần = "bất kỳ kiểu nào" → TS không cho giả định gì</span>
+<span class="kw">function</span> <span class="fn">layId</span>&lt;T&gt;(item: T) { <span class="kw">return</span> item.id; }
+<span class="cmt">//                                        ^^ Property 'id' does not exist on type 'T'</span>
+
+<span class="cmt">// ✅ Ràng buộc thu hẹp tập kiểu, đổi lại mở quyền truy cập</span>
+<span class="kw">function</span> <span class="fn">layId</span>&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt;(item: T) { <span class="kw">return</span> item.id; }</code></pre>
+    </div>
+
+    <p>
+      <strong>Luật:</strong> ràng buộc <em>vừa đủ</em> để làm được việc, không hơn.
+      Cần <code>.id</code> thì ràng buộc <code>{ id: string }</code> — đừng viết
+      <code>T extends Course</code>, vì thế là biến generic thành không-generic.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>A3. <code>keyof</code> và vì sao cần hai tham số kiểu</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ✅ K "ghim" đúng key được truyền → trả về ĐÚNG T[K]</span>
+<span class="kw">function</span> <span class="fn">layTruong</span>&lt;T, K <span class="kw">extends keyof</span> T&gt;(obj: T, key: K): T[K] { <span class="kw">return</span> obj[key]; }
+
+<span class="kw">const</span> t: <span class="kw">string</span> = <span class="fn">layTruong</span>(course, <span class="str">'title'</span>);   <span class="cmt">// ✅ string</span>
+<span class="kw">const</span> p: <span class="kw">number</span> = <span class="fn">layTruong</span>(course, <span class="str">'price'</span>);   <span class="cmt">// ✅ number</span>
+
+<span class="cmt">// ⚠️ Nếu viết (obj: T, key: keyof T): T[keyof T] thì kiểu trả về là UNION</span>
+<span class="cmt">//    của MỌI field → lại phải ép kiểu ở chỗ dùng.</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>A4. Utility types</h2>
+
+    <table class="data">
+      <thead><tr><th>Type</th><th>Làm gì</th><th>Dùng ở đâu</th></tr></thead>
+      <tbody>
+        <tr><td><code>Partial&lt;T&gt;</code></td><td>Mọi field → optional</td><td><code>update(id, patch: Partial&lt;T&gt;)</code></td></tr>
+        <tr><td><code>Omit&lt;T, K&gt;</code></td><td>Bỏ field K</td><td><code>create(data: Omit&lt;T,'id'&gt;)</code> — server sinh id</td></tr>
+        <tr><td><code>Pick&lt;T, K&gt;</code></td><td>Chỉ giữ field K</td><td>DTO gọn cho danh sách</td></tr>
+        <tr><td><code>Required&lt;T&gt;</code></td><td>Mọi field → bắt buộc</td><td>Sau khi validate</td></tr>
+        <tr><td><code>Readonly&lt;T&gt;</code></td><td>Mọi field chỉ đọc</td><td>State NgRx</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      <code>Partial&lt;T&gt;</code> lỏng ở chiều "được bỏ qua field" nhưng vẫn <strong>chặt</strong> ở chiều
+      "tên field phải có thật và đúng kiểu".
+    </p>
+  </section>
+
+
+  <section>
+    <h2>A5. Khuôn <code>InMemoryRepository&lt;T&gt;</code></h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">export class</span> InMemoryRepository&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt; {
+  <span class="kw">private</span> items: T[] = [];
+
+  <span class="fn">add</span>(item: T): <span class="kw">void</span> { <span class="kw">this</span>.items.<span class="fn">push</span>(item); }
+
+  <span class="cmt">// `| undefined` vì tìm không thấy là chuyện bình thường — kiểu phải nói THẬT</span>
+  <span class="fn">findById</span>(id: <span class="kw">string</span>): T | <span class="kw">undefined</span> { <span class="kw">return</span> <span class="kw">this</span>.items.<span class="fn">find</span>((x) => x.id === id); }
+
+  <span class="fn">update</span>(id: <span class="kw">string</span>, patch: Partial&lt;T&gt;): <span class="kw">void</span> {
+    <span class="kw">const</span> i = <span class="kw">this</span>.items.<span class="fn">findIndex</span>((x) => x.id === id);
+    <span class="kw">if</span> (i === -<span class="num">1</span>) <span class="kw">return</span>;
+    <span class="kw">this</span>.items[i] = { ...<span class="kw">this</span>.items[i], ...patch };   <span class="cmt">// object MỚI → OnPush/NgRx phát hiện được</span>
+  }
+
+  <span class="fn">getAll</span>(): <span class="kw">readonly</span> T[] { <span class="kw">return</span> <span class="kw">this</span>.items; }   <span class="cmt">// chặn push từ bên ngoài</span>
+}</code></pre>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Quyết định</th><th>Lý do</th></tr></thead>
+      <tbody>
+        <tr><td><code>T | undefined</code></td><td>Kiểu trả về phải nói thật, ép nơi gọi xử lý</td></tr>
+        <tr><td><code>{...cũ, ...patch}</code></td><td>Object mới ⇒ so sánh tham chiếu phát hiện thay đổi (OnPush, NgRx)</td></tr>
+        <tr><td><code>readonly T[]</code></td><td>Đóng cửa ghi bằng compiler, không bằng lời dặn</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <section>
+    <h2>A6. Test tầng kiểu bằng <code>@ts-expect-error</code></h2>
+
+    <div class="code-block">
+      <span class="code-label">bash + TypeScript</span>
+<pre><code><span class="cmt">// Ý nghĩa: "dòng NGAY DƯỚI phải có lỗi biên dịch".</span>
+<span class="cmt">//   có lỗi   → build PASS</span>
+<span class="cmt">//   hết lỗi  → build FAIL: TS2578 Unused '@ts-expect-error' directive</span>
+
+<span class="cmt">// @ts-expect-error</span>
+<span class="fn">layId</span>({ name: <span class="str">'không có id'</span> });</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">bash · lệnh chấm bài</span>
+<pre><code><span class="fn">npx</span> tsc --noEmit -p tsconfig.spec.json   <span class="cmt"># im lặng = mọi ràng buộc kiểu còn hiệu lực</span>
+<span class="fn">npm</span> test                                 <span class="cmt"># runtime</span></code></pre>
+    </div>
+
+    <p>
+      Mạnh hơn <code>@ts-ignore</code>: <code>@ts-ignore</code> chỉ tắt tiếng, còn
+      <code>@ts-expect-error</code> <strong>báo động khi lỗi biến mất</strong> — tức là nó bảo vệ
+      ràng buộc kiểu của bạn khỏi bị vô hiệu hoá trong lần refactor sau.
+    </p>
+
+    <div class="callout warn">
+      <div class="ct">⚠️ Generic bị XOÁ lúc runtime</div>
+      <p>
+        Type erasure: file <code>.js</code> sinh ra không còn dấu vết <code>&lt;Course&gt;</code>.
+        Nghĩa là <code>http.get&lt;Course&gt;()</code> <strong>không</strong> validate response —
+        dữ liệu bẩn từ API vẫn lọt. Generic bảo vệ ở tầng biên dịch, không phải tầng runtime.
+      </p>
+    </div>
+  </section>
+
+
+  <!-- ==================== PHẦN B — DI ==================== -->
+  <section>
+    <h2>B1. Thứ tự resolve — "gần nhất thắng"</h2>
+
+    <div class="code-block">
+      <span class="code-label">Thứ tự tìm kiếm</span>
+<pre><code>Component xin CartService
+   ├─ 1. ElementInjector của CHÍNH nó       ← @Component({ providers: [...] })
+   ├─ 2. ElementInjector của component CHA
+   ├─ 3. ... ngược lên gốc cây DOM
+   ├─ 4. EnvironmentInjector của module     ← @NgModule({ providers: [...] })
+   ├─ 5. ... ngược lên injector gốc         ← providedIn:'root' / @Service()
+   └─ 6. NullInjectorError  (@Optional() → null)
+
+<span class="cmt">// Dừng ở CÁI ĐẦU TIÊN tìm thấy.</span></code></pre>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Đặt ở</th><th>Số instance</th><th>Dùng cho</th></tr></thead>
+      <tbody>
+        <tr><td><code>providedIn: 'root'</code></td><td>1 cho toàn app</td><td>Auth, Cart, Config, Logger. Tree-shakable.</td></tr>
+        <tr><td><code>@NgModule({providers})</code></td><td>1 cho phạm vi injector đó</td><td>⚠️ Module <strong>eager</strong> vẫn gộp vào gốc — <strong>vẫn là singleton toàn app</strong></td></tr>
+        <tr><td><code>@Component({providers})</code></td><td>1 cho <strong>mỗi instance</strong> component</td><td>State cục bộ: panel so sánh, form nháp, wizard step</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Hiểu nhầm phổ biến nhất</div>
+      <p>
+        "Đặt providers trong feature module thì service chỉ sống trong module đó" —
+        <strong>SAI với module eager</strong>. Chỉ <strong>lazy-loaded module</strong> mới tạo
+        <code>EnvironmentInjector</code> con thật sự.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>B2. Bốn kiểu provider</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code>{ provide: APP_CONFIG,  useValue: { apiUrl: <span class="str">'/api'</span> } }         <span class="cmt">// giá trị có sẵn</span>
+{ provide: CartService, useClass: MockCartService }             <span class="cmt">// tráo impl (mock khi test)</span>
+{ provide: <span class="str">'BASE_URL'</span>,  useFactory: (c) => <span class="str">`${c.apiUrl}/x`</span>,
+                        deps: [APP_CONFIG] }                    <span class="cmt">// ⚠️ deps BẮT BUỘC</span>
+{ provide: LoggerAbstract, useExisting: ConsoleLogger }          <span class="cmt">// bí danh, cùng instance</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>B3. <code>InjectionToken</code> — inject thứ không phải class</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">export interface</span> AppConfig { apiUrl: <span class="kw">string</span>; pageSize: <span class="kw">number</span>; }
+
+<span class="cmt">// interface BIẾN MẤT khi biên dịch → không có gì làm khoá DI.</span>
+<span class="cmt">// InjectionToken là object THẬT tồn tại runtime, mang kiểu ở tầng type.</span>
+<span class="kw">export const</span> APP_CONFIG = <span class="kw">new</span> InjectionToken&lt;AppConfig&gt;(<span class="str">'app.config'</span>);
+
+providers: [{ provide: APP_CONFIG, useValue: { apiUrl: <span class="str">'/api'</span>, pageSize: <span class="num">20</span> } }]
+
+<span class="kw">private</span> config = <span class="fn">inject</span>(APP_CONFIG);   <span class="cmt">// type-safe, IDE gợi ý .pageSize</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>B4. <code>multi: true</code></h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code>providers: [
+  { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor,    multi: <span class="kw">true</span> },
+  { provide: HTTP_INTERCEPTORS, useClass: LoggingInterceptor, multi: <span class="kw">true</span> },
+]
+<span class="cmt">// → inject(HTTP_INTERCEPTORS) trả MẢNG, chạy theo ĐÚNG thứ tự khai báo.</span></code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Quên <code>multi: true</code></div>
+      <p>
+        Provider sau <strong>ghi đè</strong> cái trước → mất một interceptor,
+        <strong>không có lỗi nào</strong>. Triệu chứng: request đột nhiên không kèm token.
+        Bạn sẽ đi tìm bug ở <code>AuthService</code> thay vì ở dòng provider.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>B5. <code>@Injectable</code> vs <code>@Service</code> (Angular 22)</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · cả hai chạy song song, đã verify</span>
+<pre><code><span class="cmt">// CỔ ĐIỂN — mọi codebase v12–v16 dùng cái này</span>
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })   <span class="kw">class</span> A {}
+<span class="fn">@Injectable</span>()                          <span class="kw">class</span> B {}   <span class="cmt">// phải tự khai providers</span>
+
+<span class="cmt">// MỚI ở Angular 22</span>
+<span class="fn">@Service</span>()                              <span class="kw">class</span> C {}   <span class="cmt">// ≈ providedIn:'root'</span>
+<span class="fn">@Service</span>({ autoProvided: <span class="kw">false</span> })       <span class="kw">class</span> D {}   <span class="cmt">// ≈ @Injectable() trần</span></code></pre>
+    </div>
+
+    <p>
+      <code>@Injectable</code> <strong>không</strong> bị deprecated (đã kiểm trong
+      <code>@angular/core@22.1.2</code>). Khoá này dùng <code>@Injectable</code> có chủ đích
+      vì mission là đọc hiểu codebase cũ — nhưng biết <code>@Service()</code> tồn tại để trả lời
+      phỏng vấn cho chính xác.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>B6. Test DI bằng TestBed</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code>TestBed.<span class="fn">configureTestingModule</span>({ imports: [DemoModule], providers: [GioHangService] });
+
+<span class="kw">const</span> f1 = TestBed.<span class="fn">createComponent</span>(MyComponent);
+<span class="kw">const</span> f2 = TestBed.<span class="fn">createComponent</span>(MyComponent);
+
+<span class="cmt">// ⚠️ Dùng toBe (tham chiếu), KHÔNG dùng toEqual —</span>
+<span class="cmt">//    hai instance rỗng khác nhau vẫn toEqual nhau → test xanh vô nghĩa.</span>
+<span class="fn">expect</span>(f1.componentInstance.svc).<span class="fn">toBe</span>(f2.componentInstance.svc);       <span class="cmt">// dùng chung</span>
+<span class="fn">expect</span>(f1.componentInstance.svc).<span class="fn">not</span>.<span class="fn">toBe</span>(f2.componentInstance.svc);   <span class="cmt">// riêng biệt</span></code></pre>
+    </div>
+
+    <p>
+      Component dùng trong test phải có <code>standalone: false</code>, được
+      <code>declarations</code> trong một <code>@NgModule</code>, rồi <code>imports</code> module đó
+      vào TestBed. Gọi lại <code>configureTestingModule</code> ở <strong>mỗi</strong> test khi đổi providers.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>B7. Góc phỏng vấn</h2>
+
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>T</code> vs <code>T extends {id: string}</code>?</td>
+          <td><code>T</code> trần là "bất kỳ kiểu nào" nên TS chỉ cho làm những gì đúng với mọi kiểu — truy cập <code>.id</code> bị chặn. Ràng buộc thu hẹp tập kiểu hợp lệ, đổi lại mở quyền dùng <code>.id</code>. Là một cuộc trao đổi.</td>
+        </tr>
+        <tr>
+          <td>Generic class vs generic function?</td>
+          <td>Class khi có <strong>state</strong> cần giữ đúng kiểu qua nhiều lời gọi (<code>Repository&lt;T&gt;</code> nhớ mảng nó giữ). Function khi chỉ biến đổi vào–ra.</td>
+        </tr>
+        <tr>
+          <td>Thứ tự resolve DI?</td>
+          <td>ElementInjector của chính nó → các ElementInjector cha → EnvironmentInjector → gốc → <code>NullInjectorError</code>. Dừng ở cái đầu tiên gặp được.</td>
+        </tr>
+        <tr>
+          <td>Làm sao có instance service riêng cho mỗi component?</td>
+          <td>Khai <code>providers: [X]</code> trong <code>@Component</code> — tạo ElementInjector riêng cho mỗi instance component.</td>
+        </tr>
+        <tr>
+          <td><code>multi: true</code> để làm gì?</td>
+          <td>Cho nhiều provider cùng token cộng dồn thành mảng thay vì ghi đè nhau. Cơ chế của <code>HTTP_INTERCEPTORS</code>, <code>NG_VALIDATORS</code>, <code>NG_VALUE_ACCESSOR</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="rxjs-cheatsheet.html">← Cheat-sheet RxJS</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    📌 Nguồn: <a href="https://angular.dev/guide/di/hierarchical-dependency-injection" target="_blank" rel="noopener noreferrer">Angular hierarchical DI</a> ·
+    JSDoc trong <code>@angular/core@22.1.2</code> · <a href="https://www.typescriptlang.org/docs/handbook/2/generics.html" target="_blank" rel="noopener noreferrer">TypeScript Handbook — Generics</a>.
+  </p>
+
+</div>
+</body>
+</html>

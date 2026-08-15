@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 07 · DI &amp; injector tree — "gần nhất thắng"</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 07 · Core (Angular DI)</span>
+
+    <h1>DI &amp; injector tree — "gần nhất thắng"</h1>
+
+    <p class="subtitle">
+      Angular tìm service ở đâu, theo thứ tự nào — và vì sao <code>providers</code> đặt ở component
+      lại tạo ra một instance riêng cho <em>mỗi</em> component.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~40 phút
+      · 🎯 Chứng minh injector tree bằng TestBed
+      · 🏷️ Bài cuối Phase 0
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Nói đúng <strong>thứ tự resolve</strong> khi component xin một dependency.</li>
+      <li>Quyết định đặt <code>providers</code> ở đâu — root, module, hay component — và giải thích vì sao.</li>
+      <li>Dùng <code>InjectionToken</code> để inject thứ <strong>không phải class</strong> (config object).</li>
+      <li>Giải thích <code>multi: true</code> — cơ chế đứng sau <code>HTTP_INTERCEPTORS</code> ở Phase 4.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 06 bạn <code>new InMemoryRepository&lt;Course&gt;()</code> bằng tay — bạn kiểm soát hoàn toàn
+      có bao nhiêu instance. Trong Angular bạn <strong>không</strong> gọi <code>new</code>;
+      bạn khai báo nhu cầu và Angular đưa cho.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>Angular quyết định đưa cho bạn instance nào — theo một luật đơn giản: gần nhất thắng.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: giỏ hàng dùng chung ngoài ý muốn</h2>
+
+    <p>
+      EduCommerce có <code>CartService</code> giữ giỏ hàng. Đúng như mong đợi: header, trang Cart,
+      trang Checkout đều thấy <strong>cùng một</strong> giỏ. Hợp lý — đó là state toàn cục.
+    </p>
+
+    <p>
+      Giờ bạn làm tính năng "So sánh khoá học": mở ba panel cạnh nhau, <strong>mỗi panel</strong> có
+      giỏ nháp riêng. Bạn tái sử dụng <code>CartService</code> và… cả ba panel chia sẻ chung một giỏ.
+      Thêm vào panel 1 thì panel 2 và 3 cũng đổi theo.
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Cách sửa ngây thơ: tạo <code>DraftCartService</code> riêng rồi tự <code>new</code> trong
+        component. Nhưng như thế bạn mất DI hoàn toàn — không mock được khi test, không inject được
+        <code>HttpClient</code> vào trong đó.
+      </p>
+      <p>
+        Câu hỏi thật là: <strong>có cách nào giữ nguyên DI mà đổi số lượng instance không?</strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model: hai cái cây, một luật</h2>
+
+    <p>
+      Angular duy trì <strong>hai</strong> hệ thống injector song song. Đây là chỗ hầu hết tài liệu
+      giải thích mơ hồ, nên hãy nắm chắc:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Cây</th><th>Tạo ra từ</th><th>Số lượng</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ElementInjector</strong></td>
+          <td><code>providers</code> trong <code>@Component</code> / <code>@Directive</code></td>
+          <td>Một cho <strong>mỗi phần tử DOM</strong> có khai providers</td>
+        </tr>
+        <tr>
+          <td><strong>EnvironmentInjector</strong><br><span style="font-size:13px;color:var(--text-dim)">(xưa gọi ModuleInjector)</span></td>
+          <td><code>providers</code> trong <code>@NgModule</code>, và <code>providedIn</code></td>
+          <td>Một cho root, thêm một cho mỗi module <strong>lazy-load</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="code-block">
+      <span class="code-label">Thứ tự tìm kiếm khi component xin một dependency</span>
+<pre><code>Component xin CartService
+   │
+   ├─ 1. ElementInjector của CHÍNH nó          ← providers: [CartService] ở đây?
+   ├─ 2. ElementInjector của component CHA
+   ├─ 3. ... đi ngược lên tới gốc cây DOM
+   │
+   ├─ 4. EnvironmentInjector của module        ← providers: [...] trong @NgModule?
+   ├─ 5. ... đi ngược lên EnvironmentInjector gốc  ← providedIn: 'root' / @Service()
+   │
+   └─ 6. Không thấy → NullInjectorError
+         (trừ khi có @Optional() → trả về null)
+
+<span class="cmt">// LUẬT: dừng ở CÁI ĐẦU TIÊN tìm thấy. Không tìm tiếp.</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Angular đi từ chỗ bạn đứng ngược lên gốc, và lấy cái đầu tiên gặp được.
+          Muốn đổi instance nào được đưa cho bạn — hãy đặt provider gần hơn.
+        </strong>
+      </p>
+    </div>
+
+    <p>
+      Theo
+      <a href="https://angular.dev/guide/di/hierarchical-dependency-injection" target="_blank" rel="noopener noreferrer">docs chính thức về hierarchical DI</a>:
+      Angular tìm trong <code>ElementInjector</code> và các cha của nó trước; nếu không thấy,
+      <em>"it goes back to the element where the request originated and looks in the
+      <code>EnvironmentInjector</code> hierarchy"</em>; và
+      <em>"the first one Angular encounters is the one it uses to resolve the dependency"</em>.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>3. Ba chỗ đặt provider — và hệ quả của mỗi chỗ</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · ba mức, ba số lượng instance</span>
+<pre><code><span class="cmt">// ── MỨC 1: ROOT ── một instance cho TOÀN APP (singleton)</span>
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> AuthService { }
+<span class="cmt">// Dùng cho: auth, cart toàn cục, config, logger.</span>
+<span class="cmt">// Ưu điểm phụ: tree-shakable — không ai inject thì không vào bundle.</span>
+
+
+<span class="cmt">// ── MỨC 2: MODULE ── một instance cho phạm vi module đó</span>
+<span class="fn">@NgModule</span>({ providers: [CourseFilterService] })
+<span class="kw">export class</span> CoursesModule { }
+<span class="cmt">// Lưu ý quan trọng: với module EAGER (import thẳng vào AppModule),</span>
+<span class="cmt">// provider vẫn gộp vào injector GỐC → vẫn là singleton toàn app.</span>
+<span class="cmt">// Chỉ module LAZY-LOAD mới thực sự có EnvironmentInjector riêng.</span>
+
+
+<span class="cmt">// ── MỨC 3: COMPONENT ── một instance cho MỖI INSTANCE component</span>
+<span class="fn">@Component</span>({
+  selector: <span class="str">'app-compare-panel'</span>,
+  standalone: <span class="kw">false</span>,
+  providers: [DraftCartService],   <span class="cmt">// ← 3 panel = 3 giỏ nháp độc lập</span>
+})
+<span class="kw">export class</span> ComparePanelComponent {
+  draft = <span class="fn">inject</span>(DraftCartService);
+}</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy kinh điển: "provider ở module = scope riêng"</div>
+      <p>
+        Rất nhiều người tin rằng đặt <code>providers</code> trong một feature module thì service đó
+        chỉ sống trong module ấy. <strong>Sai với module eager.</strong> Angular gộp providers của
+        mọi module eager vào một injector gốc duy nhất. Đặt <code>UserService</code> trong
+        <code>AdminModule</code> (eager) thì trang public vẫn inject được nó bình thường.
+      </p>
+      <p>
+        Chỉ <strong>lazy-loaded module</strong> mới tạo <code>EnvironmentInjector</code> con thật sự.
+        Bài 12 sẽ chạm lại đúng điểm này khi làm lazy-load — và đó cũng là lý do
+        <code>CoreModule</code> cần cơ chế chống import hai lần (Bài 08).
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Chứng minh bằng TestBed</h2>
+
+    <p>Ba test dưới đây đã chạy xanh thật — chúng chứng minh trọn vẹn mental model ở mục 2:</p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · providers ở COMPONENT → instance riêng</span>
+<pre><code><span class="fn">@Component</span>({ selector: <span class="str">'app-con'</span>, template: <span class="str">''</span>, standalone: <span class="kw">false</span>,
+             providers: [GioHangService] })   <span class="cmt">// ← mỗi component một bản</span>
+<span class="kw">class</span> ConCoProviderComponent {
+  gioHang = <span class="fn">inject</span>(GioHangService);
+}
+
+<span class="cmt">// --- test ---</span>
+<span class="kw">const</span> f1 = TestBed.<span class="fn">createComponent</span>(ConCoProviderComponent);
+<span class="kw">const</span> f2 = TestBed.<span class="fn">createComponent</span>(ConCoProviderComponent);
+
+f1.componentInstance.gioHang.<span class="fn">them</span>(<span class="str">'khoa-hoc-1'</span>);
+
+<span class="fn">expect</span>(f1.componentInstance.gioHang.<span class="fn">soLuong</span>()).<span class="fn">toBe</span>(<span class="num">1</span>);
+<span class="fn">expect</span>(f2.componentInstance.gioHang.<span class="fn">soLuong</span>()).<span class="fn">toBe</span>(<span class="num">0</span>);   <span class="cmt">// ← KHÔNG dùng chung</span>
+<span class="fn">expect</span>(f1.componentInstance.gioHang).<span class="fn">not</span>.<span class="fn">toBe</span>(f2.componentInstance.gioHang);</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · KHÔNG khai providers → đi ngược lên, dùng chung</span>
+<pre><code><span class="fn">@Component</span>({ selector: <span class="str">'app-khong'</span>, template: <span class="str">''</span>, standalone: <span class="kw">false</span> })  <span class="cmt">// không providers</span>
+<span class="kw">class</span> ConKhongProviderComponent {
+  gioHang = <span class="fn">inject</span>(GioHangService);
+}
+
+TestBed.<span class="fn">configureTestingModule</span>({ imports: [DemoModule], providers: [GioHangService] });
+
+f1.componentInstance.gioHang.<span class="fn">them</span>(<span class="str">'x'</span>);
+<span class="fn">expect</span>(f2.componentInstance.gioHang.<span class="fn">soLuong</span>()).<span class="fn">toBe</span>(<span class="num">1</span>);   <span class="cmt">// ← DÙNG CHUNG</span>
+<span class="fn">expect</span>(f1.componentInstance.gioHang).<span class="fn">toBe</span>(f2.componentInstance.gioHang);</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Test thứ ba mới là cái chốt lại luật</div>
+      <p>
+        Khai provider ở <strong>cả hai</strong> nơi — module và component — rồi so sánh:
+        component nhận bản của <em>chính nó</em>, không phải bản của module.
+        Đó chính là "gần nhất thắng", và nó cũng là cách bạn <strong>ghi đè</strong> một service
+        cho riêng một nhánh cây component mà không đụng tới phần còn lại của app.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. <code>InjectionToken</code> — inject thứ không phải class</h2>
+
+    <p>
+      DI của Angular dùng <strong>khoá</strong> để tra provider. Với class, chính class đó là khoá.
+      Nhưng <code>interface AppConfig</code> thì <strong>biến mất khi biên dịch</strong> —
+      không còn gì để làm khoá. Đó là lý do <code>InjectionToken</code> tồn tại:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · core/tokens/app-config.token.ts</span>
+<pre><code><span class="kw">export interface</span> AppConfig { apiUrl: <span class="kw">string</span>; pageSize: <span class="kw">number</span>; }
+
+<span class="cmt">// Một object THẬT tồn tại lúc runtime, mang theo kiểu ở tầng type.</span>
+<span class="cmt">// Chuỗi 'app.config' chỉ để hiển thị trong thông báo lỗi — không phải định danh.</span>
+<span class="kw">export const</span> APP_CONFIG = <span class="kw">new</span> InjectionToken&lt;AppConfig&gt;(<span class="str">'app.config'</span>);
+
+<span class="cmt">// Đăng ký</span>
+<span class="fn">@NgModule</span>({
+  providers: [
+    { provide: APP_CONFIG, useValue: { apiUrl: <span class="str">'/api'</span>, pageSize: <span class="num">20</span> } },
+  ],
+})
+<span class="kw">export class</span> CoreModule {}
+
+<span class="cmt">// Dùng — type-safe hoàn toàn, IDE gợi ý được .pageSize</span>
+<span class="kw">export class</span> CourseService {
+  <span class="kw">private</span> config = <span class="fn">inject</span>(APP_CONFIG);
+}</code></pre>
+    </div>
+
+    <h3>Bốn kiểu provider</h3>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · useValue / useClass / useFactory / useExisting</span>
+<pre><code><span class="cmt">// useValue — giá trị có sẵn. Dùng cho config, hằng số, mock trong test.</span>
+{ provide: APP_CONFIG, useValue: { apiUrl: <span class="str">'/api'</span>, pageSize: <span class="num">20</span> } }
+
+<span class="cmt">// useClass — tráo implementation. Chỗ dùng KHÔNG đổi một dòng nào.</span>
+{ provide: GioHangService, useClass: GioHangGia }
+<span class="cmt">// → TestBed.inject(GioHangService) trả về instance của GioHangGia.</span>
+<span class="cmt">// Đây chính là cách mock service khi test (Bài 45).</span>
+
+<span class="cmt">// useFactory — cần TÍNH TOÁN, hoặc phụ thuộc dependency khác.</span>
+{
+  provide: <span class="str">'BASE_URL'</span>,
+  useFactory: (c: AppConfig) => <span class="str">`${c.apiUrl}/courses`</span>,
+  deps: [APP_CONFIG],   <span class="cmt">// ← BẮT BUỘC liệt kê, Angular không tự suy ra được</span>
+}
+
+<span class="cmt">// useExisting — bí danh: hai khoá trỏ về CÙNG một instance.</span>
+{ provide: LoggerInterface, useExisting: ConsoleLogger }</code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. <code>multi: true</code> — nhiều provider, một mảng</h2>
+
+    <p>
+      Bình thường provider sau <strong>ghi đè</strong> provider trước cho cùng một khoá.
+      Với <code>multi: true</code> thì chúng <strong>cộng dồn</strong> thành mảng:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · đã verify</span>
+<pre><code><span class="kw">const</span> VALIDATOR = <span class="kw">new</span> InjectionToken&lt;<span class="kw">string</span>[]&gt;(<span class="str">'validators'</span>);
+
+TestBed.<span class="fn">configureTestingModule</span>({
+  providers: [
+    { provide: VALIDATOR, useValue: <span class="str">'required'</span>, multi: <span class="kw">true</span> },
+    { provide: VALIDATOR, useValue: <span class="str">'maxLength'</span>, multi: <span class="kw">true</span> },
+  ],
+});
+
+<span class="fn">expect</span>(TestBed.<span class="fn">inject</span>(VALIDATOR)).<span class="fn">toEqual</span>([<span class="str">'required'</span>, <span class="str">'maxLength'</span>]);</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao bạn cần biết điều này ngay bây giờ</div>
+      <p>
+        Đây <strong>chính xác</strong> là cơ chế đứng sau <code>HTTP_INTERCEPTORS</code> ở Bài 24:
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · xem trước Bài 24</span>
+<pre><code>providers: [
+  { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: <span class="kw">true</span> },
+  { provide: HTTP_INTERCEPTORS, useClass: LoggingInterceptor, multi: <span class="kw">true</span> },
+]
+<span class="cmt">// Angular gom thành mảng rồi chạy chúng theo ĐÚNG THỨ TỰ khai báo.</span>
+<span class="cmt">// QUÊN `multi: true` → interceptor sau GHI ĐÈ cái trước, và bạn mất một cái</span>
+<span class="cmt">// mà KHÔNG có lỗi nào cả. Bug im lặng kinh điển của Angular Classic.</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>7. Angular 22 có <code>@Service()</code> — thứ codebase cũ của bạn chưa có</h2>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Đây là điểm lệch giữa sân tập và codebase v12–v16</div>
+      <p>
+        Tôi đã kiểm trực tiếp trong <code>@angular/core@22.1.2</code> đang cài trên máy bạn:
+        decorator <code>@Service()</code> <strong>có thật</strong>, và <code>@Injectable</code>
+        <strong>không</strong> bị đánh dấu deprecated. Cả hai chạy song song.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · đối chiếu — đã verify chạy xanh</span>
+<pre><code><span class="cmt">// ── Cách CỔ ĐIỂN (mọi codebase v12–v16 dùng cái này) ──</span>
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">class</span> AuthService { }
+
+<span class="fn">@Injectable</span>()                    <span class="cmt">// phải tự khai trong providers</span>
+<span class="kw">class</span> GioHangService { }
+
+<span class="cmt">// ── Cách MỚI của Angular 22 ──</span>
+<span class="fn">@Service</span>()                       <span class="cmt">// tự động provided ≈ providedIn:'root'</span>
+<span class="kw">class</span> ThongBaoService { }
+
+<span class="fn">@Service</span>({ autoProvided: <span class="kw">false</span> })  <span class="cmt">// ≈ @Injectable() trần</span>
+<span class="kw">class</span> GioHangService2 { }</code></pre>
+    </div>
+
+    <p>
+      Theo JSDoc trong chính file type của Angular 22:
+      <em>"When <code>autoProvided</code> is set to <code>false</code>, the service won't be exposed
+      to the dependency injection system automatically. It is up to the user to expose it in a
+      providers list."</em>
+    </p>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Khoá này dùng <code>@Injectable</code>, có chủ đích</div>
+      <p>
+        Mission của bạn là đọc hiểu và maintain codebase Angular cũ. Những codebase đó
+        <strong>không có</strong> <code>@Service()</code>. Học <code>@Injectable</code> trước là đúng
+        thứ tự. Nhưng giờ bạn biết <code>@Service()</code> tồn tại — nếu người phỏng vấn hỏi
+        "Angular mới nhất có gì thay đổi về DI", bạn trả lời được, và trả lời <em>chính xác</em>
+        thay vì theo tin đồn trên blog.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. <code>GioHangService</code> được khai <strong>cả</strong> trong <code>providers</code> của
+      <code>AppModule</code> <strong>lẫn</strong> trong <code>providers</code> của
+      <code>CartComponent</code>. <code>CartComponent</code> nhận instance nào?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai. Angular dừng ở injector ĐẦU TIÊN tìm thấy khi đi từ component ngược lên — mà ElementInjector của chính component được xét TRƯỚC EnvironmentInjector của module.">
+      A. Của <code>AppModule</code>, vì module đứng cao hơn nên ưu tiên hơn.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Thứ tự tìm là: ElementInjector của chính nó → các ElementInjector cha → EnvironmentInjector. Component tự khai providers nên tìm thấy ngay ở bước đầu tiên và dừng. Đây chính là cách bạn ghi đè một service cho riêng một nhánh cây component mà không đụng tới phần còn lại của app.">
+      B. Của chính <code>CartComponent</code> — gần nhất thắng.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không có lỗi nào cả. Khai trùng ở nhiều tầng là hợp lệ và là một tính năng có chủ đích, không phải xung đột.">
+      C. Lỗi <code>NullInjectorError</code> vì khai trùng.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn thêm interceptor thứ hai nhưng quên <code>multi: true</code>.
+      <code>{ provide: HTTP_INTERCEPTORS, useClass: LoggingInterceptor }</code>. Hậu quả?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không có lỗi. Đó chính là điều làm bug này khó chịu — mọi thứ biên dịch và chạy bình thường.">
+      A. Lỗi biên dịch vì <code>HTTP_INTERCEPTORS</code> yêu cầu <code>multi</code>.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. Không có multi:true thì provider này GHI ĐÈ toàn bộ mảng interceptor trước đó — AuthInterceptor biến mất. Không lỗi, không cảnh báo. Bạn chỉ phát hiện khi thấy request không còn kèm token, và sẽ đi tìm bug ở AuthService thay vì ở dòng provider này. Đây là lý do phải hiểu multi trước khi tới Phase 4.">
+      B. <code>LoggingInterceptor</code> <strong>ghi đè</strong> mảng cũ; <code>AuthInterceptor</code> biến mất, im lặng.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai. multi:true là thứ TẠO RA hành vi cộng dồn. Thiếu nó thì quay về hành vi mặc định của DI: provider sau thắng provider trước cho cùng một khoá.">
+      C. Cả hai vẫn chạy — <code>multi</code> chỉ ảnh hưởng thứ tự.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>8. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/di.spec.ts</code></div>
+
+      <p>
+        Bài này chấm bằng <code>npm test</code>. Bạn sẽ cần <code>TestBed</code> —
+        lần đầu tiên trong khoá bạn chạm vào công cụ test của Angular.
+      </p>
+
+      <strong>Tiêu chí (Definition of Done)</strong>
+
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>providedIn: 'root'</code>: hai lần <code>TestBed.inject()</code> trả về <strong>cùng</strong> một object (dùng <code>toBe</code>, không phải <code>toEqual</code>).</li>
+        <li><strong>TC2</strong> — <code>providers</code> ở component: tạo <strong>hai</strong> instance component, đổi state ở cái thứ nhất, khẳng định cái thứ hai <strong>không</strong> bị ảnh hưởng.</li>
+        <li><strong>TC3</strong> — Không khai ở component, khai ở module: hai instance component <strong>dùng chung</strong> một service.</li>
+        <li><strong>TC4</strong> — "Gần nhất thắng": khai ở <strong>cả hai</strong> nơi, khẳng định instance của component <strong>khác</strong> instance lấy từ module.</li>
+        <li><strong>TC5</strong> — <code>InjectionToken</code> + <code>useValue</code>: inject được một config object và đọc đúng field.</li>
+        <li><strong>TC6</strong> — <code>multi: true</code>: hai provider cùng token → nhận về <strong>mảng hai phần tử</strong> đúng thứ tự khai báo.</li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm:</strong> TC7 — <code>useClass</code> tráo một implementation giả và
+        chứng minh <code>TestBed.inject(ServiceThat)</code> trả về bản giả. Đây chính là kỹ thuật
+        mock bạn sẽ dùng suốt Phase 10.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Câu hỏi cốt lõi luôn là "<em>cùng một object hay hai object khác nhau?</em>".
+      Nên dùng <code>toBe</code> (so sánh tham chiếu) chứ <strong>không</strong> dùng
+      <code>toEqual</code> (so sánh nội dung) — hai instance rỗng khác nhau vẫn
+      <code>toEqual</code> nhau, và test của bạn sẽ xanh một cách vô nghĩa.
+    </p>
+
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>TestBed.configureTestingModule({ imports: [...], providers: [...] })</code> ·
+      <code>TestBed.inject(Token)</code> · <code>TestBed.createComponent(Comp)</code> →
+      <code>.componentInstance</code> · <code>new InjectionToken&lt;T&gt;('mo-ta')</code> ·
+      <code>inject(X)</code> làm field initializer trong component.
+    </p>
+
+    <p>
+      <strong>Hint 3 · Bẫy setup:</strong><br>
+      Component dùng trong test phải có <code>standalone: false</code> và phải được
+      <code>declarations</code> trong một <code>@NgModule</code>, rồi <code>imports</code> module đó
+      vào <code>TestBed</code>. Nhớ gọi lại <code>configureTestingModule</code> ở
+      <strong>mỗi</strong> test — cấu hình không tự reset giữa các test khi bạn đổi providers.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — và hết Phase 0</div>
+    <ul class="checklist">
+      <li>Tôi đọc thuộc thứ tự resolve: ElementInjector → cha → EnvironmentInjector → lỗi.</li>
+      <li>Tôi biết "gần nhất thắng" và dùng nó để ghi đè service cho một nhánh component.</li>
+      <li>Tôi biết provider ở module <strong>eager</strong> vẫn là singleton toàn app — không phải scope riêng.</li>
+      <li>Tôi dùng <code>InjectionToken</code> cho mọi thứ không phải class, và biết 4 kiểu provider.</li>
+      <li>Tôi hiểu <code>multi: true</code> và hậu quả im lặng khi quên nó.</li>
+      <li>Tôi biết Angular 22 có <code>@Service()</code>, nhưng chọn <code>@Injectable</code> vì mission là codebase cũ.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>9. Câu hỏi tư duy — bắc cầu sang Phase 1</h2>
+
+    <p>
+      Bạn vừa biết: provider trong module <strong>eager</strong> gộp vào injector gốc, còn module
+      <strong>lazy</strong> có injector riêng.
+    </p>
+    <p>
+      Giả sử <code>CoreModule</code> chứa <code>AuthService</code> và <code>AuthInterceptor</code>,
+      và ai đó lỡ <code>imports: [CoreModule]</code> vào <strong>cả</strong> <code>AppModule</code>
+      lẫn một lazy module. Chuyện gì xảy ra với <code>AuthService</code>? Còn với
+      <code>AuthInterceptor</code> đã khai <code>multi: true</code>?
+    </p>
+    <p>
+      <strong>Và làm sao chặn được lỗi đó ngay từ lúc code, chứ không đợi bug xuất hiện trên production?</strong>
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Câu trả lời chính là tiêu chí ✅ của Lesson 1.1 trong lộ trình của bạn —
+        vì sao <code>CoreModule</code> phải tự ném lỗi khi bị import lần thứ hai.
+        Bài 08 mở màn Phase 1 bằng đúng câu hỏi này.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 08 · CoreModule · SharedModule · Feature Module</div>
+    <p class="nd">
+      Bộ khung mà gần như mọi codebase Angular cũ đều theo — và cơ chế guard chống import hai lần
+      mà bạn vừa tự suy ra lý do tồn tại.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0006-generic-class-repository.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>di.spec.ts</code> + output. Đây là bài <strong>cuối Phase 0</strong> — sau khi bạn nộp,
+    tôi sẽ ra một <strong>mini-quiz trộn</strong> cả 7 bài (RxJS + Generics + DI) trước khi mở Phase 1.
+    Hai cheat-sheet ôn tập đã có sẵn, link ở mục lục.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

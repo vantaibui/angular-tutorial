@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 03 · Cold vs Hot — Observable, Promise và họ nhà Subject</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 03 · Core (RxJS)</span>
+
+    <h1>Cold vs Hot — Observable, Promise và họ nhà Subject</h1>
+
+    <p class="subtitle">
+      Chọn <code>Subject</code>, <code>BehaviorSubject</code> hay <code>ReplaySubject</code>
+      bằng đúng <strong>một câu hỏi</strong>: người tới muộn cần thấy gì?
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Chọn đúng loại Subject cho 3 tình huống thật của EduCommerce
+      · 🏷️ EduCommerce · Auth &amp; Cart
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích <strong>lazy vs eager</strong> và <strong>cold vs hot</strong> bằng ví dụ chạy được.</li>
+      <li>Chọn đúng loại Subject cho: auth state, sự kiện "đã thêm vào giỏ", và lịch sử thông báo.</li>
+      <li>Biết vì sao service phải expose <code>.asObservable()</code> thay vì chính <code>Subject</code>.</li>
+      <li>Nói được vì sao gọi <code>http.get()</code> hai lần thì có <strong>hai</strong> request.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 02 kết bằng câu hỏi: component mở trang <em>sau</em> khi user đã đăng nhập từ lâu thì
+      làm sao biết user là ai? Với <code>Subject</code> thường, câu trả lời là:
+      <strong>không biết gì cả</strong>.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>Observable là công thức nấu ăn; Subject là cái loa. Và có ba loại loa khác nhau.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: header không biết ai đang đăng nhập</h2>
+
+    <p>
+      <code>AuthService</code> giữ user hiện tại và phát ra qua một <code>Subject</code>.
+      Người dùng đăng nhập lúc mở app. Mười phút sau họ vào trang Checkout, và
+      <code>CheckoutComponent</code> subscribe để lấy thông tin user.
+    </p>
+
+    <p>
+      <strong>Nó nhận được con số không.</strong> Vì sự kiện "đăng nhập" đã bay qua từ 10 phút trước,
+      lúc <code>CheckoutComponent</code> còn chưa tồn tại. Ô hiển thị tên user trống trơn,
+      cho tới khi người dùng… đăng nhập lại.
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Một cách chữa là: <code>AuthService</code> giữ thêm biến <code>currentUser</code> bên cạnh
+        <code>Subject</code>, ai cần thì đọc biến đó. Nó chạy được. Nhưng bây giờ bạn có
+        <strong>hai nguồn sự thật</strong> phải giữ đồng bộ thủ công.
+        Có loại "loa" nào tự nhớ giá trị cuối không?
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model: công thức vs cái loa</h2>
+
+    <table class="data">
+      <thead>
+        <tr><th></th><th>Observable (cold)</th><th>Subject (hot)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ẩn dụ</td>
+          <td><strong>Công thức nấu ăn</strong> — mỗi người đọc thì tự nấu một nồi riêng</td>
+          <td><strong>Cái loa</strong> — mọi người trong phòng nghe cùng một âm thanh</td>
+        </tr>
+        <tr>
+          <td>Bao giờ chạy</td>
+          <td>Khi có người subscribe (<em>lazy</em>)</td>
+          <td>Khi ai đó gọi <code>.next()</code></td>
+        </tr>
+        <tr>
+          <td>2 subscriber</td>
+          <td>Chạy <strong>2 lần</strong>, độc lập (<em>unicast</em>)</td>
+          <td>Chạy <strong>1 lần</strong>, dùng chung (<em>multicast</em>)</td>
+        </tr>
+        <tr>
+          <td>Tới muộn</td>
+          <td>Không sao — nấu lại từ đầu</td>
+          <td><strong>Mất phần</strong> đã phát (trừ khi dùng loại đặc biệt)</td>
+        </tr>
+        <tr>
+          <td>Ví dụ</td>
+          <td><code>http.get()</code>, <code>of()</code>, <code>interval()</code></td>
+          <td><code>Subject</code>, <code>BehaviorSubject</code>, <code>ReplaySubject</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Observable là công thức — mỗi subscriber nấu một nồi riêng.
+          Subject là cái loa — ai không có mặt lúc phát thì mất phần.
+        </strong>
+      </p>
+    </div>
+
+    <p>
+      Hệ quả trực tiếp và rất hay bị vấp: <strong>gọi <code>http.get()</code> rồi subscribe hai lần
+      thì có HAI request thật</strong>. Không phải một request rồi chia đôi kết quả.
+      Vì mỗi lần subscribe là một lần "nấu lại công thức".
+    </p>
+  </section>
+
+
+  <section>
+    <h2>3. Lazy vs eager — chứng minh bằng code</h2>
+
+    <p>
+      Trước khi nói về Subject, phải thấy rõ khác biệt nền tảng nhất giữa Promise và Observable.
+      Đoạn này nhìn qua tưởng tầm thường, nhưng nó giải thích <em>mọi thứ</em> phía sau:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · lazy vs eager</span>
+<pre><code><span class="kw">const</span> nhatKy: <span class="kw">string</span>[] = [];
+
+<span class="cmt">// Promise: executor chạy NGAY khi tạo, dù KHÔNG ai gọi .then()</span>
+<span class="kw">new</span> <span class="fn">Promise</span>&lt;<span class="kw">void</span>&gt;(() => { nhatKy.<span class="fn">push</span>(<span class="str">'promise executor CHẠY'</span>); });
+
+<span class="cmt">// Observable: executor NẰM IM cho tới khi có người subscribe</span>
+<span class="kw">const</span> obs$ = <span class="kw">new</span> <span class="fn">Observable</span>&lt;<span class="kw">void</span>&gt;(() => { nhatKy.<span class="fn">push</span>(<span class="str">'observable executor CHẠY'</span>); });
+
+<span class="fn">expect</span>(nhatKy).<span class="fn">toEqual</span>([<span class="str">'promise executor CHẠY'</span>]);   <span class="cmt">// ← chỉ có Promise!</span>
+
+obs$.<span class="fn">subscribe</span>();
+<span class="fn">expect</span>(nhatKy).<span class="fn">toEqual</span>([<span class="str">'promise executor CHẠY'</span>, <span class="str">'observable executor CHẠY'</span>]);</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao chi tiết này quan trọng đến thế</div>
+      <p>
+        Tính lazy là <strong>điều kiện cần</strong> để Observable huỷ được (Bài 01) và để
+        <code>switchMap</code> có ý nghĩa. Một thứ đã chạy rồi thì không "chưa chạy" lại được.
+        Promise eager nên nó buộc phải cần <code>AbortController</code> bên ngoài;
+        Observable lazy nên việc huỷ nằm ngay trong thiết kế của nó.
+      </p>
+    </div>
+
+    <p>Một khác biệt nữa ít người để ý — Observable phát <strong>đồng bộ</strong> được:</p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · thứ tự thực thi (đã verify)</span>
+<pre><code><span class="fn">of</span>(<span class="num">1</span>).<span class="fn">subscribe</span>((v) => nhatKy.<span class="fn">push</span>(<span class="str">`obs ${v}`</span>));
+nhatKy.<span class="fn">push</span>(<span class="str">'sau of()'</span>);
+
+<span class="fn">Promise</span>.<span class="fn">resolve</span>(<span class="num">2</span>).<span class="fn">then</span>((v) => nhatKy.<span class="fn">push</span>(<span class="str">`promise ${v}`</span>));
+nhatKy.<span class="fn">push</span>(<span class="str">'sau promise'</span>);
+
+<span class="cmt">// ['obs 1', 'sau of()', 'sau promise']  ← 'promise 2' CHƯA có!</span>
+<span class="cmt">// Promise LUÔN đẩy callback sang microtask, kể cả khi đã resolve sẵn.</span>
+<span class="cmt">// Observable thì phát ngay tại chỗ nếu nguồn là đồng bộ.</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Ba cái loa — chọn bằng một câu hỏi</h2>
+
+    <p>
+      Toàn bộ họ Subject phân biệt nhau ở đúng một điểm:
+      <strong>người subscribe muộn nhận được gì?</strong>
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · Subject — tới muộn mất phần</span>
+<pre><code><span class="kw">const</span> s = <span class="kw">new</span> Subject&lt;<span class="kw">number</span>&gt;();
+
+s.<span class="fn">subscribe</span>((v) => som.<span class="fn">push</span>(v));    <span class="cmt">// người tới SỚM</span>
+s.<span class="fn">next</span>(<span class="num">1</span>); s.<span class="fn">next</span>(<span class="num">2</span>);
+s.<span class="fn">subscribe</span>((v) => muon.<span class="fn">push</span>(v));   <span class="cmt">// người tới MUỘN</span>
+s.<span class="fn">next</span>(<span class="num">3</span>);
+
+<span class="cmt">// som  = [1, 2, 3]</span>
+<span class="cmt">// muon = [3]        ← mất 1 và 2</span></code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · BehaviorSubject — luôn có "giá trị hiện tại"</span>
+<pre><code><span class="cmt">// BẮT BUỘC có giá trị khởi tạo — đó là điều kiện để luôn trả lời được "hiện tại là gì".</span>
+<span class="kw">const</span> s = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">number</span>&gt;(<span class="num">0</span>);
+
+s.<span class="fn">subscribe</span>((v) => som.<span class="fn">push</span>(v));
+s.<span class="fn">next</span>(<span class="num">1</span>); s.<span class="fn">next</span>(<span class="num">2</span>);
+s.<span class="fn">subscribe</span>((v) => muon.<span class="fn">push</span>(v));   <span class="cmt">// nhận NGAY giá trị hiện tại là 2</span>
+s.<span class="fn">next</span>(<span class="num">3</span>);
+
+<span class="cmt">// som  = [0, 1, 2, 3]   ← có cả giá trị khởi tạo</span>
+<span class="cmt">// muon = [2, 3]         ← bắt kịp ngay lập tức</span>
+
+s.value;  <span class="cmt">// → 3. Đọc được giá trị hiện tại KHÔNG cần subscribe.</span></code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · ReplaySubject(n) — phát lại n giá trị gần nhất</span>
+<pre><code><span class="kw">const</span> s = <span class="kw">new</span> ReplaySubject&lt;<span class="kw">number</span>&gt;(<span class="num">2</span>);   <span class="cmt">// nhớ 2 giá trị cuối</span>
+
+s.<span class="fn">next</span>(<span class="num">1</span>); s.<span class="fn">next</span>(<span class="num">2</span>); s.<span class="fn">next</span>(<span class="num">3</span>);
+s.<span class="fn">subscribe</span>((v) => muon.<span class="fn">push</span>(v));
+
+<span class="cmt">// muon = [2, 3]   ← nhận LỊCH SỬ, không chỉ giá trị mới nhất</span>
+<span class="cmt">// Không cần giá trị khởi tạo, và có thể nhớ nhiều hơn 1.</span></code></pre>
+    </div>
+
+    <h3>Bảng chọn — dán lên tường</h3>
+
+    <table class="data">
+      <thead>
+        <tr><th>Câu hỏi</th><th>Chọn</th><th>Trong EduCommerce</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Đây là <strong>trạng thái</strong>, ai vào cũng phải biết "hiện tại là gì"</td>
+          <td><code>BehaviorSubject</code></td>
+          <td><code>AuthService.currentUser$</code>, <code>CartService.items$</code></td>
+        </tr>
+        <tr>
+          <td>Đây là <strong>sự kiện</strong>, ai không có mặt thì thôi</td>
+          <td><code>Subject</code></td>
+          <td>"vừa hoàn thành một bài học", "vừa submit form"</td>
+        </tr>
+        <tr>
+          <td>Cần cả <strong>lịch sử</strong> n giá trị gần nhất</td>
+          <td><code>ReplaySubject(n)</code></td>
+          <td>5 thông báo toast gần nhất, log debug</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Đừng mặc định chọn BehaviorSubject cho mọi thứ</div>
+      <p>
+        Nó tiện nên rất dễ bị lạm dụng. Nhưng với <strong>sự kiện</strong> thì nó sai về ngữ nghĩa:
+        component mới mở sẽ lập tức nhận lại sự kiện "đã thêm vào giỏ" từ 5 phút trước và
+        bật lên một toast ma. Bạn sẽ ngồi debug "vì sao toast tự hiện khi chuyển trang".
+        <strong>Trạng thái thì replay được; sự kiện thì không.</strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Đưa nó vào EduCommerce</h2>
+
+    <p>
+      Đây chính là <code>AuthService</code> mà Bài 26 sẽ xây — xem trước để thấy kiến thức bài này
+      dùng ở đâu:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · core/services/auth.service.ts (xem trước Bài 26)</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> AuthService {
+
+  <span class="cmt">// private: CHỈ service này được quyền gọi .next() — không ai bên ngoài đổi state được.</span>
+  <span class="kw">private readonly</span> currentUserSubject = <span class="kw">new</span> BehaviorSubject&lt;User | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+
+  <span class="cmt">// public: expose bản CHỈ ĐỌC. Component subscribe được nhưng không next() được.</span>
+  <span class="kw">readonly</span> currentUser$ = <span class="kw">this</span>.currentUserSubject.<span class="fn">asObservable</span>();
+
+  <span class="cmt">// Luồng dẫn xuất — không giữ state riêng, luôn đồng bộ với nguồn gốc.</span>
+  <span class="kw">readonly</span> isAuthenticated$ = <span class="kw">this</span>.currentUser$.<span class="fn">pipe</span>(<span class="fn">map</span>((u) => u !== <span class="kw">null</span>));
+
+  <span class="fn">login</span>(user: User): <span class="kw">void</span> {
+    <span class="kw">this</span>.currentUserSubject.<span class="fn">next</span>(user);
+  }
+
+  <span class="cmt">// Đọc đồng bộ khi thật sự cần (vd trong Guard) — tiện nhưng dùng dè.</span>
+  <span class="kw">get</span> <span class="fn">currentUser</span>(): User | <span class="kw">null</span> {
+    <span class="kw">return</span> <span class="kw">this</span>.currentUserSubject.value;
+  }
+}</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Vì sao <code>private Subject</code> + <code>public asObservable()</code></div>
+      <p>
+        Nếu expose thẳng <code>Subject</code>, bất kỳ component nào cũng gọi được
+        <code>authService.currentUser$.next(userGiaMao)</code>. State toàn cục mà ai cũng ghi được
+        thì việc debug "ai đổi user thành null?" trở thành ác mộng.
+        <code>asObservable()</code> trả về một Observable <strong>không có method <code>next</code></strong> —
+        đóng cửa ghi ở tầng kiểu, không phải bằng quy ước.
+      </p>
+      <p>
+        Đây là <strong>một-chiều-ghi, nhiều-chiều-đọc</strong> — cùng nguyên tắc mà Redux/NgRx
+        (Phase 9) dựng cả kiến trúc quanh nó.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. Happy path chưa đủ</h2>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Production scenario: gọi service 2 lần = 2 request</div>
+      <p>
+        Template có <code>{{ (courses$ | async)?.length }}</code> ở đầu trang và
+        <code>*ngFor="let c of courses$ | async"</code> ở dưới. Bạn mở Network tab và thấy
+        <strong>2 request</strong> tới <code>/api/courses</code>.
+      </p>
+    </div>
+
+    <p>
+      Không phải bug Angular. Đó là hệ quả trực tiếp của mục 2: <code>http.get()</code> là
+      <strong>cold</strong>, mỗi <code>| async</code> là một subscribe, mỗi subscribe là một lần
+      "nấu lại công thức".
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · ba cách chữa, theo thứ tự nên ưu tiên</span>
+<pre><code><span class="cmt">// Cách 1 — TỐT NHẤT: subscribe đúng MỘT lần bằng *ngIf as</span>
+<span class="cmt">// &lt;div *ngIf="courses$ | async as courses"&gt; {{courses.length}} ... &lt;/div&gt;</span>
+
+<span class="cmt">// Cách 2: shareReplay — biến cold thành hot có nhớ, dùng chung 1 request</span>
+<span class="kw">this</span>.courses$ = <span class="kw">this</span>.http.<span class="fn">get</span>&lt;Course[]&gt;(<span class="str">'/api/courses'</span>).<span class="fn">pipe</span>(
+  <span class="fn">shareReplay</span>({ bufferSize: <span class="num">1</span>, refCount: <span class="kw">true</span> }),
+);
+<span class="cmt">// refCount: true → khi subscriber cuối rời đi thì huỷ luôn, tránh giữ cache vĩnh viễn.</span>
+
+<span class="cmt">// Cách 3: tự giữ state bằng BehaviorSubject (khi cần cả ghi lẫn đọc)</span></code></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p>
+        <strong>Hỏi:</strong> "Cold và hot Observable khác nhau thế nào? Cho ví dụ trong Angular."
+      </p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Cold thì mỗi subscriber kích hoạt một lần chạy riêng của
+        producer — <code>http.get()</code> là ví dụ: subscribe 2 lần thì có 2 request.
+        Hot thì producer nằm ngoài và mọi subscriber dùng chung một luồng — <code>Subject</code>
+        là ví dụ. Chuyển cold sang hot bằng <code>shareReplay</code>. Trong Angular, lỗi hay gặp nhất
+        là dùng nhiều <code>| async</code> trên cùng một Observable HTTP, gây gọi API trùng lặp."
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. <code>CartService</code> cần: (a) header hiển thị số món trong giỏ, kể cả component header
+      được tạo sau khi user đã thêm hàng; (b) trang Cart hiển thị danh sách. Chọn gì?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Subject thường thì header tạo muộn sẽ hiển thị số 0 cho tới lần thêm hàng tiếp theo — đúng bug ở mục 1.">
+      A. <code>Subject&lt;CartItem[]&gt;</code>
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Giỏ hàng là TRẠNG THÁI, không phải sự kiện: bất kỳ ai vào cũng cần biết 'hiện tại giỏ có gì'. BehaviorSubject với giá trị khởi tạo [] đảm bảo mọi subscriber — sớm hay muộn — đều nhận ngay ảnh chụp hiện tại.">
+      B. <code>BehaviorSubject&lt;CartItem[]&gt;([])</code>
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Chạy được nhưng thừa. ReplaySubject(1) gần như tương đương BehaviorSubject, chỉ khác là không bắt buộc giá trị khởi tạo — nên subscriber có thể phải chờ. Với state thì giá trị khởi tạo là thứ bạn MUỐN có. Chọn BehaviorSubject vừa đúng ngữ nghĩa vừa đọc được .value.">
+      C. <code>ReplaySubject&lt;CartItem[]&gt;(1)</code>
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao <code>new Promise(() =&gt; console.log('hi'))</code> in ra ngay,
+      còn <code>new Observable(() =&gt; console.log('hi'))</code> thì không?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không liên quan tới bất đồng bộ. Observable KHÔNG in ra gì cả, kể cả sau này — chừng nào chưa ai subscribe. Đây là khác biệt lazy/eager, không phải sync/async.">
+      A. Vì Observable bất đồng bộ nên sẽ in ra ở microtask sau.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. Promise EAGER: executor chạy ngay lúc khởi tạo, không cách nào ngăn. Observable LAZY: hàm khởi tạo chỉ là 'công thức', chỉ chạy khi có subscriber. Và chính tính lazy này là điều kiện để Observable huỷ được — thứ đã chạy rồi thì không 'chưa chạy' lại được.">
+      B. Promise eager — chạy ngay khi tạo. Observable lazy — chỉ chạy khi có người subscribe.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai, Observable không cần operator nào để chạy. `new Observable(fn).subscribe()` là đủ. Thứ thiếu là SUBSCRIBER, không phải operator.">
+      C. Vì Observable cần ít nhất một operator trong <code>pipe()</code> mới kích hoạt.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/subjects.spec.ts</code></div>
+
+      <p>Chứng minh bằng test toàn bộ hành vi trong bài. Mỗi TC là một test riêng.</p>
+
+      <strong>Tiêu chí (Definition of Done)</strong>
+
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Lazy vs eager: Promise executor chạy khi tạo, Observable executor không, và chạy sau <code>subscribe()</code>.</li>
+        <li><strong>TC2</strong> — Cold/unicast: một <code>Observable</code> đếm số lần executor chạy; subscribe 2 lần → đếm được <strong>2</strong>.</li>
+        <li><strong>TC3</strong> — <code>Subject</code>: người tới muộn <strong>không</strong> nhận giá trị đã phát trước đó.</li>
+        <li><strong>TC4</strong> — <code>BehaviorSubject</code>: người tới muộn nhận <strong>ngay</strong> giá trị hiện tại; và <code>.value</code> đọc đúng.</li>
+        <li><strong>TC5</strong> — <code>ReplaySubject(2)</code>: người tới muộn nhận đúng <strong>2</strong> giá trị gần nhất.</li>
+        <li><strong>TC6</strong> — Multicast: 2 subscriber trên cùng một <code>Subject</code>, gọi <code>next()</code> một lần, cả hai đều nhận.</li>
+        <li>
+          <strong>TC7</strong> — <code>asObservable()</code>: khẳng định object trả về
+          <strong>không có</strong> method <code>next</code>.
+        </li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm:</strong> TC8 — sau khi <code>subject.complete()</code>,
+        chứng minh <code>next()</code> không còn tác dụng <em>và</em> subscriber mới nhận
+        <code>complete</code> ngay lập tức.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Toàn bộ bài này <strong>không cần</strong> fake timer — mọi thứ đồng bộ.
+      Chỉ cần một mảng <code>const nhan: number[] = []</code> và so khớp bằng <code>toEqual</code>.
+    </p>
+
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>new Observable&lt;T&gt;(subscriber =&gt; {...})</code> ·
+      <code>subscriber.next(v)</code> / <code>.complete()</code> ·
+      <code>new BehaviorSubject&lt;T&gt;(giaTriKhoiTao)</code> ·
+      <code>new ReplaySubject&lt;T&gt;(n)</code> · <code>.value</code> · <code>.asObservable()</code> ·
+      dạng subscribe đầy đủ <code>{ next, complete }</code> cho TC8.
+    </p>
+
+    <p>
+      <strong>Hint 3 · TC7 làm sao khẳng định "không có next":</strong><br>
+      TypeScript sẽ chặn bạn gõ <code>.next</code> lên kiểu <code>Observable</code> — đó chính là
+      điều bạn muốn chứng minh. Để test được ở runtime, ép kiểu tạm:
+      <code>(chiDoc$ as unknown as { next?: unknown }).next</code> rồi khẳng định nó
+      <code>toBeUndefined()</code>.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải thích được cold/hot bằng ẩn dụ công thức–cái loa, và biết hệ quả thật của nó.</li>
+      <li>Tôi biết vì sao 2 <code>| async</code> trên cùng một HTTP Observable = 2 request, và 3 cách chữa.</li>
+      <li>Tôi chọn Subject bằng câu hỏi "người tới muộn cần thấy gì?", không chọn theo thói quen.</li>
+      <li>Tôi biết dùng <code>BehaviorSubject</code> cho <strong>sự kiện</strong> là sai ngữ nghĩa và gây bug gì.</li>
+      <li>Tôi hiểu <code>private Subject</code> + <code>public asObservable()</code> là cách đóng cửa ghi ở tầng kiểu.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+
+    <p>
+      Trang danh sách khoá học có <strong>ba</strong> thứ người dùng đổi được: ô tìm kiếm,
+      dropdown danh mục, và số trang. Mỗi thứ là một <code>BehaviorSubject</code> riêng.
+      API thì chỉ có một: <code>/api/courses?search=...&amp;category=...&amp;page=...</code>
+    </p>
+    <p>
+      Bạn cần gọi API mỗi khi <strong>bất kỳ</strong> thứ nào trong ba thứ đó đổi, và lần gọi nào cũng
+      phải mang <strong>giá trị mới nhất của cả ba</strong>. Bạn sẽ ghép ba luồng đó lại bằng cách nào —
+      mà không dùng ba lệnh <code>subscribe</code> lồng nhau?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Nếu bạn định viết ba <code>subscribe</code> lồng nhau rồi tự gom biến — hãy thử hình dung
+        code đó lúc cần thêm filter thứ tư. Bài 04 giới thiệu operator sinh ra đúng cho việc này,
+        kèm một cái bẫy khiến trang của bạn <strong>trắng vĩnh viễn</strong>.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 04 · <code>combineLatest</code> và cái bẫy "trang trắng"</div>
+    <p class="nd">
+      Gộp nhiều luồng filter thành một — và vì sao <code>combineLatest</code> có thể
+      <strong>không phát gì cả</strong>, khiến bạn ngồi debug API mà API thì chưa từng được gọi.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0002-takeuntil-memory-leak.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0004-combinelatest-luong-dan-xuat.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>subjects.spec.ts</code> + output. Sau đó trả lời bằng lời của bạn:
+    <em>"Vì sao <code>AuthService</code> expose <code>asObservable()</code> chứ không phải <code>Subject</code>?"</em>
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

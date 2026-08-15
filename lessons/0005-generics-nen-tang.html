@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 05 · Generics nền — tham số hoá kiểu dữ liệu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 05 · Core (TypeScript)</span>
+
+    <h1>Generics nền — tham số hoá kiểu dữ liệu</h1>
+
+    <p class="subtitle">
+      <code>&lt;T&gt;</code> không phải "cách viết <code>any</code> cho sang".
+      Nó là thứ <strong>giữ mối liên hệ</strong> giữa đầu vào và đầu ra mà <code>any</code> phá vỡ.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Bắt trình biên dịch chứng minh giúp bạn
+      · 🏷️ EduCommerce · nền cho GenericApiService
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích được vì sao <code>any</code> làm mất kiểu còn <code>&lt;T&gt;</code> thì không.</li>
+      <li>Viết generic function / interface, và biết khi nào TS tự suy ra kiểu, khi nào phải ghi tường minh.</li>
+      <li>Dùng constraint <code>T extends {...}</code> và nói được nó <strong>mở khoá</strong> điều gì.</li>
+      <li>Dùng <code>keyof</code> để hàm chỉ nhận đúng tên field có thật.</li>
+      <li>Chứng minh type-safety bằng <code>@ts-expect-error</code> — biến trình biên dịch thành bộ test.</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bạn đã dùng generic hàng ngày mà có thể không để ý: <code>Array&lt;string&gt;</code>,
+      <code>Promise&lt;User&gt;</code>, <code>Observable&lt;Course[]&gt;</code>,
+      <code>http.get&lt;Course&gt;(...)</code>. Mỗi lần gõ <code>&lt;...&gt;</code> đó, bạn đang
+      <strong>truyền một kiểu vào như truyền tham số</strong>.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>tự viết thứ nhận tham số kiểu, thay vì chỉ dùng thứ người khác viết.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: cùng một hàm, bốn kiểu dữ liệu</h2>
+
+    <p>
+      EduCommerce cần lấy phần tử đầu tiên của một mảng — cho <code>Course[]</code>,
+      <code>User[]</code>, <code>Review[]</code>, <code>Enrollment[]</code>. Hai lựa chọn quen thuộc:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · hai cách sai theo hai kiểu khác nhau</span>
+<pre><code><span class="cmt">// Cách 1 — copy 4 lần: type-safe nhưng sửa 1 bug phải sửa 4 chỗ.</span>
+<span class="kw">function</span> <span class="fn">dauTienCourse</span>(ds: Course[]): Course | <span class="kw">undefined</span> { <span class="kw">return</span> ds[<span class="num">0</span>]; }
+<span class="kw">function</span> <span class="fn">dauTienUser</span>(ds: User[]): User | <span class="kw">undefined</span> { <span class="kw">return</span> ds[<span class="num">0</span>]; }
+<span class="cmt">// ... và 2 hàm nữa y hệt</span>
+
+<span class="cmt">// Cách 2 — dùng any: viết 1 lần nhưng VỨT BỎ toàn bộ kiểu.</span>
+<span class="kw">function</span> <span class="fn">dauTien_any</span>(ds: <span class="kw">any</span>[]): <span class="kw">any</span> { <span class="kw">return</span> ds[<span class="num">0</span>]; }</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Cái giá thật của <code>any</code></div>
+      <p>
+        Đây không phải lý thuyết — đoạn dưới đã chạy thật và <strong>không có lỗi biên dịch nào</strong>:
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · lỗi chính tả lọt tới runtime</span>
+<pre><code><span class="kw">const</span> x = <span class="fn">dauTien_any</span>([course]);
+x.tiitle;   <span class="cmt">// ← sai chính tả 'title'. TS IM LẶNG. Runtime: undefined.</span>
+x.<span class="fn">gia</span>();    <span class="cmt">// ← method không tồn tại. TS IM LẶNG. Runtime: CRASH.</span>
+
+<span class="kw">const</span> y = <span class="fn">dauTien</span>([course]);   <span class="cmt">// bản generic</span>
+y?.title;   <span class="cmt">// ✅ OK, và IDE gợi ý được</span>
+y?.tiitle;  <span class="cmt">// ❌ Lỗi biên dịch NGAY: 'tiitle' không tồn tại trên Course</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Vấn đề với <code>any</code> không phải "kiểu bị lỏng". Vấn đề là nó <strong>cắt đứt sợi dây</strong>
+        giữa tham số và giá trị trả về. Hàm biết đầu vào là <code>Course[]</code>,
+        nhưng đầu ra thì "quên" mất điều đó. Cần một cách <em>nhớ</em> lại.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model</h2>
+
+    <p>
+      Generic là <strong>tham số, nhưng cho kiểu</strong>. Đúng nghĩa đen — đặt cạnh nhau là thấy:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">Đối chiếu: tham số giá trị vs tham số kiểu</span>
+<pre><code><span class="cmt">// Tham số GIÁ TRỊ: (x) là chỗ trống, điền lúc GỌI HÀM</span>
+<span class="kw">function</span> <span class="fn">nhanDoi</span>(x: <span class="kw">number</span>) { <span class="kw">return</span> x * <span class="num">2</span>; }
+<span class="fn">nhanDoi</span>(<span class="num">5</span>);              <span class="cmt">// x = 5</span>
+
+<span class="cmt">// Tham số KIỂU: &lt;T&gt; là chỗ trống, điền lúc GỌI HÀM (thường TS tự điền hộ)</span>
+<span class="kw">function</span> <span class="fn">dauTien</span>&lt;T&gt;(ds: T[]): T | <span class="kw">undefined</span> { <span class="kw">return</span> ds[<span class="num">0</span>]; }
+<span class="fn">dauTien</span>&lt;Course&gt;([c]);   <span class="cmt">// T = Course</span>
+<span class="fn">dauTien</span>([c]);           <span class="cmt">// T = Course (TS tự SUY RA từ đối số)</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>any</code> nói "tôi không quan tâm kiểu gì".
+          <code>&lt;T&gt;</code> nói "tôi chưa biết kiểu gì, nhưng đầu ra sẽ <em>đúng bằng</em> đầu vào".
+        </strong>
+      </p>
+      <p>
+        Chữ <em>đúng bằng</em> là toàn bộ giá trị của Generics. Nó giữ được <strong>quan hệ</strong>
+        giữa các vị trí trong chữ ký hàm — thứ <code>any</code> xoá sạch.
+      </p>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">💡 <code>T</code> chỉ là tên biến</div>
+      <p>
+        Không có gì thiêng liêng ở chữ <code>T</code>. Quy ước: <code>T</code> (Type),
+        <code>K</code> (Key), <code>V</code> (Value), <code>E</code> (Element), <code>R</code> (Return).
+        Với generic phức tạp, <strong>hãy đặt tên có nghĩa</strong>:
+        <code>&lt;TEntity, TKhoaChinh&gt;</code> đọc dễ hơn <code>&lt;T, K&gt;</code> rất nhiều.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>3. Generic interface — khuôn cho mọi response API</h2>
+
+    <p>
+      Đây là generic bạn sẽ dùng nhiều nhất trong khoá. Mọi API của EduCommerce trả về cùng một
+      <strong>hình dạng</strong>, chỉ khác phần <code>data</code>:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · ApiResponse&lt;T&gt;</span>
+<pre><code><span class="cmt">// Một khuôn, mọi entity. Phần "vỏ" (meta) cố định, phần "ruột" (data) tham số hoá.</span>
+<span class="kw">interface</span> ApiResponse&lt;T&gt; {
+  data: T;
+  meta: { page: <span class="kw">number</span>; total: <span class="kw">number</span> };
+}
+
+<span class="cmt">// T = Course[] → data là mảng Course</span>
+<span class="kw">const</span> rc: ApiResponse&lt;Course[]&gt; = { data: [c], meta: { page: <span class="num">1</span>, total: <span class="num">1</span> } };
+rc.data[<span class="num">0</span>].price;   <span class="cmt">// ✅ TS biết đây là number</span>
+
+<span class="cmt">// T = User → data là một User đơn lẻ</span>
+<span class="kw">const</span> ru: ApiResponse&lt;User&gt; = { data: u, meta: { page: <span class="num">1</span>, total: <span class="num">1</span> } };
+ru.data.email;      <span class="cmt">// ✅ TS biết đây là string</span>
+
+<span class="cmt">// @ts-expect-error data phải là User, không phải string</span>
+<span class="kw">const</span> sai: ApiResponse&lt;User&gt; = { data: <span class="str">'x'</span>, meta: { page: <span class="num">1</span>, total: <span class="num">1</span> } };</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Đối chiếu với dự án của bạn</div>
+      <p>
+        Mở <code>mock-data/types.ts</code> — file bạn đã có sẵn — và tìm
+        <code>ApiListResponse&lt;T&gt;</code> ở gần cuối. Nó đã được viết theo đúng pattern này rồi.
+        Bài 10 sẽ dùng chính nó làm kiểu trả về cho <code>GenericApiService&lt;T&gt;</code>.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Constraint — <code>extends</code> mở khoá cái gì</h2>
+
+    <p>
+      Đây là phần quan trọng nhất bài, và là <strong>tiêu chí ✅ của Lesson 0.2</strong> trong lộ trình của bạn.
+    </p>
+
+    <p>
+      <code>T</code> không ràng buộc nghĩa là "<em>bất kỳ</em> kiểu nào". Mà nếu có thể là bất kỳ kiểu nào,
+      TypeScript <strong>không cho phép bạn giả định gì về nó</strong>:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · vì sao cần constraint</span>
+<pre><code><span class="cmt">// ❌ KHÔNG biên dịch được</span>
+<span class="kw">function</span> <span class="fn">layId</span>&lt;T&gt;(item: T): <span class="kw">string</span> {
+  <span class="kw">return</span> item.id;
+  <span class="cmt">//        ^^ Lỗi: Property 'id' does not exist on type 'T'.</span>
+  <span class="cmt">// TS nói đúng: T có thể là number, string, boolean... làm gì có .id</span>
+}
+
+<span class="cmt">// ✅ Ràng buộc: "T là gì cũng được, MIỄN LÀ nó có id: string"</span>
+<span class="kw">function</span> <span class="fn">layId</span>&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt;(item: T): <span class="kw">string</span> {
+  <span class="kw">return</span> item.id;   <span class="cmt">// ✅ Giờ TS chắc chắn .id tồn tại</span>
+}
+
+<span class="fn">layId</span>(course);   <span class="cmt">// ✅ Course có id</span>
+<span class="fn">layId</span>(user);     <span class="cmt">// ✅ User có id</span>
+
+<span class="cmt">// @ts-expect-error {name: string} không có 'id' → vi phạm ràng buộc</span>
+<span class="fn">layId</span>({ name: <span class="str">'không có id'</span> });</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Câu trả lời cho tiêu chí ✅ của lộ trình</div>
+      <p>
+        <strong>Hỏi:</strong> Khác nhau giữa <code>T</code> và <code>T extends {id: string}</code>?
+        Vì sao ràng buộc đó cần thiết để gọi được <code>item.id</code>?
+      </p>
+      <p>
+        <strong>Đáp:</strong> <code>T</code> trần nghĩa là "bất kỳ kiểu nào", nên bên trong hàm/class,
+        TypeScript chỉ cho phép làm những thao tác đúng với <em>mọi</em> kiểu — mà truy cập
+        <code>.id</code> thì không đúng với <code>number</code> hay <code>string</code>, nên bị chặn.
+        <code>T extends {id: string}</code> thu hẹp tập kiểu hợp lệ xuống "những kiểu <em>có</em>
+        <code>id: string</code>", và đổi lại TypeScript cho phép bạn dùng <code>.id</code> bên trong.
+        <strong>Ràng buộc là một cuộc trao đổi: bạn hẹp bớt đầu vào để đổi lấy quyền làm nhiều hơn ở bên trong.</strong>
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Đừng ràng buộc chặt hơn mức cần</div>
+      <p>
+        Nếu hàm chỉ cần <code>.id</code>, hãy ràng buộc đúng <code>{ id: string }</code> — đừng viết
+        <code>T extends Course</code>. Ràng buộc chặt hơn mức cần biến một hàm dùng chung thành hàm
+        dùng riêng, và bạn mất luôn lý do viết generic. <strong>Ràng buộc vừa đủ để làm được việc,
+        không hơn.</strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. <code>keyof</code> — chỉ nhận tên field có thật</h2>
+
+    <p>
+      <code>keyof T</code> là <em>hợp của mọi tên field</em> của <code>T</code>.
+      Với <code>Course</code>, <code>keyof Course</code> là
+      <code>'id' | 'title' | 'price' | ...</code> — một union các chuỗi.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · layTruong với keyof</span>
+<pre><code><span class="cmt">// K bị ràng buộc phải là MỘT TRONG các key của T.</span>
+<span class="cmt">// Kiểu trả về T[K] = kiểu của đúng field đó — không phải union của mọi field.</span>
+<span class="kw">function</span> <span class="fn">layTruong</span>&lt;T, K <span class="kw">extends keyof</span> T&gt;(obj: T, key: K): T[K] {
+  <span class="kw">return</span> obj[key];
+}
+
+<span class="kw">const</span> t: <span class="kw">string</span> = <span class="fn">layTruong</span>(course, <span class="str">'title'</span>);  <span class="cmt">// ✅ TS biết là string</span>
+<span class="kw">const</span> p: <span class="kw">number</span> = <span class="fn">layTruong</span>(course, <span class="str">'price'</span>);  <span class="cmt">// ✅ TS biết là number</span>
+
+<span class="cmt">// @ts-expect-error 'khong_co' không phải key của Course</span>
+<span class="fn">layTruong</span>(course, <span class="str">'khong_co'</span>);</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Điều tinh tế: vì sao cần <em>hai</em> tham số kiểu</div>
+      <p>
+        Nếu viết <code>layTruong&lt;T&gt;(obj: T, key: keyof T): T[keyof T]</code> thì vẫn chặn được key sai,
+        nhưng kiểu trả về là <code>string | number | boolean | ...</code> — union của <em>mọi</em> field.
+        Bạn lại phải ép kiểu ở chỗ dùng.
+      </p>
+      <p>
+        Tách riêng <code>K</code> khiến TypeScript "ghim" đúng key bạn truyền vào và trả về đúng
+        <code>T[K]</code>. <strong>Đây là lý do generic thường có nhiều tham số kiểu: mỗi cái giữ một
+        mối liên hệ riêng.</strong> Bài 22 (Dynamic Form) sẽ dùng lại đúng kỹ thuật này để
+        <code>field.name</code> chỉ nhận tên field có thật của model.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. Default type param</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · giá trị mặc định cho tham số kiểu</span>
+<pre><code><span class="cmt">// B mặc định giống A — như tham số hàm có giá trị mặc định.</span>
+<span class="kw">interface</span> Cap&lt;A, B = A&gt; { trai: A; phai: B; }
+
+<span class="kw">const</span> cungKieu: Cap&lt;<span class="kw">number</span>&gt; = { trai: <span class="num">1</span>, phai: <span class="num">2</span> };            <span class="cmt">// B = number</span>
+<span class="kw">const</span> khacKieu: Cap&lt;<span class="kw">string</span>, <span class="kw">number</span>&gt; = { trai: <span class="str">'a'</span>, phai: <span class="num">2</span> };  <span class="cmt">// B = number</span>
+
+<span class="cmt">// @ts-expect-error phai mặc định cùng kiểu với trai (number)</span>
+<span class="kw">const</span> sai: Cap&lt;<span class="kw">number</span>&gt; = { trai: <span class="num">1</span>, phai: <span class="str">'x'</span> };</code></pre>
+    </div>
+
+    <p>
+      Bạn sẽ gặp lại nó ngay ở Bài 10: <code>GenericApiService&lt;T, TId = string&gt;</code> —
+      hầu hết entity dùng id kiểu <code>string</code>, nhưng nếu có cái dùng <code>number</code>
+      thì vẫn đổi được mà không phải sửa chỗ nào khác.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>7. Biến trình biên dịch thành bộ test</h2>
+
+    <p>
+      Với generic, phần lớn giá trị nằm ở <strong>tầng kiểu</strong> — thứ biến mất hoàn toàn lúc runtime.
+      Test thường không chạm tới được. Nhưng có một chỉ thị làm đúng việc đó:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · @ts-expect-error</span>
+<pre><code><span class="cmt">// Ý nghĩa: "dòng NGAY DƯỚI phải có lỗi biên dịch".</span>
+<span class="cmt">// - Có lỗi  → biên dịch PASS (lỗi bị nuốt, đúng như mong đợi)</span>
+<span class="cmt">// - KHÔNG lỗi → biên dịch FAIL: "Unused '@ts-expect-error' directive"</span>
+
+<span class="cmt">// @ts-expect-error</span>
+<span class="fn">layId</span>({ name: <span class="str">'không có id'</span> });</code></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">💡 Vì sao nó mạnh hơn <code>@ts-ignore</code></div>
+      <p>
+        <code>@ts-ignore</code> chỉ <em>tắt tiếng</em> — nếu sau này lỗi biến mất, nó im lặng và bạn
+        không biết ràng buộc đã hỏng. <code>@ts-expect-error</code> thì <strong>báo động khi lỗi biến mất</strong>.
+        Nghĩa là nó thực sự là một <em>assertion</em>: nó bảo vệ ràng buộc kiểu của bạn khỏi bị vô hiệu hoá
+        trong lần refactor tương lai.
+      </p>
+      <p>
+        Chạy kiểm tra bằng: <code>npx tsc --noEmit -p tsconfig.spec.json</code>.
+        Im lặng = mọi ràng buộc kiểu bạn khẳng định đều đang có hiệu lực thật.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Vì sao <code>function layId&lt;T&gt;(item: T) { return item.id; }</code> không biên dịch được,
+      trong khi bạn <em>biết</em> mình sẽ chỉ truyền vào <code>Course</code> và <code>User</code>?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không. Generic hoạt động bình thường với interface. Vấn đề không nằm ở kiểu bạn truyền vào mà ở những gì TS được phép GIẢ ĐỊNH về T bên trong hàm.">
+      A. Vì <code>T</code> không dùng được với interface, chỉ dùng được với class.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. TS phải kiểm tra thân hàm cho MỌI kiểu T có thể xảy ra, chứ không phải cho những kiểu bạn dự định truyền. Vì T trần bao gồm cả number, string, null... nên .id không hợp lệ. Constraint `T extends {id: string}` thu hẹp tập đó lại và đổi lại cho bạn quyền truy cập .id.">
+      B. Vì <code>T</code> trần có thể là <em>bất kỳ</em> kiểu nào, nên TS không cho giả định <code>.id</code> tồn tại.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai. Kiểu trả về `string` hoàn toàn hợp lệ. Lỗi nằm ở dòng `item.id` bên trong thân hàm, không phải ở chữ ký trả về.">
+      C. Vì kiểu trả về phải là <code>T</code> chứ không được là <code>string</code>.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn thêm <code>// @ts-expect-error</code> lên trên một dòng, rồi đồng nghiệp refactor
+      khiến dòng đó <strong>không còn lỗi</strong> nữa. Chuyện gì xảy ra khi build?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Đó là hành vi của @ts-ignore, không phải @ts-expect-error. Khác biệt này chính là lý do nên ưu tiên expect-error.">
+      A. Không có gì — chỉ thị đó bị bỏ qua khi không có lỗi.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. TS báo TS2578 'Unused @ts-expect-error directive' và build đỏ. Đây là tính năng, không phải phiền toái: nó biến mỗi @ts-expect-error thành một assertion sống. Nếu ràng buộc kiểu của bạn bị vô hiệu hoá, bạn biết ngay thay vì phát hiện ra sau sáu tháng.">
+      B. Build <strong>đỏ</strong> với lỗi <code>TS2578: Unused '@ts-expect-error' directive</code>.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai — TypeScript không sửa code của bạn. Nó chỉ báo lỗi và để bạn quyết định.">
+      C. TS tự động xoá chỉ thị đó.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>8. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/generics.spec.ts</code></div>
+
+      <p>
+        Bài này chấm bằng <strong>hai</strong> lệnh: <code>npm test</code> (runtime) và
+        <code>npx tsc --noEmit -p tsconfig.spec.json</code> (tầng kiểu). Cả hai phải sạch.
+      </p>
+
+      <strong>Tiêu chí (Definition of Done)</strong>
+
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Viết <code>dauTien&lt;T&gt;(ds: T[]): T | undefined</code>. Chứng minh với <code>Course[]</code> thì truy cập <code>.title</code> hợp lệ, còn <code>.tiitle</code> có <code>@ts-expect-error</code>.</li>
+        <li><strong>TC2</strong> — Chứng minh TS <strong>tự suy ra</strong> <code>T</code>: gọi không ghi <code>&lt;Course&gt;</code> mà vẫn đúng kiểu.</li>
+        <li><strong>TC3</strong> — Viết <code>ApiResponse&lt;T&gt;</code>, dùng với <code>Course[]</code> và <code>User</code>. Thêm một <code>@ts-expect-error</code> khi gán sai kiểu cho <code>data</code>.</li>
+        <li><strong>TC4</strong> — Viết <code>layId&lt;T extends {id: string}&gt;</code>. Chạy đúng với Course/User; <code>@ts-expect-error</code> với object không có <code>id</code>.</li>
+        <li><strong>TC5</strong> — Viết <code>layTruong&lt;T, K extends keyof T&gt;(obj, key): T[K]</code>. Gán kết quả vào biến khai báo tường minh <code>const t: string</code> / <code>const p: number</code> để chứng minh kiểu trả về chính xác. <code>@ts-expect-error</code> với key không tồn tại.</li>
+        <li><strong>TC6</strong> — Viết <code>Cap&lt;A, B = A&gt;</code>, chứng minh mặc định hoạt động + một <code>@ts-expect-error</code>.</li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm:</strong> tự tay thêm một <code>@ts-expect-error</code> lên một dòng
+        <em>không</em> có lỗi, chạy <code>tsc</code> để <strong>nhìn tận mắt</strong> lỗi
+        <code>TS2578</code>, rồi xoá đi. Làm một lần để tin vào công cụ chấm bài của chính mình.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Mỗi khi định gõ <code>any</code>, hãy hỏi: <em>"kiểu này có liên quan tới kiểu nào khác trong
+      chữ ký không?"</em>. Nếu có — đó là chỗ cần một tham số kiểu.
+    </p>
+
+    <p>
+      <strong>Hint 2 · Cú pháp:</strong><br>
+      Tham số kiểu đặt ngay sau tên, <strong>trước</strong> ngoặc đơn:
+      <code>function ten&lt;T&gt;(...)</code>. Ràng buộc dùng <code>extends</code>:
+      <code>&lt;T extends { id: string }&gt;</code>. Nhiều tham số ngăn bằng dấu phẩy:
+      <code>&lt;T, K extends keyof T&gt;</code>.
+    </p>
+
+    <p>
+      <strong>Hint 3 · Mẹo cho TC5:</strong><br>
+      Chỉ viết <code>expect(layTruong(c,'title')).toBe('Angular')</code> thì <strong>không</strong>
+      chứng minh được gì về kiểu — runtime luôn đúng. Phải <em>gán vào biến có kiểu tường minh</em>:
+      <code>const t: string = layTruong(c, 'title')</code>. Nếu kiểu trả về sai, dòng gán này sẽ đỏ.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải thích được Generics giữ <strong>quan hệ</strong> giữa các vị trí trong chữ ký, còn <code>any</code> xoá nó.</li>
+      <li>Tôi hiểu constraint là một cuộc trao đổi: hẹp đầu vào ↔ được làm nhiều hơn bên trong.</li>
+      <li>Tôi biết vì sao <code>&lt;T, K extends keyof T&gt;</code> cần hai tham số kiểu chứ không phải một.</li>
+      <li>Tôi không ràng buộc chặt hơn mức cần thiết.</li>
+      <li>Tôi dùng <code>@ts-expect-error</code> + <code>tsc</code> làm bộ test cho tầng kiểu.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>9. Câu hỏi tư duy</h2>
+
+    <p>
+      Generic function nhận tham số kiểu <strong>ở mỗi lần gọi</strong>. Nhưng
+      <code>GenericApiService&lt;Course&gt;</code> thì khác: kiểu được chốt <strong>một lần</strong>
+      lúc tạo service, rồi <em>mọi</em> method bên trong — <code>getAll</code>, <code>getById</code>,
+      <code>update</code> — đều phải nhớ và dùng chung kiểu đó.
+    </p>
+    <p>
+      Vậy tham số kiểu của một <strong>class</strong> sống ở đâu, và nó khác gì tham số kiểu của một
+      function? Và nếu <code>update</code> chỉ muốn nhận <em>vài</em> field thay vì cả object,
+      bạn diễn đạt điều đó bằng kiểu như thế nào?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Bài 06 trả lời cả hai, và bạn sẽ tự viết <code>InMemoryRepository&lt;T&gt;</code> —
+        bản thu nhỏ của <code>GenericApiService&lt;T&gt;</code> ở Bài 10, nhưng không cần HTTP.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 06 · Generic class — <code>InMemoryRepository&lt;T&gt;</code></div>
+    <p class="nd">
+      Một class, dùng cho <code>Course</code> và <code>User</code> và mọi entity sau này —
+      và <code>Partial&lt;T&gt;</code> để <code>update</code> chỉ nhận vài field mà vẫn type-safe.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0004-combinelatest-luong-dan-xuat.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0006-generic-class-repository.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>generics.spec.ts</code> + output của <strong>cả hai</strong> lệnh
+    (<code>npm test</code> và <code>tsc --noEmit</code>). Rồi trả lời bằng lời của bạn:
+    <em>"Vì sao <code>T extends {id: string}</code> lại cho phép gọi <code>item.id</code>?"</em>
+    — đây đúng là tiêu chí ✅ trong lộ trình của bạn.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

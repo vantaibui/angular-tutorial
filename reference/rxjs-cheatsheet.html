@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · RxJS cho Angular Classic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>
+  .ref-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 820px) { .ref-grid.two { grid-template-columns: 1fr 1fr; } }
+  h2 { margin-top: 34px; }
+  table.data td code, table.data th code { white-space: nowrap; }
+  .pick { border-left: 4px solid var(--accent-2); }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 01–04</span>
+    <h1>RxJS cho Angular Classic — cheat-sheet</h1>
+    <p class="subtitle">
+      Bản cô đọng để ôn nhanh trước phỏng vấn hoặc tra lúc code. In ra được.
+    </p>
+    <p class="meta-line">
+      Đã kiểm chứng trên <strong>rxjs 7.8.2</strong> · Angular 22.1.4 · Vitest 4.1.10
+    </p>
+  </header>
+
+
+  <section>
+    <h2>1. Chọn flattening operator</h2>
+
+    <p>Cả bốn đều "nhận outer → đẻ inner". Khác nhau <strong>duy nhất</strong> ở cách xử lý khi inner cũ chưa xong.</p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Operator</th><th>Inner cũ chưa xong thì…</th><th>Dùng cho</th><th>Ví dụ EduCommerce</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>switchMap</code></td>
+          <td><strong>Huỷ</strong> cái cũ, chạy cái mới</td>
+          <td>ĐỌC — chỉ cần kết quả mới nhất</td>
+          <td>Search, filter, đổi route param</td>
+        </tr>
+        <tr>
+          <td><code>exhaustMap</code></td>
+          <td><strong>Bỏ qua</strong> cái mới</td>
+          <td>GHI — chống double-submit</td>
+          <td>Nút Lưu, Đăng nhập, Thanh toán</td>
+        </tr>
+        <tr>
+          <td><code>concatMap</code></td>
+          <td><strong>Xếp hàng</strong>, chạy tuần tự</td>
+          <td>GHI — cần đúng thứ tự</td>
+          <td>Ghi log, đồng bộ progress từng bài</td>
+        </tr>
+        <tr>
+          <td><code>mergeMap</code></td>
+          <td><strong>Chạy song song</strong> hết</td>
+          <td>Độc lập, không quan tâm thứ tự</td>
+          <td>Upload nhiều file cùng lúc</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip pick">
+      <div class="ct">🧭 Cây quyết định 10 giây</div>
+      <p>
+        Thao tác <strong>đọc</strong> → <code>switchMap</code>.<br>
+        Thao tác <strong>ghi</strong> → thứ tự có quan trọng không?
+        Có → <code>concatMap</code>. Không, chỉ cần chống bấm nhiều lần → <code>exhaustMap</code>.<br>
+        Thật sự độc lập và song song được → <code>mergeMap</code>.
+      </p>
+      <p>
+        <strong>Nghi ngờ thì chọn <code>switchMap</code> cho đọc và <code>exhaustMap</code> cho ghi.</strong>
+        Đó là hai lựa chọn đúng trong đại đa số trường hợp.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Pipeline search-as-you-type</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn chuẩn</span>
+<pre><code>tuKhoa$.<span class="fn">pipe</span>(
+  <span class="fn">debounceTime</span>(<span class="num">300</span>),          <span class="cmt">// chặn: gõ 8 ký tự = 8 request</span>
+  <span class="fn">distinctUntilChanged</span>(),      <span class="cmt">// chặn: từ khoá trùng lần trước</span>
+  <span class="fn">switchMap</span>((t) =>
+    <span class="fn">searchApi</span>(t).<span class="fn">pipe</span>(
+      <span class="fn">catchError</span>(() => <span class="fn">of</span>([])),  <span class="cmt">// ⚠️ BÊN TRONG — xem mục 5</span>
+    ),
+  ),
+  <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$),    <span class="cmt">// ⚠️ LUÔN CUỐI CÙNG — xem mục 4</span>
+).<span class="fn">subscribe</span>(...);</code></pre>
+    </div>
+
+    <p><strong>Thứ tự bắt buộc:</strong> <code>debounceTime</code> phải trước <code>switchMap</code>. Đảo lại là debounce nhầm kết quả thay vì debounce phím gõ.</p>
+  </section>
+
+
+  <section>
+    <h2>3. Chọn Subject</h2>
+
+    <table class="data">
+      <thead>
+        <tr><th>Loại</th><th>Người tới muộn nhận</th><th>Giá trị khởi tạo</th><th>Dùng cho</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Subject&lt;T&gt;</code></td><td><span class="nullcell">không gì cả</span></td><td>không</td><td><strong>Sự kiện</strong>: đã submit, đã hoàn thành bài</td></tr>
+        <tr><td><code>BehaviorSubject&lt;T&gt;</code></td><td>giá trị <strong>hiện tại</strong></td><td><strong>bắt buộc</strong></td><td><strong>Trạng thái</strong>: user, cart, filter</td></tr>
+        <tr><td><code>ReplaySubject&lt;T&gt;(n)</code></td><td><strong>n</strong> giá trị gần nhất</td><td>không</td><td><strong>Lịch sử</strong>: toast, log</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚠️ Đừng dùng BehaviorSubject cho sự kiện</div>
+      <p>
+        Component mới mở sẽ nhận lại sự kiện cũ và bật toast ma.
+        <strong>Trạng thái thì replay được; sự kiện thì không.</strong>
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn state service</span>
+<pre><code><span class="kw">private readonly</span> subject = <span class="kw">new</span> BehaviorSubject&lt;User | <span class="kw">null</span>&gt;(<span class="kw">null</span>);   <span class="cmt">// private: chỉ service ghi</span>
+<span class="kw">readonly</span> currentUser$ = <span class="kw">this</span>.subject.<span class="fn">asObservable</span>();                   <span class="cmt">// public: chỉ đọc</span>
+<span class="kw">readonly</span> isAuth$ = <span class="kw">this</span>.currentUser$.<span class="fn">pipe</span>(<span class="fn">map</span>((u) => u !== <span class="kw">null</span>));      <span class="cmt">// dẫn xuất</span>
+<span class="kw">get</span> <span class="fn">current</span>() { <span class="kw">return</span> <span class="kw">this</span>.subject.value; }                          <span class="cmt">// đọc đồng bộ (dùng dè)</span></code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Chống memory leak</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · pattern destroy$</span>
+<pre><code><span class="kw">private readonly</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+
+<span class="fn">ngOnInit</span>() {
+  nguon$.<span class="fn">pipe</span>(/* ...mọi operator khác... */, <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$)).<span class="fn">subscribe</span>();
+}
+
+<span class="fn">ngOnDestroy</span>() {
+  <span class="kw">this</span>.destroy$.<span class="fn">next</span>();      <span class="cmt">// ⚠️ BẮT BUỘC — thiếu dòng này là leak nguyên vẹn</span>
+  <span class="kw">this</span>.destroy$.<span class="fn">complete</span>();
+}</code></pre>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Luật</th><th>Vì sao</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>takeUntil</code> phải là operator <strong>cuối cùng</strong></td>
+          <td>Unsubscribe lan <em>ngược</em> từ subscriber lên nguồn. Operator đứng sau nó (nhất là <code>switchMap</code>) giữ subscription riêng và vẫn leak.</td>
+        </tr>
+        <tr>
+          <td><code>next()</code> <strong>trước</strong> <code>complete()</code></td>
+          <td>Notifier chỉ <code>complete</code> mà chưa từng <code>next</code> → <code>takeUntil</code> "pass all values" → leak im lặng.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="data">
+      <thead><tr><th>Luồng</th><th>Leak?</th><th>Xử lý</th></tr></thead>
+      <tbody>
+        <tr><td><code>http.get()</code></td><td>Không (tự complete)</td><td>Vẫn cắt nếu callback có side-effect</td></tr>
+        <tr><td><code>interval</code>, <code>fromEvent</code></td><td><strong>Có</strong></td><td><code>takeUntil</code> bắt buộc</td></tr>
+        <tr><td><code>Subject</code> trong service singleton</td><td><strong>Có</strong></td><td><code>takeUntil</code> bắt buộc</td></tr>
+        <tr><td><code>| async</code> pipe</td><td>Không</td><td><strong>Ưu tiên dùng cái này</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <section>
+    <h2>5. <code>catchError</code> đặt đúng chỗ</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ NGOÀI: bắt được lỗi nhưng stream CHẾT VĨNH VIỄN sau lần lỗi đầu.</span>
+<span class="fn">switchMap</span>((t) => <span class="fn">searchApi</span>(t)),
+<span class="fn">catchError</span>(() => <span class="fn">of</span>([])),
+
+<span class="cmt">// ✅ TRONG: lỗi bị nuốt ở phạm vi 1 request, outer sống tiếp.</span>
+<span class="fn">switchMap</span>((t) => <span class="fn">searchApi</span>(t).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([])))),</code></pre>
+    </div>
+
+    <p><strong>Lý do:</strong> <code>error</code> là <em>trạng thái kết thúc</em> của Observable. Lỗi leo lên outer là giết luôn subscription gốc, trước khi <code>catchError</code> kịp thay thế.</p>
+  </section>
+
+
+  <section>
+    <h2>6. Gộp nhiều luồng</h2>
+
+    <table class="data">
+      <thead>
+        <tr><th>Operator</th><th>Phát khi</th><th>Dùng cho</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>combineLatest</code></td><td><strong>bất kỳ</strong> nguồn nào đổi</td><td>Filter, form state</td></tr>
+        <tr><td><code>withLatestFrom</code></td><td><strong>chỉ</strong> nguồn chính đổi</td><td>Submit — bấm nút mới chạy</td></tr>
+        <tr><td><code>forkJoin</code></td><td>mọi nguồn <strong>complete</strong></td><td>Fetch song song rồi chờ đủ (Bài 31)</td></tr>
+        <tr><td><code>zip</code></td><td>đủ một <strong>cặp</strong> theo chỉ số</td><td>Hiếm — dễ lệch pha</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Hai bẫy của <code>combineLatest</code></div>
+      <p>
+        <strong>1. Im lặng tuyệt đối</strong> cho tới khi <em>mọi</em> nguồn phát ít nhất một lần.
+        Triệu chứng: trang trắng, <strong>Network tab trống</strong>.
+        Chữa: <code>startWith(...)</code> hoặc dùng <code>BehaviorSubject</code>.
+      </p>
+      <p>
+        <strong>2. Phát trùng:</strong> đổi 2 filter liên tiếp → 2 lần phát → 2 request giống nhau.
+        Chữa: <code>distinctUntilChanged</code> so sánh sâu, hoặc gộp state thành một object.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn filter nhiều nguồn</span>
+<pre><code><span class="fn">combineLatest</span>({                       <span class="cmt">// dạng object dễ đọc hơn mảng khi ≥3 nguồn</span>
+  search: <span class="kw">this</span>.search$.<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>)),
+  category: <span class="kw">this</span>.category$,
+  page: <span class="kw">this</span>.page$,
+}).<span class="fn">pipe</span>(
+  <span class="fn">distinctUntilChanged</span>((a, b) => <span class="fn">JSON</span>.<span class="fn">stringify</span>(a) === <span class="fn">JSON</span>.<span class="fn">stringify</span>(b)),
+  <span class="fn">switchMap</span>((f) => <span class="kw">this</span>.svc.<span class="fn">search</span>(f).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(RONG)))),
+)</code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>7. Cold vs Hot</h2>
+
+    <table class="data">
+      <thead><tr><th></th><th>Cold (Observable)</th><th>Hot (Subject)</th></tr></thead>
+      <tbody>
+        <tr><td>Bao giờ chạy</td><td>khi subscribe (<em>lazy</em>)</td><td>khi <code>.next()</code></td></tr>
+        <tr><td>2 subscriber</td><td>chạy <strong>2 lần</strong> (unicast)</td><td>chạy <strong>1 lần</strong> (multicast)</td></tr>
+        <tr><td>Ví dụ</td><td><code>http.get()</code>, <code>of()</code>, <code>interval()</code></td><td><code>Subject</code> và họ hàng</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      <strong>Hệ quả hay gặp nhất:</strong> hai <code>| async</code> trên cùng một Observable HTTP =
+      <strong>hai request</strong>. Chữa: <code>*ngIf="obs$ | async as x"</code> (tốt nhất),
+      hoặc <code>shareReplay({ bufferSize: 1, refCount: true })</code>.
+    </p>
+
+    <p>
+      Promise <strong>eager</strong> (chạy ngay khi tạo) và luôn bất đồng bộ.
+      Observable <strong>lazy</strong> và phát đồng bộ được — chính tính lazy này là điều kiện để nó huỷ được.
+    </p>
+  </section>
+
+
+  <section>
+    <h2>8. Test RxJS bằng Vitest</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn test</span>
+<pre><code><span class="kw">import</span> { describe, it, expect, vi, afterEach } <span class="kw">from</span> <span class="str">'vitest'</span>;
+
+<span class="fn">afterEach</span>(() => <span class="fn">vi</span>.<span class="fn">useRealTimers</span>());   <span class="cmt">// ⚠️ quên dòng này → rò đồng hồ giả sang test sau</span>
+
+<span class="fn">it</span>(<span class="str">'...'</span>, () => {
+  <span class="fn">vi</span>.<span class="fn">useFakeTimers</span>();               <span class="cmt">// KHÔNG cần async — tua thời gian là đồng bộ</span>
+  <span class="cmt">// ...dựng stream...</span>
+  <span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">300</span>);
+  <span class="fn">expect</span>(log).<span class="fn">toEqual</span>([...]);         <span class="cmt">// toEqual bắt được cả THỨ TỰ; toContain thì không</span>
+});</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · API giả có ghi nhật ký huỷ</span>
+<pre><code><span class="kw">return new</span> <span class="fn">Observable</span>&lt;T&gt;((sub) => {
+  log.<span class="fn">push</span>(<span class="str">`START ${term}`</span>);
+  <span class="kw">let</span> xong = <span class="kw">false</span>;
+  <span class="kw">const</span> id = <span class="fn">setTimeout</span>(() => { xong = <span class="kw">true</span>; sub.<span class="fn">next</span>(kq); sub.<span class="fn">complete</span>(); }, ms);
+  <span class="kw">return</span> () => {                       <span class="cmt">// teardown: chạy khi unsubscribe HOẶC complete</span>
+    <span class="fn">clearTimeout</span>(id);
+    <span class="kw">if</span> (!xong) log.<span class="fn">push</span>(<span class="str">`CANCEL ${term}`</span>);
+  };
+});</code></pre>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>9. Góc phỏng vấn — 5 câu hay gặp</h2>
+
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>switchMap</code> vs <code>mergeMap</code>?</td>
+          <td>switchMap huỷ inner cũ khi có giá trị mới (unsubscribe → HttpClient abort XHR); mergeMap để chạy song song hết. Search dùng switchMap để tránh race condition.</td>
+        </tr>
+        <tr>
+          <td>Vì sao <code>takeUntil</code> phải cuối?</td>
+          <td>Unsubscribe lan ngược từ subscriber lên nguồn. Nó chỉ complete phần chuỗi tính tới vị trí nó; operator sau nó vẫn giữ subscription riêng.</td>
+        </tr>
+        <tr>
+          <td>Cold vs hot?</td>
+          <td>Cold: mỗi subscriber kích hoạt một lần chạy riêng (<code>http.get</code> → 2 subscribe = 2 request). Hot: dùng chung một luồng (<code>Subject</code>). Chuyển bằng <code>shareReplay</code>.</td>
+        </tr>
+        <tr>
+          <td><code>catchError</code> trong hay ngoài <code>switchMap</code>?</td>
+          <td>Trong. Ngoài thì stream chết vĩnh viễn vì <code>error</code> là trạng thái kết thúc.</td>
+        </tr>
+        <tr>
+          <td>Observable vs Promise?</td>
+          <td>Observable lazy, huỷ được, nhiều giá trị, đồng bộ được, có operator. Promise eager, không huỷ được, một giá trị, luôn bất đồng bộ.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a href="generics-di-cheatsheet.html">Cheat-sheet Generics &amp; DI →</a>
+  </nav>
+
+  <p class="try-it">
+    📌 Nguồn: <a href="https://github.com/ReactiveX/rxjs/tree/7.x/src/internal/operators" target="_blank" rel="noopener noreferrer">JSDoc gốc RxJS 7.x</a> ·
+    <a href="https://angular.dev/guide/http/making-requests" target="_blank" rel="noopener noreferrer">Angular HttpClient docs</a>.
+    Mọi hành vi trong tài liệu này đã được chứng minh bằng test chạy xanh, không lấy từ trí nhớ.
+  </p>
+
+</div>
+</body>
+</html>

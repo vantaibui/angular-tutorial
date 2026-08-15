@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 04 · combineLatest và cái bẫy "trang trắng"</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 04 · Core (RxJS)</span>
+
+    <h1><code>combineLatest</code> và cái bẫy "trang trắng"</h1>
+
+    <p class="subtitle">
+      Gộp nhiều luồng filter thành một nguồn sự thật duy nhất — và vì sao nó có thể
+      <strong>im lặng tuyệt đối</strong>, khiến bạn debug một API chưa từng được gọi.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Ghép 3 filter thành 1 stream, không lồng subscribe
+      · 🏷️ EduCommerce · Course list filter
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Ghép nhiều luồng filter thành một stream duy nhất, <strong>không lồng subscribe</strong>.</li>
+      <li>Chẩn đoán được bug "không có gì xảy ra cả" của <code>combineLatest</code> trong 10 giây.</li>
+      <li>Phân biệt <code>combineLatest</code> · <code>withLatestFrom</code> · <code>zip</code> — và chọn đúng.</li>
+      <li>Chặn được lỗi "đổi 1 filter mà bắn 2 request".</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 01 bạn có <strong>một</strong> nguồn (từ khoá) → một API. Bài 03 bạn biết
+      <code>BehaviorSubject</code> luôn có sẵn giá trị hiện tại.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>gộp N nguồn thành một, sao cho mỗi lần phát đều mang giá trị mới nhất của tất cả.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: ba cái núm, một API</h2>
+
+    <p>
+      Trang danh sách khoá học có ba thứ người dùng đổi được — ô tìm kiếm, dropdown danh mục,
+      số trang — và đúng một API nhận cả ba tham số. Cách làm ngây thơ:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ cách làm sẽ khiến bạn hối hận</span>
+<pre><code><span class="cmt">// Ba biến rời + ba subscribe. Mỗi cái tự gọi lại API.</span>
+<span class="kw">this</span>.search$.<span class="fn">subscribe</span>((s) => { <span class="kw">this</span>.search = s; <span class="kw">this</span>.<span class="fn">goiApi</span>(); });
+<span class="kw">this</span>.category$.<span class="fn">subscribe</span>((c) => { <span class="kw">this</span>.category = c; <span class="kw">this</span>.<span class="fn">goiApi</span>(); });
+<span class="kw">this</span>.page$.<span class="fn">subscribe</span>((p) => { <span class="kw">this</span>.page = p; <span class="kw">this</span>.<span class="fn">goiApi</span>(); });
+
+<span class="fn">goiApi</span>() {
+  <span class="kw">this</span>.http.<span class="fn">get</span>(<span class="str">`/api/courses?search=${<span class="kw">this</span>.search}&amp;category=${<span class="kw">this</span>.category}&amp;page=${<span class="kw">this</span>.page}`</span>)
+    .<span class="fn">subscribe</span>((r) => (<span class="kw">this</span>.courses = r));   <span class="cmt">// ← subscribe LỒNG TRONG subscribe</span>
+}</code></pre>
+    </div>
+
+    <p>Nó chạy. Rồi nó gây ra bốn vấn đề, tất cả đều xuất hiện muộn:</p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Vấn đề</th><th>Biểu hiện thực tế</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>State rời rạc</td><td>3 biến + 3 subject phải tự giữ đồng bộ. Thêm filter thứ tư = sửa 4 chỗ.</td></tr>
+        <tr><td>Không huỷ được</td><td><code>subscribe</code> lồng nhau → request cũ không bị huỷ → <strong>race condition</strong> y hệt Bài 01.</td></tr>
+        <tr><td>Leak</td><td>3 subscription phải tự dọn; subscribe bên trong lại càng khó dọn.</td></tr>
+        <tr><td>Không test được</td><td>Logic nằm rải trong callback, không có một stream nào để assert.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Điều bạn thực sự muốn diễn đạt là: <em>"bộ filter hiện tại"</em> là một giá trị duy nhất,
+        được <strong>dẫn xuất</strong> từ ba nguồn. Nếu có một Observable đại diện cho chính nó,
+        mọi vấn đề trên biến mất. Câu hỏi là ghép thế nào.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model</h2>
+
+    <p>
+      <code>combineLatest</code> giữ một <strong>ô nhớ cho mỗi nguồn</strong>. Nguồn nào phát thì
+      ghi đè ô của nó, rồi phát ra một mảng gồm nội dung <em>tất cả</em> các ô.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">Hình dung — ba ô nhớ</span>
+<pre><code>search$  ──"ang"──────────"angular"────────────────►
+cat$     ────────"web"───────────────────"mobile"──►
+page$    ──1────────────────────────────────────────►
+
+           ô nhớ:  [search, cat, page]
+                    ↓
+phát ra:   ✗   ✗   ["ang","web",1]  ["angular","web",1]  ["angular","mobile",1]
+           ▲   ▲
+           └───┴─ IM LẶNG: chưa đủ cả ba ô</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>combineLatest</code> không phát gì cho tới khi <em>mọi</em> nguồn đã phát ít nhất một lần.
+          Sau đó, nó phát lại mỗi khi <em>bất kỳ</em> nguồn nào đổi.
+        </strong>
+      </p>
+    </div>
+
+    <p>Hai vế của câu đó tạo ra hai cái bẫy riêng biệt — mục 3 và mục 5.</p>
+  </section>
+
+
+  <section>
+    <h2>3. Bẫy số 1: trang trắng vĩnh viễn</h2>
+
+    <div class="callout bridge">
+      <div class="ct">🔮 Dự đoán trước khi chạy</div>
+      <p>
+        <code>search$</code> và <code>cat$</code> là <code>Subject</code> thường. Người dùng gõ tìm kiếm
+        hai lần nhưng chưa đụng vào dropdown danh mục. Có bao nhiêu lần API được gọi?
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · kết quả đã verify (rxjs 7.8.2)</span>
+<pre><code><span class="kw">const</span> search$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+<span class="kw">const</span> cat$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+
+<span class="fn">combineLatest</span>([search$, cat$]).<span class="fn">subscribe</span>(([s, c]) => r.<span class="fn">push</span>(<span class="str">`${s}|${c}`</span>));
+
+search$.<span class="fn">next</span>(<span class="str">'ang'</span>);
+<span class="fn">expect</span>(r).<span class="fn">toEqual</span>([]);              <span class="cmt">// ← IM LẶNG</span>
+search$.<span class="fn">next</span>(<span class="str">'angular'</span>);
+<span class="fn">expect</span>(r).<span class="fn">toEqual</span>([]);              <span class="cmt">// ← VẪN IM LẶNG</span>
+cat$.<span class="fn">next</span>(<span class="str">'web'</span>);
+<span class="fn">expect</span>(r).<span class="fn">toEqual</span>([<span class="str">'angular|web'</span>]);  <span class="cmt">// ← giờ mới nhả, lấy MỚI NHẤT của mỗi ô</span></code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao bug này tốn hàng giờ debug</div>
+      <p>
+        Trang trắng, không lỗi console, Network tab <strong>trống trơn</strong>. Bạn đi tìm bug ở
+        service, ở interceptor, ở MSW handler — trong khi API chưa từng được gọi lần nào.
+        Nguyên nhân chỉ là một dropdown mà người dùng chưa đụng vào.
+      </p>
+      <p>
+        <strong>Cách chẩn đoán trong 10 giây:</strong> thấy <code>combineLatest</code> mà không thấy gì
+        xảy ra → hỏi ngay <em>"nguồn nào chưa từng phát?"</em>. Gắn tạm
+        <code>.pipe(tap(v =&gt; console.log('nguồn X', v)))</code> lên từng nguồn, cái nào im là thủ phạm.
+      </p>
+    </div>
+
+    <h3>Hai cách chữa</h3>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · cách 1 — startWith</span>
+<pre><code><span class="fn">combineLatest</span>([
+  search$.<span class="fn">pipe</span>(<span class="fn">startWith</span>(<span class="str">''</span>)),        <span class="cmt">// mặc định: không tìm gì</span>
+  cat$.<span class="fn">pipe</span>(<span class="fn">startWith</span>(<span class="str">'all'</span>)),        <span class="cmt">// mặc định: mọi danh mục</span>
+]).<span class="fn">subscribe</span>(...);
+<span class="cmt">// → phát NGAY ['', 'all'] mà không cần ai đụng vào gì.</span></code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · cách 2 — dùng BehaviorSubject ngay từ đầu (khuyến nghị)</span>
+<pre><code><span class="kw">const</span> search$ = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);
+<span class="kw">const</span> cat$ = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">'all'</span>);
+
+<span class="fn">combineLatest</span>([search$, cat$]).<span class="fn">subscribe</span>(...);
+<span class="cmt">// → phát ngay, vì BehaviorSubject theo định nghĩa LUÔN có giá trị hiện tại (Bài 03).</span></code></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">💡 Chọn cách nào?</div>
+      <p>
+        <strong>Cách 2</strong>, nếu bạn sở hữu nguồn. Vì filter là <em>trạng thái</em> chứ không phải
+        sự kiện — đúng bảng chọn ở Bài 03. Dùng <code>startWith</code> khi nguồn không do bạn tạo
+        (vd <code>fromEvent</code>, hoặc Observable từ thư viện ngoài).
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Đưa nó vào EduCommerce</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · course-list.component.ts (xem trước Bài 28)</span>
+<pre><code><span class="cmt">// Mỗi núm điều khiển là một BehaviorSubject — luôn có giá trị hiện tại.</span>
+<span class="kw">private readonly</span> search$ = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);
+<span class="kw">private readonly</span> category$ = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">'all'</span>);
+<span class="kw">private readonly</span> page$ = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">number</span>&gt;(<span class="num">1</span>);
+
+<span class="cmt">// MỘT nguồn sự thật cho "bộ filter hiện tại".</span>
+<span class="cmt">// Dạng object (không phải mảng) để đọc dễ và không lệ thuộc thứ tự.</span>
+<span class="kw">private readonly</span> filter$ = <span class="fn">combineLatest</span>({
+  search: <span class="kw">this</span>.search$.<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>)),  <span class="cmt">// chỉ gõ phím mới cần debounce</span>
+  category: <span class="kw">this</span>.category$,
+  page: <span class="kw">this</span>.page$,
+});
+
+<span class="kw">readonly</span> courses$ = <span class="kw">this</span>.filter$.<span class="fn">pipe</span>(
+  <span class="cmt">// Bỏ qua nếu bộ filter y hệt lần trước (xem bẫy số 2 ở mục 5).</span>
+  <span class="fn">distinctUntilChanged</span>((a, b) => <span class="fn">JSON</span>.<span class="fn">stringify</span>(a) === <span class="fn">JSON</span>.<span class="fn">stringify</span>(b)),
+
+  <span class="cmt">// switchMap: filter mới → huỷ request cũ. Đúng bài học Bài 01.</span>
+  <span class="fn">switchMap</span>((f) => <span class="kw">this</span>.courseService.<span class="fn">search</span>(f).<span class="fn">pipe</span>(
+    <span class="fn">catchError</span>(() => <span class="fn">of</span>({ data: [], meta: { page: <span class="num">1</span>, total: <span class="num">0</span> } })),  <span class="cmt">// lỗi ở INNER (Bài 01)</span>
+  )),
+);
+<span class="cmt">// Template: &lt;div *ngIf="courses$ | async as kq"&gt; → async pipe tự unsubscribe (Bài 02).</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Nhìn lại: bốn bài đầu ghép thành một đoạn code</div>
+      <p>
+        <code>switchMap</code> huỷ request cũ (Bài 01) · <code>| async</code> tự dọn subscription (Bài 02) ·
+        <code>BehaviorSubject</code> vì filter là trạng thái (Bài 03) · <code>combineLatest</code> gộp
+        nguồn (Bài 04). Không dòng nào là "cú pháp cho đẹp" — mỗi dòng chặn một bug cụ thể.
+      </p>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">💡 Dạng object dễ đọc hơn dạng mảng</div>
+      <p>
+        <code>combineLatest({ search, category, page })</code> trả về
+        <code>{search, category, page}</code> thay vì <code>[s, c, p]</code>. Thêm filter thứ tư
+        không làm hỏng thứ tự destructuring ở mọi nơi khác. Với 3 nguồn trở lên, gần như luôn nên
+        dùng dạng object.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Bẫy số 2: đổi một filter, bắn hai request</h2>
+
+    <p>
+      Vế thứ hai của mental model — "phát lại mỗi khi <em>bất kỳ</em> nguồn nào đổi" — cũng có giá.
+      Tình huống rất thật: đổi từ khoá tìm kiếm thì phải <strong>reset trang về 1</strong>.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · kết quả đã verify</span>
+<pre><code>search$.<span class="fn">next</span>(<span class="str">'b'</span>);   <span class="cmt">// ô search đổi → phát ['b', 1]</span>
+page$.<span class="fn">next</span>(<span class="num">1</span>);     <span class="cmt">// ô page ghi lại giá trị CŨ → vẫn phát ['b', 1] LẦN NỮA</span>
+
+<span class="fn">expect</span>(goiApi).<span class="fn">toEqual</span>([<span class="str">'a-1'</span>, <span class="str">'b-1'</span>, <span class="str">'b-1'</span>]);  <span class="cmt">// ← 'b-1' bị gọi HAI lần</span></code></pre>
+    </div>
+
+    <p>
+      Hai request giống hệt nhau bay đi. Tốn quota, và tệ hơn: chúng có thể về ngược thứ tự.
+      Ba cách xử lý, theo mức độ nên dùng:
+    </p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Cách</th><th>Ưu</th><th>Nhược</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>distinctUntilChanged</code> so sánh sâu</td>
+          <td>Đơn giản, chặn mọi trường hợp trùng</td>
+          <td><code>JSON.stringify</code> nhạy với thứ tự key; tốn chút CPU</td>
+        </tr>
+        <tr>
+          <td><code>debounceTime(0)</code> trước <code>switchMap</code></td>
+          <td>Gộp mọi thay đổi trong cùng một tick thành một</td>
+          <td>Thêm một tick trễ; khó hiểu với người đọc code sau</td>
+        </tr>
+        <tr>
+          <td>Gộp state thành <strong>một</strong> <code>BehaviorSubject</code> object</td>
+          <td>Đúng gốc vấn đề: một hành động = một lần <code>next</code></td>
+          <td>Mất khả năng subscribe riêng từng filter</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Đừng chọn <code>switchMap</code> để "khỏi lo trùng"</div>
+      <p>
+        <code>switchMap</code> huỷ request đầu nên UI vẫn <em>đúng</em>. Nhưng request thứ nhất
+        <strong>vẫn đã bay tới server</strong> trước khi bị abort. Với API tính tiền theo lượt gọi,
+        hoặc endpoint chạy query nặng, "UI đúng" không có nghĩa là "không tốn kém".
+        Chặn ở tầng stream vẫn tốt hơn.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. Ba anh em dễ nhầm</h2>
+
+    <table class="data">
+      <thead>
+        <tr><th>Operator</th><th>Khi nào phát</th><th>Dùng cho</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>combineLatest</code></td>
+          <td>Bất kỳ nguồn nào đổi (sau khi đủ cả)</td>
+          <td>Filter, form state — <em>"cái gì đổi cũng phải tính lại"</em></td>
+        </tr>
+        <tr>
+          <td><code>withLatestFrom</code></td>
+          <td><strong>Chỉ</strong> nguồn chính đổi</td>
+          <td>Submit form — <em>"bấm nút mới chạy, nhưng cần dữ liệu form mới nhất"</em></td>
+        </tr>
+        <tr>
+          <td><code>zip</code></td>
+          <td>Khi đủ một <strong>cặp</strong> theo chỉ số</td>
+          <td>Ghép hai luồng song song 1-1. Hiếm dùng — dễ tắc nếu một bên chậm.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · withLatestFrom — đã verify</span>
+<pre><code>submit$.<span class="fn">pipe</span>(<span class="fn">withLatestFrom</span>(form$), <span class="fn">map</span>(([, f]) => f)).<span class="fn">subscribe</span>(...);
+
+form$.<span class="fn">next</span>(<span class="str">'v2'</span>);   <span class="cmt">// gõ form → KHÔNG kích hoạt gì (đúng ý muốn!)</span>
+submit$.<span class="fn">next</span>();      <span class="cmt">// bấm submit → nhận 'v2', giá trị mới nhất của form</span></code></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p>
+        <strong>Hỏi:</strong> "<code>combineLatest</code> và <code>withLatestFrom</code> khác nhau chỗ nào?"
+      </p>
+      <p>
+        <strong>Trả lời gọn:</strong> "<code>combineLatest</code> đối xử mọi nguồn <em>bình đẳng</em> —
+        bất kỳ nguồn nào đổi cũng phát. <code>withLatestFrom</code> có một nguồn <em>chủ</em>:
+        chỉ nó kích hoạt, các nguồn kia chỉ đóng vai trò cung cấp giá trị mới nhất.
+        Filter thì dùng <code>combineLatest</code>; submit form thì <code>withLatestFrom</code>,
+        vì gõ form không được phép tự submit. Cả hai đều im lặng cho tới khi mọi nguồn đã phát ít nhất một lần."
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Trang load lên, danh sách khoá học trắng trơn, Network tab không có request nào tới
+      <code>/api/courses</code>. Code dùng <code>combineLatest([search$, category$, page$])</code>
+      với cả ba là <code>Subject</code> thường. Nguyên nhân?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không phải. Nếu lỗi ở service hay MSW thì request VẪN sẽ xuất hiện trong Network tab rồi mới fail. Ở đây Network tab trống — nghĩa là code chưa hề gọi tới tầng HTTP.">
+      A. MSW handler chưa đăng ký endpoint đó.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác — và Network tab trống chính là manh mối quyết định. combineLatest im lặng cho tới khi CẢ BA nguồn phát ít nhất một lần. Subject thường không có giá trị khởi tạo, nên chừng nào người dùng chưa đụng vào cả ba núm thì switchMap chưa từng chạy. Chữa bằng startWith hoặc đổi sang BehaviorSubject.">
+      B. <code>combineLatest</code> chưa phát lần nào vì có nguồn chưa từng emit.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai. switchMap không huỷ được thứ chưa bao giờ bắt đầu. Muốn switchMap huỷ request thì phải có ít nhất một request đã khởi động — mà Network tab trống chứng minh điều đó chưa xảy ra.">
+      C. <code>switchMap</code> đã huỷ request ngay khi vừa tạo.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Nút "Áp dụng mã giảm giá": cần lấy mã coupon <strong>mới nhất</strong> người dùng đã gõ,
+      nhưng <strong>chỉ</strong> khi bấm nút. Dùng gì?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai — combineLatest coi mọi nguồn bình đẳng, nên MỖI KÝ TỰ gõ vào ô coupon cũng sẽ kích hoạt việc áp mã. Người dùng gõ 'SALE50' là bạn gọi API 7 lần với 7 mã dở dang.">
+      A. <code>combineLatest([click$, coupon$])</code>
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. click$ là nguồn CHỦ — chỉ nó kích hoạt. coupon$ chỉ đóng vai trò cung cấp giá trị mới nhất khi được hỏi tới. Đây chính xác là ngữ nghĩa 'bấm nút mới chạy, nhưng lấy dữ liệu mới nhất'.">
+      B. <code>click$.pipe(withLatestFrom(coupon$))</code>
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai và còn nguy hiểm hơn: zip ghép theo CẶP chỉ số. Gõ 7 ký tự rồi bấm 1 lần thì zip ghép click đầu với ký tự ĐẦU TIÊN ('S'), 6 ký tự còn lại nằm chờ trong hàng đợi. Lần bấm sau sẽ lấy ký tự thứ 2. Lệch pha vĩnh viễn.">
+      C. <code>zip(click$, coupon$)</code>
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/combine.spec.ts</code></div>
+
+      <strong>Tiêu chí (Definition of Done)</strong>
+
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Im lặng: 2 <code>Subject</code>, chỉ một cái phát 2 lần → khẳng định <strong>chưa</strong> phát gì. Rồi cái kia phát → khẳng định phát đúng <strong>một</strong> lần với giá trị mới nhất của cả hai.</li>
+        <li><strong>TC2</strong> — Phát lại: sau khi đủ cả hai, mỗi lần <code>next</code> bất kỳ → thêm đúng một lần phát. Khẳng định dãy kết quả chính xác.</li>
+        <li><strong>TC3</strong> — <code>startWith</code> chữa được: cùng cấu trúc TC1 nhưng có <code>startWith</code> → phát <strong>ngay</strong>.</li>
+        <li><strong>TC4</strong> — <code>BehaviorSubject</code> cũng chữa được, không cần <code>startWith</code>.</li>
+        <li><strong>TC5</strong> — Tái hiện bẫy 2 request: đổi <code>search</code> rồi set <code>page</code> về đúng giá trị cũ → khẳng định có <strong>hai</strong> lần phát trùng nhau.</li>
+        <li><strong>TC6</strong> — <code>withLatestFrom</code>: nguồn phụ đổi <strong>không</strong> kích hoạt; nguồn chính đổi thì nhận giá trị mới nhất của nguồn phụ.</li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm:</strong> TC7 — thêm <code>distinctUntilChanged</code> vào TC5 và
+        chứng minh lần phát trùng đã bị chặn.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Toàn bộ bài này đồng bộ — <strong>không cần</strong> fake timer (trừ khi bạn thêm
+      <code>debounceTime</code>). Assert ngay sau mỗi <code>next()</code> để thấy rõ
+      <em>thời điểm</em> nào phát, thời điểm nào không. Đó mới là thứ bài này dạy.
+    </p>
+
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>combineLatest([a$, b$])</code> hoặc <code>combineLatest({a: a$, b: b$})</code> ·
+      <code>startWith(v)</code> · <code>withLatestFrom(other$)</code> ·
+      <code>distinctUntilChanged((a, b) =&gt; ...)</code>.
+    </p>
+
+    <p>
+      <strong>Hint 3 · Mẹo cho TC5:</strong><br>
+      Điểm mấu chốt là <code>page$.next(1)</code> khi <code>page$</code> <em>đang</em> là 1.
+      <code>BehaviorSubject</code> <strong>không</strong> tự lọc giá trị trùng — nó vẫn phát.
+      Ghi kết quả vào một mảng rồi khẳng định mảng đó có phần tử lặp lại liền nhau.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết <code>combineLatest</code> im lặng tới khi mọi nguồn phát — và chẩn đoán được bug đó qua Network tab trống.</li>
+      <li>Tôi biết nó phát lại khi <strong>bất kỳ</strong> nguồn nào đổi, và cách chặn request trùng.</li>
+      <li>Tôi chọn được giữa <code>combineLatest</code> / <code>withLatestFrom</code> / <code>zip</code> theo ngữ nghĩa.</li>
+      <li>Tôi không viết <code>subscribe</code> lồng nhau nữa — tôi gộp nguồn rồi <code>switchMap</code>.</li>
+      <li>Tôi giải thích được vì sao dạng object tốt hơn dạng mảng khi có ≥3 nguồn.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+
+    <p>
+      Bạn vừa viết <code>courseService.search(filter)</code>. Sắp tới sẽ cần
+      <code>userService</code>, <code>reviewService</code>, <code>enrollmentService</code>… và cả bốn đều có
+      <code>getAll</code>, <code>getById</code>, <code>create</code>, <code>update</code>, <code>delete</code> —
+      logic <strong>y hệt nhau</strong>, chỉ khác endpoint và kiểu dữ liệu.
+    </p>
+    <p>
+      Copy-paste bốn lần thì sửa một bug phải sửa bốn chỗ. Nhưng viết một service dùng chung trả về
+      <code>any</code> thì mất hết type-safety — <code>courseService.getById('x')</code> lẽ ra phải trả
+      <code>Course</code> chứ không phải "thứ gì đó".
+    </p>
+    <p>
+      <strong>Làm sao viết một lần mà mỗi chỗ dùng vẫn giữ đúng kiểu riêng của nó?</strong>
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Đây là lý do tồn tại của Generics — và là lý do lộ trình của bạn tách hẳn một lesson riêng cho nó.
+        Bài 05 rời RxJS, quay sang TypeScript thuần.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 05 · Generics nền — tham số hoá kiểu dữ liệu</div>
+    <p class="nd">
+      Vì sao <code>any</code> phá vỡ mối liên hệ giữa đầu vào và đầu ra, còn <code>&lt;T&gt;</code> thì giữ được —
+      chứng minh bằng chính trình biên dịch.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0003-cold-hot-subject-family.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0005-generics-nen-tang.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>combine.spec.ts</code> + output. TC5 là bài quan trọng nhất —
+    nếu bạn tự tái hiện được lỗi "2 request trùng", bạn đã hiểu <code>combineLatest</code> đủ sâu để dùng nó an toàn.
+    Sau bài này có <strong>cheat-sheet RxJS</strong> để ôn nhanh 4 bài vừa rồi.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

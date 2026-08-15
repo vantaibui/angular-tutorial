@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 02 · takeUntil(destroy$) — memory leak và cách tự dọn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 0 · Bài 02 · Core (RxJS)</span>
+
+    <h1><code>takeUntil(destroy$)</code> — tự dọn rác khi không ai dọn hộ</h1>
+
+    <p class="subtitle">
+      Angular Classic không có <code>takeUntilDestroyed</code>. Bạn sẽ tự tạo leak,
+      nhìn nó bằng test, rồi vá — và học một luật đặt operator mà rất nhiều dev nhiều năm kinh nghiệm vẫn sai.
+    </p>
+
+    <p class="meta-line">
+      ⏱ ~35 phút
+      · 🎯 Chứng minh leak bằng test, rồi chứng minh đã vá
+      · 🏷️ EduCommerce · Course search
+    </p>
+  </header>
+
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Chỉ ra được <strong>chính xác</strong> cái gì giữ cái gì trong một memory leak RxJS.</li>
+      <li>Viết pattern <code>destroy$</code> + <code>ngOnDestroy</code> đúng chuẩn Angular Classic.</li>
+      <li>Giải thích vì sao <code>takeUntil</code> <strong>phải là operator cuối cùng</strong> — và chứng minh bằng test.</li>
+      <li>Biết trường hợp nào <strong>không cần</strong> unsubscribe (và vì sao vẫn nên cẩn thận).</li>
+    </ul>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 01 bạn thấy <code>switchMap</code> huỷ <strong>inner</strong> Observable khi có giá trị mới.
+      Nhưng nó không bao giờ động tới <strong>outer</strong> — luồng từ khoá vẫn sống mãi.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>ai giết outer, và chuyện gì xảy ra nếu không ai giết nó.</strong>
+    </p>
+  </section>
+
+
+  <section>
+    <h2>1. Bài toán thật: component đã chết, code vẫn chạy</h2>
+
+    <p>
+      <code>CourseListComponent</code> có một luồng auto-refresh danh sách mỗi 30 giây.
+      Người dùng vào trang, rồi bấm sang trang Cart. Angular huỷ component,
+      gọi <code>ngOnDestroy</code>. Nhưng nếu bạn chỉ <code>.subscribe()</code> mà không dọn:
+    </p>
+
+    <ul>
+      <li>Callback <strong>vẫn chạy</strong> mỗi 30 giây, mãi mãi.</li>
+      <li>Nó vẫn gán <code>this.courses = ...</code> lên một component <strong>không còn trên màn hình</strong>.</li>
+      <li>Và vì callback giữ tham chiếu tới <code>this</code>, <strong>toàn bộ component</strong> —
+        kèm mảng courses, kèm DOM node nó từng giữ — <strong>không được garbage collect</strong>.</li>
+    </ul>
+
+    <p>
+      Người dùng lướt qua lướt lại 20 lần trong một phiên làm việc? Bạn có 20 bản component sống ký sinh,
+      20 timer chạy song song, 20 lần gọi API mỗi 30 giây. Tab dần ăn RAM và app "chậm dần một cách bí ẩn".
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Vì sao JavaScript không tự dọn? Component đã bị Angular vứt đi rồi mà.
+        Gợi ý: hãy hỏi ngược lại — <strong>ai đang giữ tham chiếu tới ai?</strong>
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>2. Mental model</h2>
+
+    <p>
+      Đây là chỗ trực giác hay đánh lừa. Nhiều người tưởng component "sở hữu" subscription,
+      nên component chết thì subscription chết theo. <strong>Chiều tham chiếu ngược lại.</strong>
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">Chiều giữ tham chiếu — nguyên nhân của leak</span>
+<pre><code><span class="cmt">// interval(30000) là một nguồn TOÀN CỤC, sống độc lập với component.</span>
+<span class="cmt">// Khi bạn subscribe, chuỗi giữ tham chiếu hình thành như sau:</span>
+
+  nguồn (interval / Subject toàn cục)
+        │  giữ
+        ▼
+  Subscriber (callback bạn viết)
+        │  giữ (qua closure `this`)
+        ▼
+  Component  →  mảng courses, DOM node, service...
+
+<span class="cmt">// Angular "vứt" component chỉ có nghĩa: nó gỡ khỏi cây view.</span>
+<span class="cmt">// Nhưng NGUỒN vẫn nắm sợi dây kia -> GC không thể thu hồi component.</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Nguồn giữ subscriber, subscriber giữ component.
+          Muốn thả component ra, phải cắt sợi dây từ phía subscription — không ai cắt hộ bạn.
+        </strong>
+      </p>
+    </div>
+
+    <p>Không phải luồng nào cũng leak. Phân biệt được là kỹ năng senior:</p>
+
+    <table class="data">
+      <thead>
+        <tr><th>Loại luồng</th><th>Có leak không?</th><th>Vì sao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>http.get()</code></td>
+          <td>Gần như không</td>
+          <td>Phát 1 giá trị rồi <code>complete()</code> → subscription tự đóng, sợi dây tự đứt.</td>
+        </tr>
+        <tr>
+          <td><code>interval</code>, <code>fromEvent</code></td>
+          <td><strong>Có</strong></td>
+          <td>Không bao giờ complete. Sợi dây không bao giờ tự đứt.</td>
+        </tr>
+        <tr>
+          <td><code>Subject</code> trong service singleton</td>
+          <td><strong>Có</strong></td>
+          <td>Service sống suốt đời app → nó giữ mọi component từng subscribe.</td>
+        </tr>
+        <tr>
+          <td><code>| async</code> pipe</td>
+          <td>Không</td>
+          <td>Angular tự unsubscribe khi view bị huỷ. <strong>Đây là lý do nên ưu tiên nó.</strong></td>
+        </tr>
+        <tr>
+          <td><code>route.params</code></td>
+          <td>Không (nhưng...)</td>
+          <td>Router tự dọn. Nhưng nếu bạn <code>switchMap</code> sang một nguồn vô hạn thì lại leak.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ "HTTP không leak" — đúng nhưng đừng ngủ quên</div>
+      <p>
+        Request HTTP tự complete, nên <em>subscription</em> không leak. Nhưng trong khoảng
+        vài trăm mili-giây trước khi response về, component đã bị huỷ mà callback vẫn sẽ chạy —
+        gán state lên component chết, hoặc tệ hơn: gọi <code>this.router.navigate()</code>
+        đẩy người dùng đi khỏi trang họ vừa mở. Đó là <strong>bug logic</strong>, không phải bug bộ nhớ.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>3. Nhìn leak bằng test</h2>
+
+    <p>
+      Leak khó tin vì mắt thường không thấy. Nên ta đo bằng thứ đếm được:
+      <strong>callback có còn chạy sau khi "component chết" không?</strong>
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · leak — callback vẫn chạy</span>
+<pre><code><span class="fn">vi</span>.<span class="fn">useFakeTimers</span>();
+<span class="kw">const</span> chay: <span class="kw">number</span>[] = [];
+
+<span class="kw">const</span> sub = <span class="fn">interval</span>(<span class="num">100</span>).<span class="fn">subscribe</span>((i) => chay.<span class="fn">push</span>(i));
+
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">250</span>);
+<span class="cmt">// Giả lập ngOnDestroy — nhưng KHÔNG unsubscribe (đúng như code cẩu thả ngoài đời)</span>
+<span class="kw">const</span> truocKhiHuy = chay.length;
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">300</span>);
+
+<span class="fn">expect</span>(truocKhiHuy).<span class="fn">toBe</span>(<span class="num">2</span>);
+<span class="fn">expect</span>(chay.length).<span class="fn">toBeGreaterThan</span>(truocKhiHuy);  <span class="cmt">// VẪN CHẠY → leak</span>
+<span class="fn">expect</span>(sub.closed).<span class="fn">toBe</span>(<span class="kw">false</span>);              <span class="cmt">// sợi dây còn nguyên</span></code></pre>
+    </div>
+
+    <p>
+      <code>sub.closed === false</code> chính là bằng chứng khách quan: subscription vẫn mở,
+      nguồn vẫn giữ component. Giờ vá bằng <code>takeUntil</code>:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · đã vá</span>
+<pre><code><span class="kw">const</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+
+<span class="kw">const</span> sub = <span class="fn">interval</span>(<span class="num">100</span>).<span class="fn">pipe</span>(<span class="fn">takeUntil</span>(destroy$)).<span class="fn">subscribe</span>((i) => chay.<span class="fn">push</span>(i));
+
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">250</span>);
+destroy$.<span class="fn">next</span>();      <span class="cmt">// ← đây là ngOnDestroy</span>
+destroy$.<span class="fn">complete</span>();
+
+<span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">1000</span>);
+
+<span class="fn">expect</span>(chay.length).<span class="fn">toBe</span>(<span class="num">2</span>);      <span class="cmt">// đứng im</span>
+<span class="fn">expect</span>(sub.closed).<span class="fn">toBe</span>(<span class="kw">true</span>);   <span class="cmt">// sợi dây đã cắt</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>takeUntil</code> làm được việc đó</div>
+      <p>
+        Theo
+        <a href="https://github.com/ReactiveX/rxjs/blob/7.x/src/internal/operators/takeUntil.ts" target="_blank" rel="noopener noreferrer">JSDoc gốc trong source RxJS 7.x</a>:
+        <em>"If the <code>notifier</code> emits a value, the output Observable stops mirroring the
+        source Observable and completes."</em>
+        Mà <strong>complete kéo theo unsubscribe</strong> — RxJS tự dọn khi một Observable kết thúc.
+        Nên chỉ cần làm nó complete là sợi dây đứt.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>4. Pattern chuẩn trong component Angular Classic</h2>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · pattern destroy$ — mẫu bạn sẽ gặp ở mọi codebase cũ</span>
+<pre><code><span class="fn">@Component</span>({ selector: <span class="str">'app-course-list'</span>, templateUrl: <span class="str">'./course-list.component.html'</span>, standalone: <span class="kw">false</span> })
+<span class="kw">export class</span> CourseListComponent <span class="kw">implements</span> OnInit, OnDestroy {
+
+  <span class="cmt">// Subject&lt;void&gt; vì ta chỉ cần TÍN HIỆU, không cần mang dữ liệu.</span>
+  <span class="cmt">// private + readonly: không ai ngoài class này được phép bắn tín hiệu huỷ.</span>
+  <span class="kw">private readonly</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="kw">this</span>.courseService
+      .<span class="fn">autoRefresh</span>()
+      .<span class="fn">pipe</span>(
+        <span class="fn">map</span>((res) => res.data),
+        <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$),   <span class="cmt">// ← LUÔN là cái CUỐI CÙNG. Mục 5 giải thích vì sao.</span>
+      )
+      .<span class="fn">subscribe</span>((courses) => (<span class="kw">this</span>.courses = courses));
+  }
+
+  <span class="fn">ngOnDestroy</span>(): <span class="kw">void</span> {
+    <span class="kw">this</span>.destroy$.<span class="fn">next</span>();       <span class="cmt">// bắn tín hiệu → mọi takeUntil đang nghe đều cắt</span>
+    <span class="kw">this</span>.destroy$.<span class="fn">complete</span>();   <span class="cmt">// dọn nốt chính Subject này</span>
+  }
+}</code></pre>
+    </div>
+
+    <table class="data">
+      <thead>
+        <tr><th>Chi tiết</th><th>Vì sao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Subject&lt;void&gt;</code></td>
+          <td>Chỉ cần tín hiệu "xong rồi", không mang payload. Dùng <code>&lt;void&gt;</code> để <code>next()</code> gọi không tham số.</td>
+        </tr>
+        <tr>
+          <td><code>next()</code> <strong>trước</strong> <code>complete()</code></td>
+          <td>Đảo lại thì <code>takeUntil</code> không nhận được giá trị nào cả — <code>complete</code> của notifier <strong>không</strong> kích hoạt <code>takeUntil</code>, và bạn leak y như cũ mà tưởng đã vá.</td>
+        </tr>
+        <tr>
+          <td><code>private readonly</code></td>
+          <td>Chặn code bên ngoài (kể cả template) vô tình bắn tín hiệu huỷ.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy chết người: gọi complete() mà quên next()</div>
+      <p>
+        Đọc lại JSDoc ở mục 3: <em>"If the notifier doesn't emit any value and completes then
+        <code>takeUntil</code> will pass all values."</em>
+        Nghĩa là chỉ <code>complete()</code> thôi → <code>takeUntil</code> hiểu là "notifier bỏ cuộc,
+        cứ cho chảy tiếp" → <strong>leak nguyên vẹn</strong>. Code trông rất "đúng", review qua mắt thường
+        không thấy gì sai. Đây là loại bug chỉ test mới bắt được.
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>5. Vì sao <code>takeUntil</code> phải đứng CUỐI</h2>
+
+    <p>
+      Đây là phần đáng giá nhất bài. Luật này được nhắc nhiều nhưng hiếm ai giải thích được
+      <em>vì sao</em> — nên ta sẽ chứng minh bằng test thay vì học thuộc.
+    </p>
+
+    <div class="callout bridge">
+      <div class="ct">🔮 Dự đoán trước khi chạy</div>
+      <p>
+        Hai pipeline dưới đây khác nhau đúng một chỗ: vị trí <code>takeUntil</code>.
+        Sau khi <code>destroy$.next()</code>, cái nào còn chạy?
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · so sánh hai vị trí</span>
+<pre><code><span class="cmt">// ❌ SAI — takeUntil TRƯỚC switchMap</span>
+click$.<span class="fn">pipe</span>(
+  <span class="fn">takeUntil</span>(destroy$),
+  <span class="fn">switchMap</span>(() => <span class="fn">interval</span>(<span class="num">100</span>)),
+)
+
+<span class="cmt">// ✅ ĐÚNG — takeUntil CUỐI CÙNG</span>
+click$.<span class="fn">pipe</span>(
+  <span class="fn">switchMap</span>(() => <span class="fn">interval</span>(<span class="num">100</span>)),
+  <span class="fn">takeUntil</span>(destroy$),
+)</code></pre>
+    </div>
+
+    <p>
+      Kết quả thật, đã verify (rxjs 7.8.2): bản <strong>SAI vẫn leak</strong> —
+      <code>interval</code> bên trong tiếp tục chạy vô hạn và <code>sub.closed</code> vẫn là <code>false</code>.
+    </p>
+
+    <p>
+      Lý do: <code>takeUntil</code> chỉ cắt <strong>đúng chỗ nó đứng trong chuỗi</strong>.
+      Đặt nó trước <code>switchMap</code> thì nó cắt nguồn <code>click$</code> — outer complete.
+      Nhưng <code>switchMap</code> có một quy tắc riêng: khi outer complete mà
+      <strong>inner vẫn đang chạy</strong>, nó <em>chờ inner xong đã</em>. Mà
+      <code>interval</code> thì không bao giờ xong.
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">Hình dung — takeUntil cắt ở đâu</span>
+<pre><code><span class="cmt">// ❌ SAI: cắt ở giữa, phần hạ nguồn vẫn sống</span>
+click$ ──✂️takeUntil──► switchMap ──► interval(100) ──► subscribe
+         cắt ở ĐÂY                    <span class="cmt">▲ vẫn chạy vô hạn</span>
+
+<span class="cmt">// ✅ ĐÚNG: cắt ở cuối, unsubscribe lan NGƯỢC lên toàn chuỗi</span>
+click$ ──► switchMap ──► interval(100) ──✂️takeUntil──► subscribe
+<span class="cmt">           ◄──────────── unsubscribe lan ngược ────────────</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">💡 Luật rút gọn</div>
+      <p>
+        <strong>Unsubscribe lan từ dưới lên trên.</strong> Muốn cắt sạch cả chuỗi thì phải cắt
+        ở mắt xích <em>thấp nhất</em> — tức là ngay trước <code>subscribe</code>.
+        Bất kỳ operator nào đứng <em>sau</em> <code>takeUntil</code> đều nằm ngoài tầm với của nó.
+      </p>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p>
+        <strong>Hỏi:</strong> "Vì sao <code>takeUntil</code> nên là operator cuối cùng?"
+      </p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Vì unsubscribe lan ngược từ subscriber lên nguồn.
+        <code>takeUntil</code> chỉ complete phần chuỗi <em>tính tới vị trí nó</em>; operator đứng sau nó —
+        đặc biệt các operator tự subscribe vào nguồn khác như <code>switchMap</code> hay
+        <code>combineLatest</code> — vẫn giữ subscription riêng và vẫn leak.
+        Đặt cuối là cách duy nhất đảm bảo cắt sạch."
+      </p>
+    </div>
+  </section>
+
+
+  <section>
+    <h2>6. Các cách khác và khi nào dùng</h2>
+
+    <table class="data">
+      <thead>
+        <tr><th>Cách</th><th>Dùng khi</th><th>Nhược điểm</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>| async</code> pipe</td>
+          <td><strong>Mặc định nên chọn.</strong> Dữ liệu chỉ để hiển thị.</td>
+          <td>Không dùng được khi cần chạy side-effect trong TS.</td>
+        </tr>
+        <tr>
+          <td><code>takeUntil(destroy$)</code></td>
+          <td>Cần side-effect trong TS; nhiều subscription trong một component.</td>
+          <td>Phải nhớ đặt cuối; boilerplate ở mỗi component.</td>
+        </tr>
+        <tr>
+          <td><code>Subscription</code> gom lại (<code>.add()</code>)</td>
+          <td>Ít subscription; muốn tường minh.</td>
+          <td>Dễ quên thêm cái mới vào "túi"; không chống được bug đặt sai vị trí operator.</td>
+        </tr>
+        <tr>
+          <td><code>take(1)</code> / <code>first()</code></td>
+          <td>Chắc chắn chỉ cần đúng một giá trị.</td>
+          <td><code>first()</code> ném lỗi nếu nguồn complete mà chưa phát gì.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Angular Modern làm gì? (xem trước Giai đoạn 2)</div>
+      <p>
+        Từ v16 có <code>takeUntilDestroyed()</code> — tự lấy <code>DestroyRef</code> qua
+        injection context, không cần khai <code>destroy$</code> và <code>ngOnDestroy</code> nữa.
+        Ngắn hơn nhiều. Nhưng nó <strong>chỉ chạy trong injection context</strong> (field initializer
+        hoặc constructor); gọi trong <code>ngOnInit</code> phải truyền <code>DestroyRef</code> thủ công.
+        Ta cố tình học bản thủ công trước để Bài 51–53 bạn thấy rõ mình <em>được</em> gì khi migrate,
+        thay vì đổi cú pháp mà không hiểu.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Đồng nghiệp viết <code>ngOnDestroy() { this.destroy$.complete(); }</code> — chỉ có
+      <code>complete()</code>, không có <code>next()</code>. Hậu quả?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Không. complete() trên Subject không ném lỗi, kể cả gọi nhiều lần. Code chạy êm ru — đó chính là điều nguy hiểm.">
+      A. Ném lỗi runtime khi component bị huỷ.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. JSDoc của takeUntil nói rõ: nếu notifier complete mà chưa từng phát giá trị nào, takeUntil sẽ 'pass all values' — tức là bỏ qua luôn việc cắt. Subscription sống nguyên, leak y như khi không viết gì. Bug này im lặng tuyệt đối và chỉ test mới bắt được.">
+      B. Leak y như cũ — <code>takeUntil</code> hiểu là "notifier bỏ cuộc, cứ chảy tiếp".
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Sai. complete() KHÔNG kích hoạt takeUntil. Chỉ có next() mới làm takeUntil cắt nguồn. Đây đúng là chỗ trực giác đánh lừa nhiều người nhất.">
+      C. Vẫn cắt bình thường — <code>complete()</code> cũng là một tín hiệu.
+    </button>
+
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Component chỉ có đúng một dòng
+      <code>this.http.get&lt;Course&gt;('/api/courses/1').subscribe(c =&gt; this.course = c)</code>.
+      Có cần <code>takeUntil</code> không?
+    </div>
+
+    <button class="opt" data-correct="false"
+      data-explain="Quá cứng nhắc. HTTP observable complete sau 1 giá trị nên subscription tự đóng — về mặt BỘ NHỚ là an toàn. Áp dụng máy móc mọi nơi là over-engineer.">
+      A. Có, luôn luôn phải <code>takeUntil</code> mọi subscription không có ngoại lệ.
+    </button>
+
+    <button class="opt" data-correct="false"
+      data-explain="Đúng một nửa và đó là nửa nguy hiểm. Không leak bộ nhớ, nhưng nếu người dùng rời trang trước khi response về, callback vẫn chạy trên component chết. Với `this.course = c` thì vô hại; với `this.router.navigate()` thì đá người dùng khỏi trang họ vừa mở.">
+      B. Không cần — HTTP tự complete nên hoàn toàn an toàn, khỏi nghĩ thêm.
+    </button>
+
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác — đây là câu trả lời của người đã hiểu, không phải người học thuộc luật. Không leak bộ nhớ vì HTTP tự complete. Nhưng callback vẫn chạy trên component đã chết trong khoảng chờ response, nên nếu nó làm gì đó có tác dụng phụ (navigate, mở dialog, ghi localStorage) thì vẫn cần cắt. Tốt nhất là dùng | async để khỏi phải cân nhắc.">
+      C. Không leak bộ nhớ, nhưng vẫn nên cắt nếu callback có side-effect — hoặc dùng <code>| async</code>.
+    </button>
+
+    <div class="feedback"></div>
+  </section>
+
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>src/playground/leak.spec.ts</code></div>
+
+      <p>
+        Chứng minh bằng test cả bốn điều dưới đây. Không dùng lại code trong bài —
+        tự viết, vì mục tiêu là bạn <em>nghĩ ra</em> cách đo leak.
+      </p>
+
+      <strong>Tiêu chí (Definition of Done — cả 4 xanh)</strong>
+
+      <ul class="checklist">
+        <li>
+          <strong>TC1</strong> — Không dọn thì leak: <code>interval(100)</code>, chạy 250ms, giả lập huỷ
+          component (không unsubscribe), chạy thêm 300ms. Khẳng định callback <strong>vẫn chạy thêm</strong>
+          và <code>sub.closed === false</code>.
+        </li>
+        <li>
+          <strong>TC2</strong> — <code>takeUntil(destroy$)</code> cắt sạch: cùng kịch bản nhưng có
+          <code>destroy$.next()</code>. Khẳng định số lần chạy <strong>đứng im</strong> và
+          <code>sub.closed === true</code>.
+        </li>
+        <li>
+          <strong>TC3</strong> — Đặt <strong>sai chỗ</strong> vẫn leak: <code>click$.pipe(takeUntil(destroy$), switchMap(() =&gt; interval(100)))</code>.
+          Sau <code>destroy$.next()</code>, khẳng định inner <strong>vẫn chạy</strong>.
+        </li>
+        <li>
+          <strong>TC4</strong> — Đặt <strong>đúng chỗ</strong> thì sạch: đảo thứ tự hai operator ở TC3.
+          Khẳng định inner <strong>dừng hẳn</strong> và <code>sub.closed === true</code>.
+        </li>
+      </ul>
+
+      <p>
+        <strong>Thử thách thêm (không bắt buộc):</strong> viết TC5 chứng minh bẫy ở mục 4 —
+        chỉ gọi <code>destroy$.complete()</code> mà không <code>next()</code> thì vẫn leak.
+      </p>
+    </div>
+  </section>
+
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      "Leak" cần một thước đo khách quan. Có hai thước rất tốt:
+      số lần callback chạy, và thuộc tính <code>sub.closed</code> của <code>Subscription</code>.
+      Đo cả hai thì lập luận không cãi được.
+    </p>
+
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>interval(ms)</code> · <code>new Subject&lt;void&gt;()</code> ·
+      <code>takeUntil(destroy$)</code> · <code>tap(...)</code> để ghi lại tick của inner ·
+      <code>vi.useFakeTimers()</code> / <code>vi.advanceTimersByTime()</code> ·
+      <code>subscription.closed</code>.
+    </p>
+
+    <p>
+      <strong>Hint 3 · Khung sườn TC3:</strong><br>
+      <code>const click$ = new Subject&lt;void&gt;()</code> → subscribe pipeline sai thứ tự →
+      <code>click$.next()</code> để khởi động inner → tua 250ms → ghi lại <code>tick.length</code> →
+      <code>destroy$.next()</code> → tua tiếp 500ms → khẳng định <code>tick.length</code> đã
+      <strong>tăng thêm</strong>. Nhớ <code>sub.unsubscribe()</code> ở cuối test để không rò sang test sau.
+    </p>
+  </section>
+
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi chỉ được chiều giữ tham chiếu: <strong>nguồn → subscriber → component</strong>.</li>
+      <li>Tôi biết luồng nào leak, luồng nào không — và không áp dụng <code>takeUntil</code> máy móc.</li>
+      <li>Tôi viết được pattern <code>destroy$</code> đúng, kể cả thứ tự <code>next()</code> rồi <code>complete()</code>.</li>
+      <li>Tôi giải thích được vì sao <code>takeUntil</code> phải đứng cuối, bằng lập luận "unsubscribe lan ngược".</li>
+      <li>Tôi biết <code>| async</code> là lựa chọn mặc định tốt hơn khi chỉ cần hiển thị.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+
+    <p>
+      Ở mục 2 tôi viết: "<code>Subject</code> trong service singleton <strong>có</strong> leak,
+      vì service sống suốt đời app". Nhưng Bài 01 bạn cũng dùng <code>Subject</code> làm nguồn từ khoá,
+      và Phase 4 sắp tới <code>AuthService</code> sẽ dùng <code>BehaviorSubject</code> để giữ user đang đăng nhập.
+    </p>
+    <p>
+      Vậy <code>Subject</code> và <code>BehaviorSubject</code> khác nhau ở chỗ nào mà cái sau lại hợp để
+      <strong>giữ trạng thái</strong>? Và nếu một component mở trang <em>sau</em> khi user đã đăng nhập từ lâu,
+      làm sao nó biết được user là ai — trong khi <code>Subject</code> thường thì
+      <strong>người tới muộn không nhận được gì</strong>?
+    </p>
+
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Câu hỏi "người tới muộn cần thấy gì?" chính là thứ phân loại toàn bộ họ Subject.
+        Bài 03 sẽ trả lời — và bạn sẽ chọn đúng loại Subject cho mọi tình huống còn lại của khoá.
+      </p>
+    </div>
+  </section>
+
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 03 · Cold vs Hot — Observable, Promise và họ nhà Subject</div>
+    <p class="nd">
+      Vì sao Promise chạy ngay còn Observable thì nằm im chờ; và chọn
+      <code>Subject</code> / <code>BehaviorSubject</code> / <code>ReplaySubject</code> theo tiêu chí nào.
+    </p>
+  </aside>
+
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0001-rxjs-search-as-you-type.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0003-cold-hot-subject-family.html">Sau →</a>
+  </nav>
+
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>leak.spec.ts</code> + output <code>npm test</code>. Tôi quan tâm nhất TC3:
+    nếu bạn chứng minh được leak khi đặt sai vị trí, bạn đã hiểu thứ mà phần lớn dev Angular chỉ học thuộc.
+  </p>
+
+</div>
+
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

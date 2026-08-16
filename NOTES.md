@@ -15,10 +15,16 @@
 - Review code kiểu **PR thật**: kiến trúc → RxJS/Generics đúng chỗ chưa → interface
   implement đủ chưa → performance → best practice.
 
-## Git
-- Đã được ủy quyền: **git init + commit theo từng bài** (đã hỏi và người học đồng ý 2026-08-14).
-- Message: `teach(angular): Bài NN - <tiêu đề>`. Gom cả code bài tập + index.html +
-  learning-records + reference vào commit của bài đó.
+## Git — ⚠️ QUY ƯỚC ĐÃ ĐỔI (2026-08-16)
+- Đã được ủy quyền git init + commit (người học đồng ý 2026-08-14).
+- **Soạn bài theo TRỌN MODULE, commit MỘT LẦN cho cả module** — người học chốt 2026-08-16.
+  Điều này **ghi đè** quy ước mặc định "mỗi bài 1 commit" ở `TEACH-PREFERENCES.md`.
+- Message: `teach(angular): Module N - Bài XX-YY (<chủ đề>)`.
+  Gom `lessons/*`, `lessons/index.html`, `reference/*`, `NOTES.md` của cả module vào một commit.
+- **Code bài tập người học tự viết vẫn commit RIÊNG** khi họ nộp — không trộn vào commit soạn bài,
+  để lịch sử phân biệt được "tài liệu tôi soạn" và "code người học làm".
+- Repo **chưa có remote** → chỉ commit local, chưa push được. Hỏi người học nếu cần push.
+- Không commit rác: đã có `.gitignore` (node_modules, dist, .angular, .env, settings.local.json).
 
 ## Quyết định kỹ thuật đã chốt (kèm bằng chứng verify)
 - **Angular 22.1.4 + `--no-standalone`** thay vì hạ Node xuống 18 để dùng Angular 16.

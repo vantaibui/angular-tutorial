@@ -24,7 +24,7 @@
 
     <p class="meta-line">
       ⏱ ~20 phút
-      · 🎯 <code>ng serve</code> lên trang, <code>npm test</code> ra xanh
+      · 🎯 <code>ng serve</code> lên trang, <code>pnpm test</code> ra xanh
       · 🏷️ EduCommerce
     </p>
   </header>
@@ -119,7 +119,8 @@
       </thead>
       <tbody>
         <tr><td>Node.js</td><td><code>v24.18.0</code></td><td>✅ hợp lệ với Angular 22 (cần <code>^24.15.0</code>)</td></tr>
-        <tr><td>npm</td><td><code>11.16.0</code></td><td>✅ dùng luôn</td></tr>
+        <tr><td><strong>pnpm</strong></td><td><code>11.13.1</code></td><td>✅ <strong>khoá này dùng pnpm</strong></td></tr>
+        <tr><td>npm</td><td><code>11.16.0</code></td><td>có sẵn, nhưng ta không dùng</td></tr>
         <tr><td>git</td><td><code>2.50.1</code></td><td>✅ đã có</td></tr>
         <tr><td>Angular CLI global</td><td><span class="nullcell">chưa cài</span></td><td>✅ <strong>không cần cài</strong> — xem lý do bên dưới</td></tr>
       </tbody>
@@ -129,10 +130,10 @@
       <div class="ct">💡 Vì sao KHÔNG cài <code>ng</code> global</div>
       <p>
         CLI global là nguồn bug kinh điển: máy bạn có <code>ng</code> v17, project cần v22,
-        và bạn ngồi debug lỗi schematic suốt buổi chiều. Ta dùng <code>npx</code> để gọi đúng
+        và bạn ngồi debug lỗi schematic suốt buổi chiều. Ta dùng <code>pnpm dlx</code> để gọi đúng
         version một lần cho bước <code>ng new</code>; sau đó project có <code>@angular/cli</code>
         riêng trong <code>devDependencies</code> và mọi lệnh <code>ng</code> chạy qua
-        <code>npm run</code> sẽ tự lấy đúng bản của project.
+        <code>pnpm</code> sẽ tự lấy đúng bản của project.
       </p>
     </div>
   </section>
@@ -147,15 +148,41 @@
 
     <div class="code-block">
       <span class="code-label">bash · tại thư mục angular-tutorial/</span>
-<pre><code><span class="cmt"># Gọi Angular CLI bản 22 qua npx, không cài global</span>
-<span class="fn">npx</span> -y -p @angular/cli@22 ng new educommerce-ng-classic \
+<pre><code><span class="cmt"># Gọi Angular CLI bản 22 qua pnpm dlx, không cài global</span>
+<span class="cmt"># LƯU Ý: sau tên gói là `new`, KHÔNG phải `ng new` — xem cảnh báo bên dưới</span>
+<span class="fn">pnpm</span> dlx @angular/cli@22 new educommerce-ng-classic \
   --no-standalone \
   --routing \
   --style=scss \
   --file-name-style-guide=2016 \
   --skip-git \
   --defaults \
-  --package-manager=npm</code></pre>
+  --package-manager=pnpm</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy cú pháp: <code>pnpm dlx</code> KHÁC <code>npx</code></div>
+      <p>
+        Với <code>npx</code> bạn viết <code>npx -p @angular/cli@22 <strong>ng new</strong> ...</code>
+        — cờ <code>-p</code> chỉ gói, rồi mới tới lệnh.
+        Với <code>pnpm dlx</code> thì <strong>tên gói đứng ngay sau <code>dlx</code></strong>, và pnpm
+        tự chạy binary <code>ng</code> của gói đó. Nên phần còn lại phải là
+        <code>new ...</code>, <strong>không</strong> phải <code>ng new ...</code>.
+      </p>
+      <p>
+        Viết nhầm <code>pnpm dlx @angular/cli@22 ng new ...</code> sẽ ra lỗi trông rất khó hiểu —
+        nó tải gói về xong mới báo:
+      </p>
+      <div class="code-block">
+        <span class="code-label">lỗi thật khi viết sai (tôi đã đâm vào lúc soạn bài này)</span>
+<pre><code>Error: Unknown arguments: standalone, routing, style,
+file-name-style-guide, skip-git, defaults, package-manager, ng, new,
+educommerce-ng-classic</code></pre>
+      </div>
+      <p>
+        Thông báo không hề nói "bạn thừa chữ ng" — nó liệt kê <em>mọi</em> tham số như thể sai hết.
+        Chữ <code>ng</code> bị hiểu thành đối số, kéo theo toàn bộ phần sau lệch nghĩa.
+      </p>
     </div>
 
     <p>Từng cờ có lý do, không cờ nào thừa:</p>
@@ -195,6 +222,11 @@
           <td>Bỏ qua mọi câu hỏi tương tác</td>
           <td>Để lệnh chạy y hệt nhau trên máy bạn và máy tôi — không lệch do trả lời prompt khác nhau.</td>
         </tr>
+        <tr>
+          <td><code>--package-manager=pnpm</code></td>
+          <td>Dùng pnpm để cài dependency, và ghi <code>"packageManager": "pnpm@11.13.1"</code> vào <code>package.json</code></td>
+          <td>Trường <code>packageManager</code> khoá cả team (và CI) vào đúng một trình quản lý gói — hết cảnh người dùng npm, người dùng pnpm, sinh ra hai lockfile đánh nhau.</td>
+        </tr>
       </tbody>
     </table>
 
@@ -205,7 +237,7 @@
         vẫn liệt kê <code>--standalone [boolean] [default: true]</code> — nên <code>--no-standalone</code>
         hợp lệ. Angular team đang đẩy mạnh standalone, nên một ngày nào đó cờ này có thể biến mất.
         Cách kiểm nhanh, luôn đúng, không cần tin bài viết nào:
-        <code>npx -p @angular/cli@22 ng new --help</code>.
+        <code>pnpm dlx @angular/cli@22 new --help</code>.
       </p>
     </div>
   </section>
@@ -296,7 +328,7 @@
     <div class="code-block">
       <span class="code-label">bash · trong educommerce-ng-classic/</span>
 <pre><code><span class="fn">cd</span> educommerce-ng-classic
-<span class="fn">npm</span> start</code></pre>
+<span class="fn">pnpm</span> start</code></pre>
     </div>
 
     <p>
@@ -351,7 +383,7 @@
 
     <div class="code-block">
       <span class="code-label">bash · chạy test</span>
-<pre><code><span class="fn">npm</span> test</code></pre>
+<pre><code><span class="fn">pnpm</span> test</code></pre>
     </div>
 
     <p><strong>Kết quả cần thấy</strong> — <code>Test Files</code> và <code>Tests</code> đều màu xanh:</p>
@@ -425,17 +457,17 @@
     <div class="feedback"></div>
 
     <div class="q" style="margin-top:26px;">
-      Câu 2. Vì sao bài này bắt bạn dùng <code>npx -p @angular/cli@22</code> thay vì
-      <code>npm i -g @angular/cli</code> rồi <code>ng new</code>?
+      Câu 2. Vì sao bài này bắt bạn dùng <code>pnpm dlx @angular/cli@22</code> thay vì
+      cài Angular CLI global rồi gọi <code>ng new</code>?
     </div>
 
     <button class="opt" data-correct="false"
-      data-explain="npx không nhanh hơn — lần đầu nó còn phải tải gói về. Lợi ích nằm ở chỗ khác.">
-      A. Vì <code>npx</code> chạy nhanh hơn.
+      data-explain="pnpm dlx không nhanh hơn — lần đầu nó vẫn phải tải gói về (dù pnpm có store chung nên lần sau nhanh hơn npx thật). Nhưng tốc độ không phải lý do chính.">
+      A. Vì <code>pnpm dlx</code> chạy nhanh hơn.
     </button>
 
     <button class="opt" data-correct="false"
-      data-explain="Ngược lại: sau khi `ng new` xong, `@angular/cli` NẰM TRONG devDependencies của project. Bạn vẫn dùng ng bình thường qua `npm run ng` hoặc `npx ng`.">
+      data-explain="Ngược lại: sau khi tạo xong, `@angular/cli` NẰM TRONG devDependencies của project. Bạn vẫn dùng ng bình thường qua `pnpm ng` hoặc `pnpm exec ng`.">
       B. Vì project không cần Angular CLI sau khi tạo xong.
     </button>
 
@@ -454,8 +486,8 @@
       <li>Có thư mục <code>educommerce-ng-classic/</code> cạnh <code>mock-data/</code>.</li>
       <li><code>src/app/app.module.ts</code> tồn tại và có <code>declarations</code>.</li>
       <li><code>src/app/app.component.ts</code> có dòng <code>standalone: false</code>.</li>
-      <li><code>npm start</code> → <code>localhost:4200</code> lên trang Angular.</li>
-      <li><code>npm test</code> → <strong>2 test files, 4 tests passed</strong>.</li>
+      <li><code>pnpm start</code> → <code>localhost:4200</code> lên trang Angular.</li>
+      <li><code>pnpm test</code> → <strong>2 test files, 4 tests passed</strong>.</li>
       <li>Tôi giải thích được vì sao khoá này cần <code>--no-standalone</code>.</li>
     </ul>
   </section>
@@ -502,7 +534,7 @@
 
   <p class="try-it">
     💬 <strong>Tôi là người dạy của bạn.</strong>
-    Chạy xong hãy dán output thật của <code>npm test</code> vào chat, và trả lời Câu hỏi tư duy ở mục 8
+    Chạy xong hãy dán output thật của <code>pnpm test</code> vào chat, và trả lời Câu hỏi tư duy ở mục 8
     bằng lời của bạn. Tôi sẽ đọc project thật của bạn trước khi cho qua bài.
   </p>
 

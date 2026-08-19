@@ -35,7 +35,9 @@ open lessons/index.html
 ## Môi trường đã kiểm chứng
 
 Angular **22.1.4** chạy chế độ NgModule (`--no-standalone`) · Node **v24.18.0** ·
-TypeScript **6.0.2** · RxJS **7.8.2** · Vitest **4.1.10**.
+**pnpm 11.13.1** · TypeScript **6.0.2** · RxJS **7.8.2** · Vitest **4.1.10**.
+
+Trình quản lý gói của khoá là **pnpm** (`package.json` ghim `"packageManager"`), không dùng npm.
 
 > Angular 16 "Classic" thật không chạy được trên Node 24, nên khoá dùng Angular mới nhất ở chế độ
 > NgModule. Mọi chỗ v22 đã khác v12–v16 đều được chỉ đích danh trong bài và trong `NOTES.md`.

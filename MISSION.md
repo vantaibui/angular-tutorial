@@ -30,7 +30,8 @@ Mỗi bài phải đóng góp một mẩu **chạy được** vào app này.
 ## Constraints
 - Học bằng **tiếng Việt**. Nền TypeScript/lập trình đã có; đã làm dự án Angular thật ở
   mức junior/mid → không cần dạy lại cú pháp cơ bản, cần đào phần "vì sao".
-- Máy: macOS 26.5, **Node v24.18.0**, npm 11.16.0, git 2.50.1. Chưa cài Angular CLI global.
+- Máy: macOS 26.5, **Node v24.18.0**, **pnpm 11.13.1** (trình quản lý gói của khoá), git 2.50.1.
+  Chưa cài Angular CLI global — gọi qua `pnpm dlx` khi cần.
 - **Angular 22.1.x** (bản mới nhất) chạy ở chế độ NgModule qua `--no-standalone`
   — vì Angular 16 "classic" thật không chạy được trên Node 24. Chỗ nào Angular 22
   đã khác v12–v16 thì phải nói rõ, không dạy như thể chúng giống hệt nhau.

@@ -23,13 +23,13 @@
   Gom `lessons/*`, `lessons/index.html`, `reference/*`, `NOTES.md` của cả module vào một commit.
 - **Code bài tập người học tự viết vẫn commit RIÊNG** khi họ nộp — không trộn vào commit soạn bài,
   để lịch sử phân biệt được "tài liệu tôi soạn" và "code người học làm".
-- Repo **chưa có remote** → chỉ commit local, chưa push được. Hỏi người học nếu cần push.
+- Remote: `https://github.com/vantaibui/angular-tutorial` (branch `master`). Push sau mỗi commit module.
 - Không commit rác: đã có `.gitignore` (node_modules, dist, .angular, .env, settings.local.json).
 
 ## Quyết định kỹ thuật đã chốt (kèm bằng chứng verify)
 - **Angular 22.1.4 + `--no-standalone`** thay vì hạ Node xuống 18 để dùng Angular 16.
   Người học chọn 2026-08-14 sau khi được nêu rõ đánh đổi.
-- Đã verify THẬT trong sandbox sạch (2026-08-14, Node v24.18.0, npm 11.16.0):
+- Đã verify THẬT trong sandbox sạch (2026-08-14, Node v24.18.0):
   - `ng new <app> --no-standalone --routing --style=scss --file-name-style-guide=2016`
     → sinh ra `app.module.ts`, `app-routing.module.ts`, `app.component.ts`
     (`standalone: false`) — NgModule thật, không phải giả lập.
@@ -56,6 +56,23 @@
   tập chạy được trước khi học RxJS. Lesson 1.1 giữ nguyên phần kiến trúc Core/Shared/Feature.
 - Một số lesson gốc quá to cho "một bài dạy một thứ" → sẽ **tách** khi tới nơi
   (dự kiến: 3.2, 3.3, 9.1). Sẽ báo trước, không tách âm thầm.
+
+## Trình quản lý gói: pnpm (chốt 2026-08-19)
+Người học yêu cầu dùng **pnpm** thay npm. Đã verify TOÀN BỘ trên sandbox sạch
+(pnpm 11.13.1 / Node v24.18.0 / Angular CLI 22.1.4):
+- `pnpm dlx @angular/cli@22 new <app> ... --package-manager=pnpm` → NgModule project đúng như npm.
+- `pnpm test` (7/7 xanh, gồm TestBed + RxJS + spec generics) · `pnpm exec tsc --noEmit` sạch ·
+  `pnpm build` OK · `pnpm start` phục vụ HTTP 200 sau 3s.
+- **Không** gặp vấn đề phantom dependency dù pnpm dùng node_modules nghiêm ngặt.
+- `package.json` được ghi `"packageManager": "pnpm@11.13.1"` → khoá cả team/CI vào pnpm.
+
+**Bẫy cú pháp đã đâm vào khi verify** (đã đưa vào Bài 00 làm callout danger):
+`pnpm dlx @angular/cli@22 **ng** new ...` SAI — pnpm dlx tự chạy binary `ng` của gói, nên phải
+viết `pnpm dlx @angular/cli@22 **new** ...`. Viết sai ra lỗi
+`Unknown arguments: standalone, routing, ..., ng, new, <app>` rất khó lần.
+
+Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start`→`pnpm start` ·
+`npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
 - **Đã soạn: Bài 00–07** (hết Module 1). Người học **chưa nộp bài nào** → chưa có learning-record,

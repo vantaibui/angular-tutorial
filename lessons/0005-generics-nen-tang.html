@@ -341,7 +341,7 @@ ru.data.email;      <span class="cmt">// ✅ TS biết đây là string</span>
         trong lần refactor tương lai.
       </p>
       <p>
-        Chạy kiểm tra bằng: <code>npx tsc --noEmit -p tsconfig.spec.json</code>.
+        Chạy kiểm tra bằng: <code>pnpm exec tsc --noEmit -p tsconfig.spec.json</code>.
         Im lặng = mọi ràng buộc kiểu bạn khẳng định đều đang có hiệu lực thật.
       </p>
     </div>
@@ -404,8 +404,8 @@ ru.data.email;      <span class="cmt">// ✅ TS biết đây là string</span>
       <div class="ct">🛠 Task — <code>src/playground/generics.spec.ts</code></div>
 
       <p>
-        Bài này chấm bằng <strong>hai</strong> lệnh: <code>npm test</code> (runtime) và
-        <code>npx tsc --noEmit -p tsconfig.spec.json</code> (tầng kiểu). Cả hai phải sạch.
+        Bài này chấm bằng <strong>hai</strong> lệnh: <code>pnpm test</code> (runtime) và
+        <code>pnpm exec tsc --noEmit -p tsconfig.spec.json</code> (tầng kiểu). Cả hai phải sạch.
       </p>
 
       <strong>Tiêu chí (Definition of Done)</strong>
@@ -511,7 +511,7 @@ ru.data.email;      <span class="cmt">// ✅ TS biết đây là string</span>
   <p class="try-it">
     💬 <strong>Tôi là người dạy của bạn.</strong>
     Gửi <code>generics.spec.ts</code> + output của <strong>cả hai</strong> lệnh
-    (<code>npm test</code> và <code>tsc --noEmit</code>). Rồi trả lời bằng lời của bạn:
+    (<code>pnpm test</code> và <code>tsc --noEmit</code>). Rồi trả lời bằng lời của bạn:
     <em>"Vì sao <code>T extends {id: string}</code> lại cho phép gọi <code>item.id</code>?"</em>
     — đây đúng là tiêu chí ✅ trong lộ trình của bạn.
   </p>

@@ -22,8 +22,14 @@
   "xong bài". Sửa ngay sau khi được chỉ ra. → Lần sau nhắc **tự đối chiếu checklist cuối bài
   trước khi báo xong**; nếu lặp lại lần 2 thì đổi cách can thiệp (bắt tự liệt kê từng mục
   checklist kèm bằng chứng thay vì chỉ nói "xong").
-- **Chưa trả lời câu hỏi tư duy** (RxJS lo phần nào, Angular lo phần nào trong `http.get()`).
-  Còn nợ — hỏi lại trước khi vào sâu Bài 01 mục 6.
+- **Câu hỏi tư duy: trả lời ĐÚNG phần cốt lõi.** Người học nói: "Angular lo chuyện HTTP, RxJS lo
+  mô hình stream bất đồng bộ mà Angular dùng để đưa kết quả HTTP cho bạn." Tách bạch đúng hai lớp,
+  và nắm được RxJS là thư viện độc lập chứ không phải của Angular.
+  **Chỗ còn thiếu:** mô hình đang là MỘT CHIỀU ("đưa kết quả cho bạn") — chưa thấy chiều ngược
+  (`unsubscribe` đi ngược lên nguồn, Angular cắm `xhr.abort()` vào đó). Đã mài sắc lại thành
+  "RxJS sở hữu VÒNG ĐỜI, không chỉ KẾT QUẢ".
+  → Theo dõi ở Bài 01 (teardown) và Bài 02 (unsubscribe lan ngược): nếu vẫn tư duy một chiều thì
+  luật "takeUntil đứng cuối" sẽ thành học thuộc thay vì hiểu.
 
 ## Chưa kiểm được
 - Người học có thực sự đọc và hiểu `app.module.ts` không, hay chỉ chạy lệnh rồi qua.

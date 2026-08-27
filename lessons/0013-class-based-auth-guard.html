@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 13 · Class-based AuthGuard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 2 · Bài 13 · Routing Classic</span>
+    <h1>Class-based <code>AuthGuard implements CanActivate</code></h1>
+    <p class="subtitle">
+      Chặn route <strong>trước khi component kịp tồn tại</strong> — và vì sao trả
+      <code>UrlTree</code> tốt hơn gọi <code>navigate()</code> rồi <code>return false</code>.
+    </p>
+    <p class="meta-line">
+      ⏱ ~40 phút · 🎯 Chặn đúng, redirect kèm <code>returnUrl</code> · 🏷️ EduCommerce · Auth
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết guard dạng class — cú pháp bạn sẽ gặp ở mọi codebase Angular cũ.</li>
+      <li>Giải thích vì sao trả <code>UrlTree</code> tốt hơn <code>navigate()</code> + <code>false</code>.</li>
+      <li>Giữ <code>returnUrl</code> đúng, kể cả khi URL gốc có query string.</li>
+      <li>Test guard bằng điều hướng Router <strong>thật</strong>, không chỉ gọi hàm.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 12 kết bằng câu hỏi: chặn ở <code>ngOnInit</code> thì component đã dựng, chunk đã tải,
+      trang đã loé lên. Bài 07 bạn biết Angular tự inject class qua DI.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>Router có một điểm móc chạy TRƯỚC khi route được kích hoạt — và bạn cắm một class vào đó.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: chặn muộn là không chặn</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ chặn trong component</span>
+<pre><code><span class="fn">ngOnInit</span>() {
+  <span class="kw">if</span> (!<span class="kw">this</span>.auth.isLoggedIn) {
+    <span class="kw">this</span>.router.<span class="fn">navigate</span>([<span class="str">'/login'</span>]);
+  }
+}</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Vấn đề</th><th>Người dùng thấy gì</th></tr></thead>
+      <tbody>
+        <tr><td>Chunk đã tải</td><td>Tốn băng thông cho trang họ không được vào</td></tr>
+        <tr><td>Component đã dựng</td><td>Trang admin <strong>loé lên</strong> rồi mới nhảy đi</td></tr>
+        <tr><td><code>ngOnInit</code> đã chạy</td><td>Các lệnh gọi API trong đó <strong>đã bay đi</strong> — server trả 401 hàng loạt</td></tr>
+        <tr><td>Lặp ở mọi component</td><td>Quên một chỗ là thủng một chỗ</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Việc kiểm tra này thuộc về <strong>route</strong>, không thuộc về component.
+        Nó phải sống ở nơi Router hỏi <em>trước khi</em> quyết định kích hoạt.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: Router hỏi trước khi làm</h2>
+    <div class="code-block">
+      <span class="code-label">Vòng đời một lần điều hướng</span>
+<pre><code>router.navigate(['/dashboard'])
+      │
+      ▼
+  Khớp route
+      │
+      ▼
+  ┌─────────────────────────────┐
+  │  canActivate  ← GUARD Ở ĐÂY │   chưa tải chunk, chưa dựng component
+  └─────────────────────────────┘
+      │                    │
+   true                UrlTree / false
+      │                    │
+      ▼                    ▼
+  Tải lazy chunk      HUỶ điều hướng
+      │                    │
+      ▼                    ▼
+  Dựng component      (UrlTree → điều hướng MỚI tới đó)
+      │
+      ▼
+  ngOnInit  ← quá muộn để chặn</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Guard là câu hỏi Router đặt ra trước khi tốn bất kỳ công sức nào.
+          <code>ngOnInit</code> là lúc công sức đã tốn xong.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Viết <code>AuthGuard</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/guards/auth.guard.ts</span>
+<pre><code><span class="kw">import</span> { Injectable, inject } <span class="kw">from</span> <span class="str">'@angular/core'</span>;
+<span class="kw">import</span> {
+  ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot, UrlTree,
+} <span class="kw">from</span> <span class="str">'@angular/router'</span>;
+<span class="kw">import</span> { AuthService } <span class="kw">from</span> <span class="str">'../services/auth.service'</span>;
+
+<span class="cmt">// providedIn:'root' -> Router tự inject được khi gặp canActivate: [AuthGuard]</span>
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> AuthGuard <span class="kw">implements</span> CanActivate {
+  <span class="kw">private readonly</span> auth = <span class="fn">inject</span>(AuthService);
+  <span class="kw">private readonly</span> router = <span class="fn">inject</span>(Router);
+
+  <span class="cmt">// route: thông tin TĨNH của route (data, params) — Bài 14 sẽ dùng.</span>
+  <span class="cmt">// state: trạng thái điều hướng, state.url là URL người dùng ĐỊNH vào.</span>
+  <span class="fn">canActivate</span>(_route: ActivatedRouteSnapshot, state: RouterStateSnapshot): <span class="kw">boolean</span> | UrlTree {
+    <span class="kw">if</span> (<span class="kw">this</span>.auth.isLoggedIn) <span class="kw">return</span> <span class="kw">true</span>;
+
+    <span class="cmt">// Trả UrlTree thay vì navigate() rồi return false — xem mục 4.</span>
+    <span class="kw">return this</span>.router.<span class="fn">createUrlTree</span>([<span class="str">'/login'</span>], {
+      queryParams: { returnUrl: state.url },
+    });
+  }
+}</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · gắn vào route</span>
+<pre><code>{
+  path: <span class="str">'dashboard'</span>,
+  <span class="cmt">// canActivate nhận CLASS — Angular tự inject qua DI (Bài 07).</span>
+  <span class="cmt">// Modern (v15+) dùng CanActivateFn dạng hàm — Bài 55 sẽ migrate.</span>
+  canActivate: [AuthGuard],
+  loadChildren: () => <span class="kw">import</span>(<span class="str">'./features/dashboard/dashboard.module'</span>).<span class="fn">then</span>((m) => m.DashboardModule),
+}</code></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Class guard có còn dùng được ở Angular 22 không?</div>
+      <p>
+        <strong>Có.</strong> Tôi đã tra
+        <a href="https://angular.dev/api/router/CanActivate" target="_blank" rel="noopener noreferrer">API docs</a>:
+        interface <code>CanActivate</code> vẫn ở trạng thái <strong>stable</strong>, không deprecated.
+        Angular từng đánh dấu deprecated ở v15.2 rồi <em>rút lại</em> sau phản hồi cộng đồng.
+      </p>
+      <p>
+        Và tôi đã verify bằng test điều hướng thật trên v22.1.4 — <code>canActivate: [AuthGuard]</code>
+        với class chạy đúng. Nên bạn học cú pháp này là học thứ vừa dùng được hôm nay,
+        vừa đọc được codebase v12–v16.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. <code>UrlTree</code> vs <code>navigate()</code> + <code>false</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · hai cách, một cách đúng hơn</span>
+<pre><code><span class="cmt">// ❌ Cách cũ: hai hành động rời rạc</span>
+<span class="kw">if</span> (!<span class="kw">this</span>.auth.isLoggedIn) {
+  <span class="kw">this</span>.router.<span class="fn">navigate</span>([<span class="str">'/login'</span>]);   <span class="cmt">// bắt đầu điều hướng MỚI...</span>
+  <span class="kw">return</span> <span class="kw">false</span>;                        <span class="cmt">// ...trong khi cái cũ CHƯA huỷ xong</span>
+}
+
+<span class="cmt">// ✅ Cách đúng: MỘT giá trị trả về, Router tự lo phần còn lại</span>
+<span class="kw">return this</span>.router.<span class="fn">createUrlTree</span>([<span class="str">'/login'</span>], {
+  queryParams: { returnUrl: state.url },
+});</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th></th><th><code>navigate()</code> + <code>false</code></th><th><code>UrlTree</code></th></tr></thead>
+      <tbody>
+        <tr><td>Số lần điều hướng</td><td>Hai, chồng lấn nhau</td><td>Một, Router tự thay thế</td></tr>
+        <tr><td>Race condition</td><td>Có — hai lệnh chạy song song</td><td>Không</td></tr>
+        <tr><td>Test</td><td>Phải spy <code>router.navigate</code></td><td>Chỉ cần kiểm giá trị trả về</td></tr>
+        <tr><td>Guard là hàm thuần?</td><td>Không — có side-effect</td><td>Gần như — trả giá trị mô tả ý định</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Điểm cuối là điều đáng giá nhất: <code>UrlTree</code> biến guard thành thứ
+      <strong>mô tả ý định</strong> thay vì <strong>tự đi làm</strong>. Test chỉ cần so giá trị trả về —
+      không cần dàn dựng spy nào.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>navigate()</code> trả về <code>true</code> khi bị guard chặn</div>
+      <p>Đây là thứ tôi <strong>đoán sai</strong> khi viết test, và phải chạy mới biết:</p>
+      <div class="code-block">
+        <span class="code-label">TypeScript · kết quả đã verify trên Angular 22.1.4</span>
+<pre><code><span class="kw">const</span> ok = <span class="kw">await</span> router.<span class="fn">navigate</span>([<span class="str">'/dashboard'</span>]);   <span class="cmt">// chưa đăng nhập</span>
+
+<span class="fn">expect</span>(ok).<span class="fn">toBe</span>(<span class="kw">true</span>);        <span class="cmt">// ← TRUE, không phải false!</span>
+<span class="fn">expect</span>(router.url).<span class="fn">toBe</span>(<span class="str">'/login?returnUrl=%2Fdashboard'</span>);</code></pre>
+      </div>
+      <p>
+        Vì redirect bằng <code>UrlTree</code> được tính là điều hướng <strong>thành công</strong> —
+        chỉ là tới URL khác. Hệ quả thực tế:
+        <strong>đừng dùng giá trị trả về của <code>navigate()</code> để biết mình có bị chặn hay không.</strong>
+        Muốn biết đã tới đâu, kiểm <code>router.url</code>.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ <code>returnUrl</code> phải giữ nguyên query string</div>
+      <p>
+        Người dùng đang ở <code>/courses?page=2&amp;search=ang</code> thì hết phiên.
+        Dùng <code>state.url</code> là lấy được <strong>toàn bộ</strong> URL kể cả query —
+        và <code>queryParams</code> tự encode nên dấu <code>&amp;</code> không cắt đôi tham số.
+      </p>
+      <div class="code-block">
+        <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="kw">const</span> kq = guard.<span class="fn">canActivate</span>(<span class="fn">snapshot</span>(), <span class="fn">state</span>(<span class="str">'/courses?page=2&search=ang'</span>));
+<span class="kw">const</span> url = router.<span class="fn">serializeUrl</span>(kq <span class="kw">as</span> UrlTree);
+
+<span class="fn">expect</span>(<span class="fn">decodeURIComponent</span>(url.<span class="fn">split</span>(<span class="str">'returnUrl='</span>)[<span class="num">1</span>]))
+  .<span class="fn">toBe</span>(<span class="str">'/courses?page=2&search=ang'</span>);   <span class="cmt">// nguyên vẹn</span></code></pre>
+      </div>
+      <p>
+        Nếu bạn tự nối chuỗi <code>'/login?returnUrl=' + state.url</code> thì dấu <code>&amp;</code>
+        trong URL gốc sẽ bị hiểu thành tham số mới, và <code>returnUrl</code> bị cắt cụt thành
+        <code>/courses?page=2</code>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Test guard bằng điều hướng THẬT</h2>
+    <p>
+      Gọi <code>guard.canActivate(...)</code> trực tiếp là test tốt và nhanh. Nhưng nó
+      <strong>không</strong> chứng minh Router chấp nhận class guard của bạn. Nên làm cả hai tầng:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test điều hướng thật</span>
+<pre><code>TestBed.<span class="fn">configureTestingModule</span>({
+  declarations: [DashCmp, LoginCmp],
+  providers: [
+    <span class="fn">provideRouter</span>([
+      { path: <span class="str">'login'</span>, component: LoginCmp },
+      { path: <span class="str">'dashboard'</span>, component: DashCmp, canActivate: [AuthGuard] },
+    ]),
+    <span class="fn">provideLocationMocks</span>(),   <span class="cmt">// giả lập History API trong môi trường test</span>
+  ],
+});
+
+<span class="fn">it</span>(<span class="str">'chưa đăng nhập -> Router CHẶN và đưa về /login'</span>, <span class="kw">async</span> () => {
+  <span class="kw">await</span> router.<span class="fn">navigate</span>([<span class="str">'/dashboard'</span>]);
+  <span class="fn">expect</span>(router.url).<span class="fn">toBe</span>(<span class="str">'/login?returnUrl=%2Fdashboard'</span>);
+});</code></pre>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Guard trả <code>false</code> và trả <code>UrlTree</code> khác gì nhau?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "<code>false</code> chỉ huỷ điều hướng — người dùng đứng nguyên
+        trang cũ, không được thông báo gì. <code>UrlTree</code> vừa huỷ vừa nói cho Router biết đi đâu,
+        gộp thành một chu kỳ điều hướng duy nhất nên không có race condition. <code>false</code> hợp khi
+        thật sự muốn 'ở yên đó' — ví dụ guard <code>canDeactivate</code> hỏi 'bạn có chắc muốn rời form?'.
+        Cần chuyển hướng thì luôn dùng <code>UrlTree</code>."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Vì sao chặn bằng guard tốt hơn chặn trong <code>ngOnInit</code>?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không phải chuyện code gọn. Khác biệt nằm ở THỜI ĐIỂM, và nó có hệ quả thật về bảo mật lẫn trải nghiệm.">
+      A. Vì code gọn hơn, đỡ lặp ở mỗi component.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Guard chạy TRƯỚC khi Router tải lazy chunk và dựng component. Chặn ở ngOnInit thì chunk đã tải, component đã dựng, trang đã loé lên, và mọi lệnh gọi API trong ngOnInit đã bay đi — server nhận một loạt 401. Guard chặn trước khi tốn bất kỳ công sức nào.">
+      B. Vì guard chạy <strong>trước</strong> khi tải chunk và dựng component — không loé trang, không bắn API thừa.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Sai — guard là bảo vệ phía CLIENT, hoàn toàn có thể bị bypass bằng DevTools. Bảo mật thật luôn phải ở server. Guard chỉ lo trải nghiệm và tránh tải/gọi thừa.">
+      C. Vì guard chạy ở server nên không bypass được.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn viết <code>const ok = await router.navigate(['/dashboard'])</code> khi chưa đăng nhập,
+      và guard trả <code>UrlTree</code> về <code>/login</code>. <code>ok</code> bằng bao nhiêu?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Trực giác nói vậy — tôi cũng đoán thế khi viết test, và nó ĐỎ. Chạy thật mới biết.">
+      A. <code>false</code> — vì điều hướng tới <code>/dashboard</code> đã bị chặn.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng, và đây là chỗ phản trực giác. Redirect bằng UrlTree được Angular tính là điều hướng THÀNH CÔNG — chỉ là tới URL khác. Hệ quả thực tế: đừng dùng giá trị trả về của navigate() để biết mình có bị guard chặn hay không; hãy kiểm router.url.">
+      B. <code>true</code> — redirect được tính là điều hướng thành công tới URL mới.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Không. Promise resolve bình thường; UrlTree là cơ chế hợp lệ, không phải lỗi.">
+      C. Promise bị reject.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>AuthGuard</code></div>
+      <p>
+        Cần một <code>AuthService</code> tối thiểu (<code>isLoggedIn</code>, <code>login</code>,
+        <code>logout</code>). Bài 26 sẽ làm nó đầy đủ — giờ chỉ cần đủ dùng.
+      </p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>AuthGuard implements CanActivate</code>, <code>providedIn: 'root'</code>, dùng <code>inject()</code>.</li>
+        <li><strong>TC2</strong> — Chưa đăng nhập → trả <strong><code>UrlTree</code></strong> (dùng <code>expect(kq).toBeInstanceOf(UrlTree)</code>), không phải <code>false</code>.</li>
+        <li><strong>TC3</strong> — <code>returnUrl</code> giữ <strong>nguyên vẹn</strong> URL gốc có query string. Test bằng <code>decodeURIComponent</code>.</li>
+        <li><strong>TC4</strong> — Đã đăng nhập → trả <code>true</code>.</li>
+        <li><strong>TC5</strong> — Test điều hướng <strong>thật</strong>: <code>provideRouter</code> + <code>provideLocationMocks</code>, khẳng định <code>router.url</code> sau <code>navigate</code>.</li>
+        <li><strong>TC6</strong> — Gắn guard vào route <code>/dashboard</code>, chạy app, gõ thẳng URL → bị đá về <code>/login?returnUrl=%2Fdashboard</code>.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> viết trang <code>/login</code> đọc <code>returnUrl</code> từ
+        query params và điều hướng về đó sau khi đăng nhập — khép kín vòng lặp.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Guard chỉ là một class có method <code>canActivate</code> trả về
+      <code>boolean | UrlTree</code>. Không có gì huyền bí — test được như hàm thường.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>implements CanActivate</code> · <code>router.createUrlTree([path], { queryParams })</code> ·
+      <code>state.url</code> lấy URL đầy đủ · <code>router.serializeUrl(urlTree)</code> để so trong test ·
+      <code>provideRouter([])</code> + <code>provideLocationMocks()</code> từ <code>@angular/common/testing</code>.
+    </p>
+    <p>
+      <strong>Hint 3 · Cách giả lập snapshot trong test:</strong><br>
+      Không cần dựng snapshot thật:
+      <code>const state = { url: '/dashboard' } as RouterStateSnapshot</code> và
+      <code>const route = { data: {} } as unknown as ActivatedRouteSnapshot</code> là đủ,
+      vì guard chỉ đụng vào đúng hai field đó.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết guard chạy <strong>trước</strong> tải chunk và dựng component.</li>
+      <li>Tôi trả <code>UrlTree</code> thay vì <code>navigate()</code> + <code>false</code>, và giải thích được vì sao.</li>
+      <li>Tôi biết <code>navigate()</code> trả <code>true</code> khi bị redirect — không dùng nó để phát hiện chặn.</li>
+      <li>Tôi giữ <code>returnUrl</code> nguyên vẹn bằng <code>queryParams</code>, không nối chuỗi.</li>
+      <li>Tôi nhớ guard là bảo vệ <strong>client-side</strong> — bảo mật thật vẫn phải ở server.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      <code>AuthGuard</code> chỉ trả lời được "đã đăng nhập chưa". Nhưng
+      <code>/dashboard</code> chỉ dành cho <strong>admin</strong> và <strong>instructor</strong>,
+      còn <code>/admin/users</code> thì <strong>chỉ admin</strong>.
+    </p>
+    <p>
+      Bạn có thể viết <code>AdminGuard</code>, <code>InstructorGuard</code>,
+      <code>AdminOrInstructorGuard</code>… nhưng số guard sẽ nổ theo tổ hợp vai trò.
+    </p>
+    <p>
+      <strong>Làm sao viết MỘT guard mà mỗi route tự khai vai trò nào được vào?</strong>
+      Và guard đọc thông tin đó từ đâu — nó đâu có tham số nào để truyền vào?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Gợi ý: <code>canActivate</code> nhận <code>ActivatedRouteSnapshot</code> làm tham số đầu.
+        Trong đó có gì mà route khai được từ file routing? Bài 14 dùng đúng thứ đó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 14 · <code>RoleGuard</code> · <code>route.data</code> · thứ tự guard</div>
+    <p class="nd">
+      Một guard cho mọi tổ hợp vai trò — và vì sao thứ tự trong mảng
+      <code>canActivate</code> quyết định người dùng thấy <code>/login</code> hay <code>/forbidden</code>.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0012-lazy-load-module.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0014-role-guard-route-data.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>auth.guard.ts</code> + spec + output. TC5 (điều hướng thật) là phần quan trọng nhất —
+    gọi <code>canActivate()</code> trực tiếp không chứng minh được Router chấp nhận guard của bạn.
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

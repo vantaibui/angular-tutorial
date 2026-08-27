@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Kiến trúc NgModule &amp; Routing Classic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>
+  h2 { margin-top: 34px; }
+  table.data td code, table.data th code { white-space: nowrap; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 08–14</span>
+    <h1>Kiến trúc NgModule &amp; Routing Classic — cheat-sheet</h1>
+    <p class="subtitle">
+      Bộ khung Core/Shared/Feature, MSW, Generic service, lazy-load và guard —
+      thứ bạn sẽ gặp ở mọi codebase Angular cũ.
+    </p>
+    <p class="meta-line">
+      Đã kiểm chứng: Angular <strong>22.1.4</strong> · pnpm 11.13.1 · msw 2.15.0 · 25 test xanh + tsc sạch
+    </p>
+  </header>
+
+  <section>
+    <h2>1. Ba loại module — phân theo VÒNG ĐỜI</h2>
+    <table class="data">
+      <thead><tr><th>Module</th><th>Import mấy lần</th><th>Chứa</th><th>Cấm</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Core</strong></td><td>Đúng 1, ở <code>AppModule</code></td><td>Service singleton, interceptor, config token</td><td>Component dùng chung</td></tr>
+        <tr><td><strong>Shared</strong></td><td>Nhiều, mọi feature</td><td>Component/pipe/directive + <code>exports</code></td><td>⚠️ <strong>KHÔNG</strong> <code>providers</code></td></tr>
+        <tr><td><strong>Feature</strong></td><td>1, qua <code>loadChildren</code></td><td>Màn hình một nghiệp vụ</td><td>Không cần <code>exports</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 <code>SharedModule</code> có <code>providers</code> = bug im lặng</div>
+      <p>
+        Mỗi lazy module có <code>EnvironmentInjector</code> riêng → mỗi cái nhận <strong>một bản
+        service riêng</strong>. Bạn tưởng dùng chung <code>CartService</code>, thực tế trang Cart và
+        Checkout có hai giỏ khác nhau. Service singleton luôn thuộc Core hoặc <code>providedIn:'root'</code>.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · guard chống import 2 lần</span>
+<pre><code><span class="fn">constructor</span>(<span class="fn">@Optional</span>() <span class="fn">@SkipSelf</span>() parent: CoreModule | <span class="kw">null</span>) {
+  <span class="kw">if</span> (parent) <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="str">'CoreModule đã được import rồi.'</span>);
+}
+<span class="cmt">// @SkipSelf() -> hỏi injector CHA (không có: luôn tự tìm thấy mình -> luôn ném lỗi)</span>
+<span class="cmt">// @Optional()  -> chấp nhận null (không có: lần import ĐẦU đã NullInjectorError)</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Bundling ≠ DI scope</h2>
+    <table class="data">
+      <thead><tr><th></th><th>Chunk (bundler)</th><th>Injector (DI)</th></tr></thead>
+      <tbody>
+        <tr><td>Theo</td><td>Đồ thị <code>import</code></td><td><code>providedIn</code> / <code>providers</code></td></tr>
+        <tr><td>Trả lời</td><td>"Tải lúc nào?"</td><td>"Mấy instance?"</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Đã verify bằng <code>grep</code> vào <code>dist/</code></div>
+      <p>
+        <code>CourseService</code> có <code>providedIn:'root'</code> nhưng nằm trong
+        <strong>lazy chunk</strong> (chỉ lazy module import nó) — vẫn là singleton toàn app.
+        <code>AuthGuard</code> cũng <code>'root'</code> nhưng nằm ở <strong>main</strong>
+        (vì <code>AppRoutingModule</code> eager import nó).
+      </p>
+      <p><strong>Món quà miễn phí:</strong> <code>providedIn:'root'</code> cho singleton <em>và</em> vẫn lazy/tree-shake được.</p>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚠️ Lazy module KHÔNG reset khi quay lại route</div>
+      <p>
+        Chunk tải một lần; injector con sống tới khi reload trang → state được giữ.
+        Muốn reset mỗi lần vào → đặt <code>providers</code> ở <strong>component</strong>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Routing</h2>
+    <table class="data">
+      <thead><tr><th></th><th><code>forRoot()</code></th><th><code>forChild()</code></th></tr></thead>
+      <tbody>
+        <tr><td>Làm gì</td><td>Dựng <code>Router</code></td><td>Chỉ đăng ký thêm route</td></tr>
+        <tr><td>Gọi ở</td><td><strong>Đúng 1 lần</strong>, gốc</td><td>Mọi feature module</td></tr>
+        <tr><td>Sai thì</td><td>Hai Router đánh nhau, <strong>không báo lỗi</strong></td><td>Route không đăng ký → 404</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">TypeScript · lazy-load (Classic)</span>
+<pre><code>{
+  path: <span class="str">'courses'</span>,
+  <span class="cmt">// import() ĐỘNG -> bundler tách chunk. import tĩnh ở đầu file sẽ gộp lại vào main.</span>
+  loadChildren: () => <span class="kw">import</span>(<span class="str">'./features/courses/courses.module'</span>).<span class="fn">then</span>((m) => m.CoursesModule),
+}
+<span class="cmt">// Modern (v17+): loadComponent cho standalone — Bài 55 migrate.</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Guard</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn chuẩn</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> AuthGuard <span class="kw">implements</span> CanActivate {
+  <span class="kw">private readonly</span> auth = <span class="fn">inject</span>(AuthService);
+  <span class="kw">private readonly</span> router = <span class="fn">inject</span>(Router);
+
+  <span class="fn">canActivate</span>(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): <span class="kw">boolean</span> | UrlTree {
+    <span class="kw">if</span> (<span class="kw">this</span>.auth.isLoggedIn) <span class="kw">return</span> <span class="kw">true</span>;
+    <span class="kw">return this</span>.router.<span class="fn">createUrlTree</span>([<span class="str">'/login'</span>], { queryParams: { returnUrl: state.url } });
+  }
+}</code></pre>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Trả về</th><th>Nghĩa</th><th>Dùng khi</th></tr></thead>
+      <tbody>
+        <tr><td><code>true</code></td><td>Cho qua</td><td>—</td></tr>
+        <tr><td><code>UrlTree</code></td><td>Huỷ + chuyển hướng, <strong>một</strong> chu kỳ</td><td><strong>Mặc định</strong> khi cần redirect</td></tr>
+        <tr><td><code>false</code></td><td>Chỉ huỷ, đứng nguyên</td><td><code>canDeactivate</code> ("chắc chưa?")</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Ba điều phản trực giác (đã verify)</div>
+      <p>
+        <strong>1.</strong> <code>await router.navigate(...)</code> trả <strong><code>true</code></strong>
+        khi guard redirect bằng <code>UrlTree</code> — redirect tính là thành công.
+        <strong>Đừng dùng giá trị này để biết có bị chặn hay không</strong>; kiểm <code>router.url</code>.
+      </p>
+      <p>
+        <strong>2.</strong> <code>route.data</code> là <code>Record&lt;string, any&gt;</code> —
+        gõ nhầm <code>role</code> thay <code>roles</code> <em>không có lỗi biên dịch</em>, và
+        route admin thành công khai.
+      </p>
+      <p>
+        <strong>3.</strong> Guard là <strong>UX, không phải bảo mật</strong>. Chạy trong browser,
+        bypass được bằng DevTools. Server vẫn phải kiểm quyền mọi endpoint.
+      </p>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Tình huống</th><th>HTTP</th><th>Đi đâu</th></tr></thead>
+      <tbody>
+        <tr><td>Chưa đăng nhập</td><td><strong>401</strong></td><td><code>/login?returnUrl=...</code></td></tr>
+        <tr><td>Đã đăng nhập, sai quyền</td><td><strong>403</strong></td><td><code>/forbidden</code> — đá về login gây <strong>vòng lặp đăng nhập</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      <code>canActivate: [A, B]</code> chạy <strong>tuần tự</strong>, dừng ở guard đầu tiên không trả
+      <code>true</code>. Nhưng <strong>viết guard đúng kể cả khi đứng một mình</strong> — đừng để
+      tính đúng đắn phụ thuộc thứ tự trong mảng.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. MSW</h2>
+    <div class="code-block">
+      <span class="code-label">bash · cài đặt (pnpm)</span>
+<pre><code><span class="fn">pnpm</span> add -D msw@2
+<span class="fn">pnpm</span> approve-builds msw            <span class="cmt"># pnpm chặn postinstall mặc định</span>
+<span class="fn">pnpm</span> exec msw init public/ --save</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Hai bẫy MSW + pnpm</div>
+      <p>
+        <strong>1.</strong> pnpm 11 dùng key <code>allowBuilds</code> (map) trong
+        <code>pnpm-workspace.yaml</code> — <strong>không</strong> phải <code>onlyBuiltDependencies</code>
+        như blog cũ. Còn gói chờ duyệt thì <strong>mọi</strong> <code>pnpm exec</code> bị chặn.
+      </p>
+      <p>
+        <strong>2.</strong> Handler phải viết <code>'*/api/courses'</code>. Dạng <code>'/api/courses'</code>
+        chạy ở browser nhưng <strong>chết trong <code>msw/node</code></strong> (không có origin để resolve).
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · handler + bật ở dev</span>
+<pre><code>http.<span class="fn">get</span>(<span class="str">'*/api/courses'</span>, ({ request }) => {
+  <span class="kw">const</span> url = <span class="kw">new</span> <span class="fn">URL</span>(request.url);
+  <span class="kw">const</span> page = <span class="fn">Number</span>(url.searchParams.<span class="fn">get</span>(<span class="str">'page'</span>) ?? <span class="num">1</span>);
+  <span class="kw">return</span> HttpResponse.<span class="fn">json</span>(<span class="fn">paginate</span>(courses, page, <span class="num">12</span>));
+});
+
+<span class="cmt">// main.ts — isDevMode() là API Angular; import.meta.env là của Vite, KHÔNG có ở đây.</span>
+<span class="kw">if</span> (<span class="fn">isDevMode</span>()) {
+  <span class="kw">const</span> { worker } = <span class="kw">await</span> <span class="kw">import</span>(<span class="str">'./mocks/browser'</span>);
+  <span class="kw">await</span> worker.<span class="fn">start</span>({ onUnhandledRequest: <span class="str">'bypass'</span> });
+}
+<span class="cmt">// ⚠️ isDevMode() kiểm lúc CHẠY -> chunk MSW vẫn nằm trong dist/.</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Generic API service</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// abstract + KHÔNG @Injectable: đây là KHUÔN, không phải dịch vụ (endpoint là gì?).</span>
+<span class="kw">export abstract class</span> GenericApiService&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt; {
+  <span class="fn">protected constructor</span>(<span class="fn">protected readonly</span> http: HttpClient,
+                        <span class="fn">protected readonly</span> endpoint: <span class="kw">string</span>) {}
+
+  <span class="fn">getById</span>(id: <span class="kw">string</span>): Observable&lt;T&gt; { <span class="kw">return this</span>.http.<span class="fn">get</span>&lt;T&gt;(<span class="str">`${<span class="kw">this</span>.endpoint}/${id}`</span>); }
+  <span class="fn">create</span>(data: <span class="fn">Omit</span>&lt;T, <span class="str">'id'</span>&gt;): Observable&lt;T&gt; { ... }   <span class="cmt">// server sinh id</span>
+  <span class="fn">update</span>(id: <span class="kw">string</span>, patch: <span class="fn">Partial</span>&lt;T&gt;): Observable&lt;T&gt; { ... }
+}
+
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })     <span class="cmt">// providedIn ở lớp CON</span>
+<span class="kw">export class</span> CourseService <span class="kw">extends</span> GenericApiService&lt;Course&gt; {
+  <span class="fn">constructor</span>() { <span class="fn">super</span>(<span class="fn">inject</span>(HttpClient), <span class="str">'/api/courses'</span>); }
+}</code></pre>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚠️ Ba bẫy</div>
+      <p>
+        <strong>1. <code>HttpParams</code> bất biến</strong> — <code>p.set(...)</code> trả object mới.
+        Quên gán lại thì param bị mất, <em>không lỗi</em>, server trả trang 1.
+      </p>
+      <p>
+        <strong>2. Observable lazy</strong> — quên <code>.subscribe()</code> thì
+        <code>HttpTestingController</code> báo "found none" và Network tab trống.
+      </p>
+      <p>
+        <strong>3. <code>inject()</code> trong <code>super()</code></strong> hợp lệ (còn trong
+        injection context); trong <code>ngOnInit</code> thì <code>NG0203</code>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. Test</h2>
+    <table class="data">
+      <thead><tr><th>Công cụ</th><th>Chặn ở đâu</th><th>Dùng cho</th></tr></thead>
+      <tbody>
+        <tr><td><code>HttpTestingController</code></td><td>Ngay dưới <code>HttpClient</code></td><td>Unit test service — nhanh, tất định</td></tr>
+        <tr><td>MSW (<code>setupServer</code>)</td><td>Tầng mạng</td><td>Test handler, e2e — thật hơn</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test guard bằng điều hướng THẬT</span>
+<pre><code>TestBed.<span class="fn">configureTestingModule</span>({
+  declarations: [DashCmp, LoginCmp],
+  providers: [
+    <span class="fn">provideRouter</span>([{ path: <span class="str">'dashboard'</span>, component: DashCmp, canActivate: [AuthGuard] }]),
+    <span class="fn">provideLocationMocks</span>(),   <span class="cmt">// giả lập History API</span>
+  ],
+});
+<span class="kw">await</span> router.<span class="fn">navigate</span>([<span class="str">'/dashboard'</span>]);
+<span class="fn">expect</span>(router.url).<span class="fn">toBe</span>(<span class="str">'/login?returnUrl=%2Fdashboard'</span>);</code></pre>
+    </div>
+    <p>
+      Gọi <code>guard.canActivate()</code> trực tiếp là test tốt và nhanh — nhưng
+      <strong>không</strong> chứng minh Router chấp nhận class guard. Làm cả hai tầng.
+    </p>
+  </section>
+
+  <section>
+    <h2>8. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Vì sao <code>CoreModule</code> cần guard chống import 2 lần?</td>
+          <td>Lazy module import lại sẽ tạo injector con → bản thứ hai của mọi singleton. Đăng nhập ở bản A, trang lazy đọc bản B thấy null. Với <code>multi:true</code> thì interceptor chạy hai lần.</td>
+        </tr>
+        <tr>
+          <td>Lazy module có injector riêng không?</td>
+          <td>Có, con của injector gốc. Service trong <code>providers</code> của nó là singleton <em>trong module</em>. Còn <code>providedIn:'root'</code> luôn về gốc, bất kể code nằm chunk nào.</td>
+        </tr>
+        <tr>
+          <td><code>false</code> vs <code>UrlTree</code> trong guard?</td>
+          <td><code>false</code> chỉ huỷ, đứng nguyên, không phản hồi. <code>UrlTree</code> huỷ + chuyển hướng trong một chu kỳ, không race condition, và guard trở thành hàm mô tả ý định nên dễ test.</td>
+        </tr>
+        <tr>
+          <td>Phân quyền theo vai trò thế nào?</td>
+          <td>Một <code>RoleGuard</code> đọc <code>route.data['roles']</code> — tách logic khỏi cấu hình nên không nổ guard theo tổ hợp. Phân biệt 401 (→login) và 403 (→forbidden). Và luôn nói thêm: guard là UX, phân quyền thật ở server.</td>
+        </tr>
+        <tr>
+          <td>Mock API: MSW hay fake service?</td>
+          <td>MSW — chặn ở tầng mạng nên <code>HttpClient</code>, interceptor, retry đều chạy thật; có backend thật thì không sửa file nào. Fake service phải viết lại toàn bộ và mọi test đều test bản giả.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="generics-di-cheatsheet.html">← Generics &amp; DI</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    📌 Nguồn: <a href="https://angular.dev/api/router/CanActivate" target="_blank" rel="noopener noreferrer">Angular CanActivate API</a> ·
+    <a href="https://angular.dev/guide/di/hierarchical-dependency-injection" target="_blank" rel="noopener noreferrer">Hierarchical DI</a> ·
+    <a href="https://mswjs.io/docs/" target="_blank" rel="noopener noreferrer">MSW docs</a>.
+    Mọi hành vi ở đây đã được chứng minh bằng test chạy xanh hoặc <code>grep</code> vào file build thật.
+  </p>
+
+</div>
+</body>
+</html>

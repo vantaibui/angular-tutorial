@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 12 · forRoot/forChild &amp; lazy-load theo module</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 2 · Bài 12 · Routing Classic</span>
+    <h1><code>forRoot</code>/<code>forChild</code> &amp; lazy-load theo module</h1>
+    <p class="subtitle">
+      Chunk tách ra lúc nào, injector con sinh ra lúc nào — và vì sao
+      <code>providedIn: 'root'</code> vẫn có thể nằm trong chunk lazy.
+    </p>
+    <p class="meta-line">
+      ⏱ ~40 phút · 🎯 Đọc được output build và giải thích từng chunk · 🏷️ Mở màn Phase 2
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Phân biệt <code>forRoot</code> và <code>forChild</code>, và nói được hậu quả khi gọi sai.</li>
+      <li>Đọc output <code>pnpm build</code> và chỉ ra chunk nào là lazy, vì sao.</li>
+      <li>Trả lời chính xác: <strong>bundling theo cái gì, DI scope theo cái gì</strong> — hai thứ khác nhau.</li>
+      <li>Biết state của service khai trong lazy module có sống sót khi rời trang không.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 07: chỉ <strong>lazy module</strong> mới có <code>EnvironmentInjector</code> riêng.
+      Bài 08: bạn đã viết <code>loadChildren</code> và thấy chunk <code>courses-module</code> tách ra.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>chunk (chuyện của bundler) và injector (chuyện của DI) là HAI hệ thống độc lập —
+      và trực giác gộp chúng lại là nguồn hiểu nhầm lớn nhất về lazy loading.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: người dùng tải code họ không bao giờ mở</h2>
+    <p>
+      EduCommerce có trang Dashboard cho admin và instructor. Nhưng 95% người dùng là học viên —
+      họ không bao giờ mở nó. Nếu <code>DashboardModule</code> nằm trong bundle chính,
+      <strong>mọi</strong> người dùng phải tải nó chỉ để xem danh sách khoá học.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn code</div>
+      <p>
+        Bundler cần một cách biết "đoạn code này có thể tách rời". Nhưng <code>import</code> ở đầu file
+        là <strong>tĩnh</strong> — bundler buộc phải gộp. Vậy phải diễn đạt sự phụ thuộc kiểu gì
+        để bundler hiểu là "chỉ cần khi nào chạy tới"?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: hai hệ thống, đừng gộp</h2>
+    <table class="data">
+      <thead><tr><th></th><th>Chunk (bundle)</th><th>Injector (DI)</th></tr></thead>
+      <tbody>
+        <tr><td>Ai quyết định</td><td><strong>Bundler</strong> (esbuild)</td><td><strong>Angular runtime</strong></td></tr>
+        <tr><td>Theo cái gì</td><td>Đồ thị <code>import</code> tĩnh/động</td><td><code>providedIn</code> và <code>providers</code></td></tr>
+        <tr><td>Câu hỏi trả lời</td><td>"Code này <em>tải</em> lúc nào?"</td><td>"Service này có <em>bao nhiêu bản</em>?"</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>import()</code> động quyết định code nằm ở chunk nào.
+          <code>providedIn</code> quyết định service có mấy instance.
+          Hai câu hỏi khác nhau, hai câu trả lời độc lập.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. <code>loadChildren</code> — cú pháp Classic</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/app-routing.module.ts</span>
+<pre><code><span class="kw">const</span> routes: Routes = [
+  { path: <span class="str">''</span>, redirectTo: <span class="str">'courses'</span>, pathMatch: <span class="str">'full'</span> },
+  {
+    path: <span class="str">'courses'</span>,
+    <span class="cmt">// import() ĐỘNG: trả về Promise. Bundler thấy dạng này là tách chunk ngay.</span>
+    <span class="cmt">// Modern (v17+) dùng loadComponent cho standalone — Giai đoạn 2 sẽ migrate.</span>
+    loadChildren: () => <span class="kw">import</span>(<span class="str">'./features/courses/courses.module'</span>).<span class="fn">then</span>((m) => m.CoursesModule),
+  },
+];
+
+<span class="fn">@NgModule</span>({
+  <span class="cmt">// forRoot() dựng Router service. CHỈ gọi MỘT lần, ở gốc.</span>
+  imports: [RouterModule.<span class="fn">forRoot</span>(routes)],
+  exports: [RouterModule],
+})
+<span class="kw">export class</span> AppRoutingModule {}</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · feature routing — forChild</span>
+<pre><code><span class="kw">const</span> routes: Routes = [{ path: <span class="str">''</span>, component: CourseListComponent }];
+<span class="cmt">// path: '' vì tiền tố 'courses' đã được khai ở route cha.</span>
+
+<span class="fn">@NgModule</span>({
+  <span class="cmt">// forChild(): chỉ ĐĂNG KÝ thêm route vào Router đã có, không dựng Router mới.</span>
+  imports: [RouterModule.<span class="fn">forChild</span>(routes)],
+  exports: [RouterModule],
+})
+<span class="kw">export class</span> CoursesRoutingModule {}</code></pre>
+    </div>
+
+    <table class="data">
+      <thead><tr><th></th><th><code>forRoot()</code></th><th><code>forChild()</code></th></tr></thead>
+      <tbody>
+        <tr><td>Làm gì</td><td>Dựng <code>Router</code>, đăng ký route gốc</td><td>Chỉ đăng ký thêm route</td></tr>
+        <tr><td>Gọi ở đâu</td><td><strong>Đúng 1 lần</strong>, <code>AppRoutingModule</code></td><td>Mọi feature module</td></tr>
+        <tr><td>Gọi sai thì</td><td>Hai <code>Router</code> đánh nhau: URL đổi mà view không đổi</td><td>Route không được đăng ký → 404</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Cùng triết lý với guard của <code>CoreModule</code> (Bài 08): thứ chỉ được tồn tại một bản.
+      Khác ở chỗ <strong>Router không tự bảo vệ giúp bạn</strong> — không có lỗi nào cả.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Đọc output build</h2>
+    <div class="code-block">
+      <span class="code-label">bash · output thật đã verify</span>
+<pre><code>Initial chunk files | Names            |  Raw size
+main-OK6IS7II.js    | main             | 257.44 kB
+                    | Initial total    | 257.44 kB
+
+Lazy chunk files    | Names            |  Raw size
+chunk-C3btgjG7.js   | courses-module   |   1.41 kB
+chunk-BHXsAvq9.js   | dashboard-module |   539 bytes</code></pre>
+    </div>
+    <p>
+      <strong>Initial</strong> = tải ngay khi mở app. <strong>Lazy</strong> = chỉ tải khi router
+      chạm tới route đó. Tên chunk lấy từ tên file module, nên đọc là biết ngay ai tách được ai không.
+    </p>
+    <div class="callout tip">
+      <div class="ct">💡 Kiểm bằng mắt trong 5 giây</div>
+      <p>
+        <code>pnpm start</code> → DevTools → Network → lọc <code>JS</code> → xoá log →
+        bấm vào link Courses. Phải thấy <strong>một file .js mới</strong> được tải <em>ngay lúc bấm</em>.
+        Không thấy nghĩa là lazy loading không hoạt động.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi khó từ Bài 11 — và câu trả lời thực nghiệm</h2>
+    <div class="callout bridge">
+      <div class="ct">🔮 Dự đoán trước khi xem</div>
+      <p>
+        <code>CourseService</code> khai <code>@Injectable({providedIn: 'root'})</code> — root scope,
+        singleton toàn app. Nhưng nó <strong>chỉ</strong> được import bởi
+        <code>CourseListComponent</code> nằm trong lazy module.
+      </p>
+      <p><strong>Nó nằm ở chunk nào — <code>main</code> hay <code>courses-module</code>?</strong></p>
+    </div>
+
+    <p>Tôi đã grep trực tiếp vào file build thật:</p>
+    <div class="code-block">
+      <span class="code-label">bash · tìm chuỗi '/api/courses' trong các chunk</span>
+<pre><code>$ grep -l <span class="str">"api/courses"</span> dist/educommerce-ng-classic/browser/*.js
+
+chunk-C3btgjG7.js     <span class="cmt"># ← courses-module (LAZY)</span>
+chunk-kCgM3ZLm.js     <span class="cmt"># ← chunk của MSW handlers, không tính</span>
+
+<span class="cmt"># main-OK6IS7II.js KHÔNG có trong danh sách!</span></code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Kết luận — và vì sao nó quan trọng</div>
+      <p>
+        <code>CourseService</code> nằm trong <strong>lazy chunk</strong>, dù nó là
+        <code>providedIn: 'root'</code>.
+      </p>
+      <p>
+        Vì <strong>bundler đi theo đồ thị <code>import</code></strong>, không đọc decorator của bạn.
+        Chỉ code trong lazy module import nó, nên nó đi theo vào chunk đó. Lúc chạy, nó
+        <em>vẫn</em> được đăng ký vào injector <strong>gốc</strong> và vẫn là singleton toàn app —
+        chỉ là mã nguồn của nó tới muộn.
+      </p>
+      <p>
+        <strong>Đây là món quà miễn phí:</strong> <code>providedIn: 'root'</code> cho bạn singleton
+        <em>và</em> vẫn tree-shake/lazy được. Bạn không phải chọn giữa hai thứ.
+      </p>
+    </div>
+
+    <p>Ngược lại, <code>AuthGuard</code> lại nằm ở <code>main</code>:</p>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code>$ grep -l <span class="str">"returnUrl"</span> dist/educommerce-ng-classic/browser/*.js
+main-OK6IS7II.js      <span class="cmt"># ← vì AppRoutingModule (EAGER) import nó trực tiếp</span></code></pre>
+    </div>
+    <p>
+      Cùng một <code>providedIn: 'root'</code>, hai vị trí chunk khác nhau — chỉ vì <em>ai import nó</em>
+      khác nhau. Bằng chứng rõ nhất cho mental model ở mục 2.
+    </p>
+  </section>
+
+  <section>
+    <h2>6. State của service trong lazy module</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Lazy module chỉ được dựng MỘT lần</div>
+      <p>
+        Nếu <code>CoursesModule</code> khai <code>providers: [CourseFilterService]</code>:
+        người dùng vào <code>/courses</code> lần đầu → chunk tải về, injector con dựng, service dựng.
+        Rời đi rồi <strong>quay lại</strong> → Angular <em>không</em> tải lại chunk, <em>không</em> dựng
+        lại injector. <strong>State cũ còn nguyên.</strong>
+      </p>
+      <p>
+        Nhiều người tưởng lazy module "reset" mỗi lần vào. Không. Nó chỉ lười <em>lần đầu</em>;
+        sau đó sống như module eager cho tới khi reload trang.
+      </p>
+      <p>
+        Muốn state reset theo mỗi lần vào trang → đặt <code>providers</code> ở
+        <strong>component</strong>, không phải module (Bài 07 mục 3).
+      </p>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Lazy module có tạo injector riêng không? Ảnh hưởng gì tới singleton?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Có — mỗi lazy module có <code>EnvironmentInjector</code> riêng,
+        con của injector gốc. Nên service khai trong <code>providers</code> của nó là singleton
+        <em>trong phạm vi module đó</em>, không phải toàn app. Còn
+        <code>providedIn: 'root'</code> luôn về injector gốc bất kể mã nguồn nằm ở chunk nào —
+        bundling và DI scope là hai chuyện độc lập. Cái bẫy thực tế là để service singleton trong
+        <code>SharedModule</code>: mỗi lazy module import sẽ nhận một bản riêng."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. <code>CourseService</code> có <code>providedIn: 'root'</code> nhưng chỉ được import bởi
+      lazy module. Mã nguồn của nó nằm ở chunk nào, và nó có mấy instance lúc chạy?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Nửa đầu sai. providedIn:'root' KHÔNG ép bundler nhét code vào main — bundler không đọc decorator, nó chỉ đi theo đồ thị import.">
+      A. Nằm ở <code>main</code>, một instance — vì <code>'root'</code> nghĩa là bundle gốc.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng — và tôi đã grep file build thật để xác nhận. Bundler đi theo đồ thị import: chỉ lazy module import nó nên nó vào lazy chunk. Runtime thì decorator quyết định: providedIn:'root' đăng ký vào injector GỐC nên vẫn là singleton toàn app. Hai hệ thống độc lập, và đây là món quà miễn phí: singleton mà vẫn lazy được.">
+      B. Nằm ở <strong>lazy chunk</strong>, nhưng vẫn <strong>một instance</strong> ở injector gốc.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Sai ở nửa sau. providedIn:'root' luôn đăng ký vào injector gốc, kể cả khi code tới muộn. Mỗi lazy module MỘT bản chỉ xảy ra khi service nằm trong providers của module đó.">
+      C. Nằm ở lazy chunk, và mỗi lazy module có một bản riêng.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. <code>CoursesModule</code> khai <code>providers: [CourseFilterService]</code> giữ từ khoá
+      tìm kiếm. Người dùng tìm "angular", sang trang Cart, rồi quay lại <code>/courses</code>.
+      Ô tìm kiếm hiển thị gì?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Sai — đây là hiểu nhầm phổ biến nhất về lazy loading. Chunk chỉ tải MỘT lần; lần thứ hai router dùng lại module đã dựng, không tạo injector mới.">
+      A. Rỗng — lazy module được dựng lại mỗi lần vào route.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Lazy chỉ lười ở LẦN ĐẦU. Sau khi tải, module và injector con của nó sống tới khi reload trang, nên state được giữ nguyên. Đôi khi đó đúng là điều bạn muốn (giữ filter). Khi không muốn, hãy đặt providers ở COMPONENT — component bị huỷ khi rời route nên service theo nó chết luôn.">
+      B. Vẫn là "angular" — module đã dựng rồi, injector con không bị tạo lại.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Không có gì bị lỗi cả. Đây là hành vi bình thường và tất định của Angular Router.">
+      C. Lỗi vì injector con đã bị huỷ khi rời route.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — lazy-load toàn bộ feature</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Thêm feature module thứ hai (<code>DashboardModule</code>), lazy-load qua <code>loadChildren</code>, dùng <code>forChild</code>.</li>
+        <li><strong>TC2</strong> — <code>pnpm build</code> hiện <strong>hai</strong> lazy chunk riêng biệt. Dán output vào chat.</li>
+        <li><strong>TC3</strong> — Mở DevTools → Network, chứng minh chunk chỉ tải <em>khi bấm vào link</em>, không tải lúc mở app.</li>
+        <li><strong>TC4</strong> — <code>grep -l</code> trong <code>dist/</code> để tự trả lời: <code>CourseService</code> nằm chunk nào? Ghi lại kết quả và giải thích.</li>
+        <li><strong>TC5</strong> — Thêm <code>providers: [X]</code> vào một lazy module, chứng minh state <strong>sống sót</strong> khi rời route rồi quay lại.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> đổi <code>providers</code> ở TC5 từ module xuống
+        <strong>component</strong> và chứng minh state giờ bị reset — bằng chứng sống cho Bài 07.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Bundler chỉ tách chunk khi thấy <code>import()</code> <em>động</em>. Nếu bạn lỡ thêm
+      <code>import { DashboardModule } from '...'</code> ở đầu file routing, chunk sẽ bị gộp lại
+      vào main mà không có cảnh báo nào.
+    </p>
+    <p>
+      <strong>Hint 2 · Lệnh cần dùng:</strong><br>
+      <code>pnpm build</code> rồi đọc mục "Lazy chunk files" ·
+      <code>grep -l "chuỗi-đặc-trưng" dist/educommerce-ng-classic/browser/*.js</code> ·
+      DevTools → Network → lọc JS → tick "Disable cache".
+    </p>
+    <p>
+      <strong>Hint 3 · Nếu TC2 không thấy chunk tách:</strong><br>
+      Kiểm ba thứ: (1) có <code>import</code> tĩnh module đó ở đâu khác không;
+      (2) <code>loadChildren</code> viết đúng dạng <code>() =&gt; import(...).then(m =&gt; m.X)</code> chưa;
+      (3) route cha có bị <code>redirectTo</code> chặn không.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi tách bạch được <strong>chunk (bundler)</strong> và <strong>injector (DI)</strong>.</li>
+      <li>Tôi biết <code>providedIn: 'root'</code> vẫn lazy được — không phải chọn một trong hai.</li>
+      <li>Tôi biết <code>forRoot</code> một lần, <code>forChild</code> mọi nơi, và hậu quả im lặng khi sai.</li>
+      <li>Tôi biết lazy module <strong>không</strong> reset khi quay lại route.</li>
+      <li>Tôi kiểm chứng bằng output build và <code>grep</code>, không tin cảm giác.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Route <code>/dashboard</code> giờ lazy-load ngon lành. Nhưng <strong>ai cũng vào được</strong> —
+      gõ thẳng URL là thấy trang admin.
+    </p>
+    <p>
+      Bạn có thể kiểm tra trong <code>ngOnInit</code> của <code>DashboardComponent</code> rồi
+      <code>router.navigate(['/login'])</code>. Nó chạy. Nhưng lúc đó component <strong>đã được dựng</strong>,
+      chunk <strong>đã tải về</strong>, và người dùng đã thấy trang loé lên một nhịp.
+    </p>
+    <p>
+      <strong>Có chỗ nào chặn được TRƯỚC khi Angular dựng component — thậm chí trước khi tải chunk?</strong>
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Nếu Router phải hỏi ai đó "được vào không?" trước khi kích hoạt route, thì thứ được hỏi
+        phải sống ở tầng Router chứ không phải tầng component. Bài 13 xây đúng thứ đó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 13 · Class-based <code>AuthGuard implements CanActivate</code></div>
+    <p class="nd">
+      Chặn route trước khi component kịp tồn tại — và vì sao trả <code>UrlTree</code>
+      tốt hơn gọi <code>router.navigate()</code> rồi <code>return false</code>.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0011-course-user-service-ke-thua.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0013-class-based-auth-guard.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi output <code>pnpm build</code> + kết quả <code>grep</code> ở TC4 kèm giải thích của bạn.
+    TC4 là phần tôi đọc kỹ nhất — nó phân biệt "gõ được <code>loadChildren</code>" với "hiểu lazy loading".
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

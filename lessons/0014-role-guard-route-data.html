@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 14 · RoleGuard · route.data · thứ tự guard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 2 · Bài 14 · Routing Classic</span>
+    <h1><code>RoleGuard</code> · <code>route.data</code> · thứ tự guard</h1>
+    <p class="subtitle">
+      Một guard cho mọi tổ hợp vai trò — và vì sao thứ tự trong mảng <code>canActivate</code>
+      quyết định người dùng thấy <code>/login</code> hay <code>/forbidden</code>.
+    </p>
+    <p class="meta-line">
+      ⏱ ~35 phút · 🎯 Phân quyền theo route, không nổ số guard · 🏷️ Bài cuối Module 3
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>route.data</code> để cấu hình guard từ file routing.</li>
+      <li>Viết một <code>RoleGuard</code> phục vụ mọi tổ hợp vai trò.</li>
+      <li>Giải thích thứ tự chạy của mảng <code>canActivate</code> và hệ quả UX của nó.</li>
+      <li>Phân biệt <strong>401 chưa đăng nhập</strong> và <strong>403 sai quyền</strong> — hai đích đến khác nhau.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 13: guard là class có <code>canActivate(route, state)</code>. Bạn đã dùng
+      <code>state.url</code> cho <code>returnUrl</code>, nhưng tham số <code>route</code> thì bỏ trống.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>tham số <code>route</code> mang theo cấu hình mà file routing gửi cho guard.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: guard nổ theo tổ hợp</h2>
+    <p>EduCommerce có 3 vai trò (<code>student</code>, <code>instructor</code>, <code>admin</code>). Viết guard riêng cho từng tổ hợp:</p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ hướng đi sai</span>
+<pre><code>AdminGuard · InstructorGuard · StudentGuard
+AdminOrInstructorGuard · InstructorOrStudentGuard · ...</code></pre>
+    </div>
+    <p>
+      Ba vai trò đã là 7 tổ hợp. Thêm vai trò <code>moderator</code> là 15. Và mỗi guard chỉ khác nhau
+      đúng <strong>một mảng chuỗi</strong>.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Thứ thay đổi là <em>dữ liệu</em> (danh sách vai trò), không phải <em>logic</em> (kiểm tra
+        vai trò có nằm trong danh sách không). Nên đáng lẽ chỉ cần một guard nhận dữ liệu từ ngoài.
+        Nhưng <code>canActivate</code> không có tham số nào để bạn truyền vào — vậy truyền bằng đường nào?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>data</code> là kênh cấu hình tĩnh của route</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · route gửi cấu hình cho guard</span>
+<pre><code>{
+  path: <span class="str">'dashboard'</span>,
+  canActivate: [AuthGuard, RoleGuard],
+  <span class="cmt">// data: object TĨNH gắn vào route, guard/component/resolver đều đọc được.</span>
+  data: { roles: [<span class="str">'admin'</span>, <span class="str">'instructor'</span>] },
+  loadChildren: ...,
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Guard là <em>logic</em> dùng chung. <code>route.data</code> là <em>cấu hình</em> riêng của
+          từng route. Tách hai thứ ra thì một guard phục vụ được vô hạn tổ hợp.
+        </strong>
+      </p>
+    </div>
+    <p>
+      Đây chính là pattern bạn đã gặp ở Bài 07 với <code>InjectionToken</code> + <code>useValue</code>:
+      tách <em>hành vi</em> khỏi <em>tham số</em>. Chỉ khác là ở đây kênh truyền là route chứ không phải DI.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Viết <code>RoleGuard</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/guards/role.guard.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> RoleGuard <span class="kw">implements</span> CanActivate {
+  <span class="kw">private readonly</span> auth = <span class="fn">inject</span>(AuthService);
+  <span class="kw">private readonly</span> router = <span class="fn">inject</span>(Router);
+
+  <span class="fn">canActivate</span>(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): <span class="kw">boolean</span> | UrlTree {
+    <span class="kw">const</span> user = <span class="kw">this</span>.auth.currentUser;
+
+    <span class="cmt">// Chưa đăng nhập -> /login kèm returnUrl. KHÔNG phải /forbidden.</span>
+    <span class="cmt">// Phòng khi RoleGuard bị dùng một mình mà không có AuthGuard đứng trước.</span>
+    <span class="kw">if</span> (!user) {
+      <span class="kw">return this</span>.router.<span class="fn">createUrlTree</span>([<span class="str">'/login'</span>], { queryParams: { returnUrl: state.url } });
+    }
+
+    <span class="cmt">// route.data là Record&lt;string, any&gt; -> phải ép kiểu, và LUÔN phòng thủ khi thiếu.</span>
+    <span class="cmt">// Quên khai data.roles mà crash guard là hỏng cả app, nên mặc định là "cho qua".</span>
+    <span class="kw">const</span> allowed = (route.data[<span class="str">'roles'</span>] <span class="kw">as</span> UserRole[] | <span class="kw">undefined</span>) ?? [];
+    <span class="kw">if</span> (allowed.length === <span class="num">0</span> || allowed.<span class="fn">includes</span>(user.role)) <span class="kw">return</span> <span class="kw">true</span>;
+
+    <span class="cmt">// Đã đăng nhập nhưng sai quyền -> 403, KHÔNG đá về /login.</span>
+    <span class="kw">return this</span>.router.<span class="fn">createUrlTree</span>([<span class="str">'/forbidden'</span>]);
+  }
+}</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Đá người sai quyền về <code>/login</code> là bug UX kinh điển</div>
+      <p>
+        Học viên bấm nhầm link Dashboard. Nếu bạn đá họ về <code>/login</code>, họ thấy form đăng nhập
+        <strong>trong khi đang đăng nhập</strong>. Họ sẽ nhập lại mật khẩu, thành công, rồi bị đá về
+        <code>/login</code> lần nữa — <strong>vòng lặp vô tận</strong>, và họ tưởng tài khoản bị lỗi.
+      </p>
+      <p>
+        Hai tình huống, hai ý nghĩa khác hẳn nhau:
+      </p>
+      <table class="data">
+        <thead><tr><th>Tình huống</th><th>Tương đương HTTP</th><th>Đi đâu</th></tr></thead>
+        <tbody>
+          <tr><td>Chưa đăng nhập</td><td><strong>401</strong> Unauthorized</td><td><code>/login?returnUrl=...</code> — <em>"cho tôi biết bạn là ai"</em></td></tr>
+          <tr><td>Đã đăng nhập, sai quyền</td><td><strong>403</strong> Forbidden</td><td><code>/forbidden</code> — <em>"tôi biết bạn là ai, và bạn không được vào"</em></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Thứ tự guard — và vì sao nó quan trọng</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code>canActivate: [AuthGuard, RoleGuard]   <span class="cmt">// chạy TUẦN TỰ, trái sang phải</span></code></pre>
+    </div>
+    <p>
+      Angular chạy lần lượt và <strong>dừng ngay</strong> khi có guard không trả <code>true</code>.
+      Nên thứ tự quyết định người dùng thấy gì:
+    </p>
+    <table class="data">
+      <thead><tr><th>Thứ tự</th><th>Người chưa đăng nhập thấy</th><th>Đúng chưa?</th></tr></thead>
+      <tbody>
+        <tr><td><code>[AuthGuard, RoleGuard]</code></td><td><code>/login?returnUrl=...</code></td><td>✅ đúng</td></tr>
+        <tr><td><code>[RoleGuard, AuthGuard]</code></td><td>tuỳ <code>RoleGuard</code> có tự kiểm đăng nhập không</td><td>⚠️ mong manh</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Đó là lý do <code>RoleGuard</code> ở mục 3 <strong>vẫn tự kiểm</strong> <code>!user</code> dù
+      thường có <code>AuthGuard</code> đứng trước: guard nên đúng <em>kể cả khi đứng một mình</em>.
+      Đừng để tính đúng đắn phụ thuộc vào thứ tự trong một mảng mà ai đó có thể sắp lại.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test chứng minh thứ tự — đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'thứ tự guard: AuthGuard chạy TRƯỚC RoleGuard'</span>, <span class="kw">async</span> () => {
+  <span class="cmt">// Chưa đăng nhập + sai role: nếu RoleGuard chạy trước sẽ ra /forbidden.</span>
+  <span class="cmt">// Ra /login chứng minh AuthGuard chặn trước.</span>
+  <span class="kw">await</span> router.<span class="fn">navigate</span>([<span class="str">'/dashboard'</span>]);
+  <span class="fn">expect</span>(router.url).<span class="fn">toContain</span>(<span class="str">'/login'</span>);
+});</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout warn">
+      <div class="ct">⚖️ <code>route.data</code> KHÔNG được kiểm kiểu</div>
+      <p>
+        <code>data</code> có kiểu <code>Record&lt;string, any&gt;</code>. Gõ nhầm
+        <code>data: { role: ['admin'] }</code> (thiếu chữ <em>s</em>) thì
+        <strong>không có lỗi biên dịch nào</strong> — guard đọc <code>data['roles']</code> ra
+        <code>undefined</code>, rơi vào nhánh mặc định, và <strong>cho qua tất cả</strong>.
+      </p>
+      <p>
+        Một lỗi chính tả biến route admin thành route công khai. Nên tôi để mặc định là "cho qua"
+        <em>có chủ đích</em> — nhưng phải kèm test cho từng route quan trọng. Cách chặt hơn: định nghĩa
+        một interface <code>RouteData</code> và một helper đọc <code>data</code> có kiểu, thay vì
+        đọc chuỗi thô ở mọi guard.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Guard không phải bảo mật</div>
+      <p>
+        Toàn bộ code này chạy trong browser của người dùng. Mở DevTools, đặt
+        <code>auth.currentUser = {role:'admin'}</code> là vào được ngay.
+      </p>
+      <p>
+        Guard tồn tại để <strong>trải nghiệm đúng</strong> (không loé trang, không tải chunk thừa)
+        và <strong>tránh gọi API vô ích</strong>. <strong>Server vẫn phải kiểm quyền trên mọi
+        endpoint.</strong> Nếu API tin vào việc "client đã chặn rồi" thì bạn có một lỗ hổng thật.
+      </p>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Làm phân quyền theo vai trò trong Angular thế nào?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Một <code>RoleGuard</code> dùng chung, đọc danh sách vai trò
+        cho phép từ <code>route.data</code> — tách logic khỏi cấu hình nên không nổ số guard theo tổ hợp.
+        Phân biệt rõ 401 và 403: chưa đăng nhập thì về <code>/login</code> kèm <code>returnUrl</code>,
+        sai quyền thì về <code>/forbidden</code> — đá về login sẽ tạo vòng lặp đăng nhập.
+        Và luôn nói thêm: guard chỉ là UX, phân quyền thật phải ở server."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Học viên (<code>student</code>) đã đăng nhập, bấm nhầm link <code>/dashboard</code>
+      (chỉ cho admin). Guard nên đưa họ đi đâu?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Đây là bug UX kinh điển. Họ ĐANG đăng nhập mà lại thấy form đăng nhập; nhập lại đúng mật khẩu rồi vẫn bị đá về — vòng lặp vô tận, và họ tưởng tài khoản hỏng.">
+      A. <code>/login</code> — vì họ không có quyền.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Đây là 403 chứ không phải 401: hệ thống ĐÃ biết họ là ai, chỉ là họ không được phép. Trang /forbidden nói đúng sự thật và cho lối thoát (về trang chủ). Đăng nhập lại không giải quyết được gì nên đừng gợi ý điều đó.">
+      B. <code>/forbidden</code> — đã biết họ là ai, chỉ là không đủ quyền (403).
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Trả false khiến họ đứng nguyên trang cũ, không có phản hồi nào. Người dùng bấm link mà 'không có gì xảy ra' sẽ bấm lại nhiều lần rồi nghĩ app bị treo.">
+      C. Trả <code>false</code> — cứ để họ đứng yên tại chỗ.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn gõ nhầm <code>data: { role: ['admin'] }</code> (thiếu chữ <em>s</em>).
+      Chuyện gì xảy ra với <code>RoleGuard</code> ở mục 3?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không có lỗi biên dịch nào. route.data có kiểu Record<string, any> nên TypeScript không kiểm tra tên khoá — đó chính là điều nguy hiểm.">
+      A. Lỗi biên dịch vì <code>data</code> không khớp kiểu.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác, và đây là hậu quả nghiêm trọng nhất. data['roles'] ra undefined, `?? []` cho mảng rỗng, nhánh `allowed.length === 0` trả true — MỌI người đăng nhập đều vào được trang admin. Một lỗi chính tả biến route admin thành công khai, không lỗi, không cảnh báo. Vì thế mỗi route quan trọng phải có test riêng.">
+      B. <code>roles</code> ra <code>undefined</code> → rơi vào nhánh mặc định → <strong>mọi người đăng nhập đều vào được</strong>.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Không crash. Truy cập khoá không tồn tại trên object trong JS chỉ trả undefined, và toán tử ?? đã xử lý nó.">
+      C. Guard ném lỗi runtime vì <code>roles</code> là <code>undefined</code>.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>RoleGuard</code> + trang <code>/forbidden</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>RoleGuard</code> đọc <code>route.data['roles']</code>, dùng cho <strong>mọi</strong> tổ hợp vai trò mà không cần guard mới.</li>
+        <li><strong>TC2</strong> — Đúng vai trò → <code>true</code>.</li>
+        <li><strong>TC3</strong> — Sai vai trò → <code>UrlTree</code> về <strong><code>/forbidden</code></strong>, khẳng định bằng <code>router.serializeUrl</code>.</li>
+        <li><strong>TC4</strong> — Chưa đăng nhập → về <code>/login</code> kèm <code>returnUrl</code>, <strong>không</strong> phải <code>/forbidden</code>.</li>
+        <li><strong>TC5</strong> — Route <strong>không khai</strong> <code>data.roles</code> → không crash (ghi rõ trong test bạn chọn hành vi mặc định nào và vì sao).</li>
+        <li><strong>TC6</strong> — Test điều hướng thật với <code>canActivate: [AuthGuard, RoleGuard]</code>, chứng minh <strong>thứ tự</strong>: chưa đăng nhập ra <code>/login</code> chứ không phải <code>/forbidden</code>.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> viết một helper có kiểu để đọc <code>route.data</code>
+        (vd <code>interface RouteData { roles?: UserRole[] }</code>) sao cho gõ nhầm tên khoá bị
+        TypeScript bắt — chặn đúng cái bẫy ở Câu 2.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Guard cần trả lời đúng <strong>ba</strong> câu, theo thứ tự: có user không? → route yêu cầu vai
+      trò nào? → vai trò của user có nằm trong đó không? Mỗi câu có một đích đến riêng.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>route.data['roles'] as UserRole[] | undefined</code> · <code>?? []</code> để phòng thủ ·
+      <code>Array.includes</code> · <code>router.createUrlTree(['/forbidden'])</code>.
+    </p>
+    <p>
+      <strong>Hint 3 · Mẹo test TC6:</strong><br>
+      Dựng kịch bản mà <em>hai</em> guard đều fail (chưa đăng nhập <strong>và</strong> sai vai trò).
+      Kết quả cho biết guard nào chạy trước: ra <code>/login</code> là <code>AuthGuard</code>,
+      ra <code>/forbidden</code> là <code>RoleGuard</code>.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — và hết Module 3</div>
+    <ul class="checklist">
+      <li>Tôi tách <strong>logic</strong> (guard) khỏi <strong>cấu hình</strong> (<code>route.data</code>).</li>
+      <li>Tôi phân biệt 401 và 403, và biết đá nhầm về <code>/login</code> gây vòng lặp đăng nhập.</li>
+      <li>Tôi biết mảng <code>canActivate</code> chạy tuần tự và dừng ở guard đầu tiên không trả <code>true</code>.</li>
+      <li>Tôi viết guard <strong>đúng kể cả khi đứng một mình</strong>, không phụ thuộc thứ tự.</li>
+      <li>Tôi nhớ <code>route.data</code> không được kiểm kiểu — gõ nhầm khoá là mở toang route.</li>
+      <li>Tôi nhớ guard là UX, không phải bảo mật.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy — bắc cầu sang Phase 3</h2>
+    <p>
+      Guard đã chặn được người lạ. Giờ tới trang <code>/login</code> — và nó cần một
+      <strong>form</strong>: email, mật khẩu, hiển thị lỗi khi bỏ trống hay sai định dạng, nút submit
+      chỉ bật khi hợp lệ.
+    </p>
+    <p>
+      Bạn có thể làm bằng <code>[(ngModel)]</code> và vài biến <code>boolean</code>. Nó chạy cho form
+      hai ô. Nhưng form đăng ký cần <em>xác nhận mật khẩu</em> — một luật kiểm tra
+      <strong>giữa hai ô với nhau</strong>, không thuộc về ô nào.
+    </p>
+    <p>
+      <strong>Luật đó nên sống ở đâu?</strong> Và nếu nó phải sống ở "ô cha", thì cấu trúc form
+      của bạn phải trông như thế nào?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Nếu bạn thấy cần một thứ "bao ngoài cả hai ô để so sánh chúng", bạn vừa tự suy ra
+        <code>FormGroup</code> và cross-field validator. Module 4 — trọng tâm lớn nhất của khoá —
+        bắt đầu từ đúng đó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 15 · Reactive Forms nền + cross-field validator</div>
+    <p class="nd">
+      Mở màn Module 4 (9 bài, trọng tâm số 1 của khoá): vì sao form là một
+      <strong>cây</strong>, và validator sống ở đúng tầng nào của cây đó.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0013-class-based-auth-guard.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>role.guard.ts</code> + spec + output. Đây là bài <strong>cuối Module 3</strong> —
+    nộp xong tôi sẽ ra mini-quiz trộn Bài 08–14 trước khi mở Module 4.
+    Cheat-sheet kiến trúc &amp; routing đã có, link ở mục lục.
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

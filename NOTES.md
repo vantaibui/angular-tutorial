@@ -75,12 +75,12 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–11** (hết Module 2). Người học đã HOÀN THÀNH Bài 00.
+- **Đã soạn: Bài 00–14** (hết Module 3). Người học đã HOÀN THÀNH Bài 00.
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
-- **App tham chiếu:** `<scratchpad>/ref/educommerce-ng-classic/` — 14/14 test xanh, tsc sạch,
-  lazy chunk `courses-module` tách thật, MSW worker phục vụ HTTP 200.
+- **App tham chiếu:** `<scratchpad>/ref/educommerce-ng-classic/` — **25/25 test xanh**, tsc sạch,
+  2 lazy chunk (`courses-module`, `dashboard-module`) tách thật, MSW worker phục vụ HTTP 200.
 
 ### Phát hiện khi verify Module 2 (đã đưa vào bài)
 - **pnpm chặn postinstall** → `pnpm add -D msw@2` xong thì MỌI lệnh `pnpm exec` bị chặn tới khi
@@ -105,7 +105,21 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 ### Cheat-sheet (đếm theo A22)
 - `reference/rxjs-cheatsheet.html` — Bài 01–04.
 - `reference/generics-di-cheatsheet.html` — Bài 05–07.
-- Mốc kế tiếp: sau **Bài 12** (5 bài kể từ cheat-sheet gần nhất) HOẶC khi Module 2 xong.
+- `reference/kien-truc-routing-cheatsheet.html` — Bài 08–14.
+- Mốc kế tiếp: sau **Bài 19** HOẶC khi Module 4 xong (cái nào tới trước).
+
+### Phát hiện khi verify Module 3 (đã đưa vào bài)
+- **`router.navigate()` trả `true` khi guard redirect bằng `UrlTree`** — KHÔNG phải `false`.
+  Tôi đoán sai lúc viết test, phải chạy mới biết. Hệ quả: đừng dùng giá trị trả về của
+  `navigate()` để phát hiện bị guard chặn; kiểm `router.url`.
+- **`providedIn:'root'` KHÔNG ép code vào main chunk.** Grep vào `dist/`: `CourseService`
+  (`'root'`) nằm trong **lazy chunk** vì chỉ lazy module import nó; `AuthGuard` (cũng `'root'`)
+  nằm ở **main** vì `AppRoutingModule` eager import. Bundling theo đồ thị import, DI scope theo
+  decorator — hai hệ thống độc lập.
+- **Class guard vẫn stable ở v22** — đã verify bằng test điều hướng Router thật, không chỉ gọi
+  `canActivate()` trực tiếp.
+- **`route.data` là `Record<string, any>`** — gõ nhầm `role` thay `roles` không có lỗi biên dịch
+  và biến route admin thành công khai.
 
 ### Code đã verify trong sandbox (dùng lại khi chấm bài)
 Sandbox: `<scratchpad>/final-verify/educommerce-ng-classic/`. Toàn bộ 25 test xanh + `tsc` sạch.

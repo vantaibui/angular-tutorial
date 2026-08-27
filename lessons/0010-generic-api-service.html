@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 10 · GenericApiService&lt;T&gt; — Generics vào việc thật</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 1 · Bài 10 · Generics thực chiến</span>
+    <h1><code>GenericApiService&lt;T&gt;</code> — Generics vào việc thật</h1>
+    <p class="subtitle">
+      Một lớp CRUD dùng chung cho mọi entity — và vì sao lớp cơ sở <strong>không</strong> được
+      gắn <code>@Injectable</code>.
+    </p>
+    <p class="meta-line">
+      ⏱ ~40 phút · 🎯 CRUD viết một lần, type-safe tuyệt đối · 🏷️ EduCommerce · tầng service
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết lớp cơ sở generic cho HTTP, và giải thích vì sao nó phải là <code>abstract</code>.</li>
+      <li>Dùng <code>Omit&lt;T,'id'&gt;</code> cho <code>create</code> và <code>Partial&lt;T&gt;</code> cho <code>update</code> — và nói được vì sao.</li>
+      <li>Truyền query param an toàn bằng <code>HttpParams</code>.</li>
+      <li>Test service HTTP bằng <code>HttpTestingController</code> mà không cần server.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 06 bạn viết <code>InMemoryRepository&lt;T extends {id: string}&gt;</code> với
+      <code>findById</code> trả <code>T | undefined</code> và <code>update</code> nhận
+      <code>Partial&lt;T&gt;</code>. Bài 09 bạn có backend giả trả JSON thật.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>cùng cấu trúc đó, nhưng nguồn dữ liệu là HTTP nên mọi thứ trả về <code>Observable</code>.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: sáu service, một logic</h2>
+    <p>
+      EduCommerce có <code>Course</code>, <code>User</code>, <code>Review</code>,
+      <code>Enrollment</code>, <code>Category</code>, <code>Coupon</code>. Viết riêng từng service
+      thì mỗi cái ~40 dòng CRUD giống hệt nhau — 240 dòng, và sửa một bug phải sửa sáu chỗ.
+    </p>
+    <p>
+      Nhưng viết một service dùng chung trả <code>any</code> thì mất sạch type-safety:
+      <code>courseService.getById('x')</code> lẽ ra phải trả <code>Course</code>.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Đây đúng là bài toán Bài 05 đặt ra: <em>viết một lần mà mỗi chỗ dùng vẫn giữ kiểu riêng</em>.
+        Câu hỏi mới duy nhất: lớp cơ sở cần <code>HttpClient</code> và một <code>endpoint</code> —
+        làm sao đưa hai thứ đó vào khi mỗi service con có endpoint khác nhau?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: lớp cơ sở KHÔNG phải một service</h2>
+    <p>
+      Đây là điểm dễ sai nhất bài. Trực giác bảo "nó là service thì gắn <code>@Injectable</code>".
+      Nhưng hãy hỏi: <strong>Angular sẽ tiêm <code>endpoint</code> nào vào nó?</strong>
+    </p>
+    <div class="code-block">
+      <span class="code-label">Vì sao lớp cơ sở phải abstract</span>
+<pre><code><span class="cmt">// ❌ Nếu gắn @Injectable({providedIn:'root'}) lên lớp cơ sở:</span>
+<span class="cmt">//    Angular sẽ cố tự tạo GenericApiService — nhưng endpoint là gì? Không ai biết.</span>
+<span class="cmt">//    Nó KHÔNG phải một dịch vụ cụ thể, chỉ là KHUÔN để đúc ra dịch vụ.</span>
+
+<span class="cmt">// ✅ abstract: nói với TypeScript "không được new trực tiếp",</span>
+<span class="cmt">//    và không đăng ký gì vào DI. Chỉ lớp CON mới là service thật.</span>
+<span class="kw">export abstract class</span> GenericApiService&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt; { ... }</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Lớp cơ sở là cái khuôn, không phải cái bánh.
+          Chỉ thứ có endpoint cụ thể mới đáng được DI biết tới.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Viết <code>GenericApiService&lt;T&gt;</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/generic-api.service.ts</span>
+<pre><code><span class="kw">import</span> { HttpClient, HttpParams } <span class="kw">from</span> <span class="str">'@angular/common/http'</span>;
+<span class="kw">import</span> { Observable } <span class="kw">from</span> <span class="str">'rxjs'</span>;
+<span class="kw">import</span> { ApiListResponse } <span class="kw">from</span> <span class="str">'../models/types'</span>;
+
+<span class="cmt">/**
+ * CRUD dùng chung cho MỌI entity có `id: string`.
+ * KHÔNG @Injectable — đây là lớp CƠ SỞ, không tự đăng ký vào DI.
+ */</span>
+<span class="kw">export abstract class</span> GenericApiService&lt;T <span class="kw">extends</span> { id: <span class="kw">string</span> }&gt; {
+
+  <span class="cmt">// protected: lớp con dùng được, code ngoài thì không.</span>
+  <span class="fn">protected constructor</span>(
+    <span class="fn">protected readonly</span> http: HttpClient,
+    <span class="cmt">/** Endpoint riêng của từng entity, vd '/api/courses'. */</span>
+    <span class="fn">protected readonly</span> endpoint: <span class="kw">string</span>,
+  ) {}
+
+  <span class="fn">getAll</span>(params: <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">string</span> | <span class="kw">number</span>&gt; = {}): Observable&lt;ApiListResponse&lt;T&gt;&gt; {
+    <span class="cmt">// HttpParams BẤT BIẾN: mỗi .set() trả về object MỚI.</span>
+    <span class="cmt">// Viết httpParams.set(...) mà không gán lại là mất sạch param — bẫy kinh điển.</span>
+    <span class="kw">let</span> httpParams = <span class="kw">new</span> <span class="fn">HttpParams</span>();
+    <span class="kw">for</span> (<span class="kw">const</span> [k, v] <span class="kw">of</span> <span class="fn">Object</span>.<span class="fn">entries</span>(params)) {
+      httpParams = httpParams.<span class="fn">set</span>(k, <span class="fn">String</span>(v));
+    }
+    <span class="cmt">// http.get&lt;X&gt; chính là generic function do Angular viết sẵn (Bài 05).</span>
+    <span class="kw">return this</span>.http.<span class="fn">get</span>&lt;ApiListResponse&lt;T&gt;&gt;(<span class="kw">this</span>.endpoint, { params: httpParams });
+  }
+
+  <span class="fn">getById</span>(id: <span class="kw">string</span>): Observable&lt;T&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">get</span>&lt;T&gt;(<span class="str">`${<span class="kw">this</span>.endpoint}/${id}`</span>);
+  }
+
+  <span class="cmt">// Omit&lt;T,'id'&gt;: người gọi KHÔNG được truyền id — server sinh.</span>
+  <span class="cmt">// Kiểu chính là tài liệu: chữ ký tự nói ra hợp đồng thật của method.</span>
+  <span class="fn">create</span>(data: <span class="fn">Omit</span>&lt;T, <span class="str">'id'</span>&gt;): Observable&lt;T&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">post</span>&lt;T&gt;(<span class="kw">this</span>.endpoint, data);
+  }
+
+  <span class="cmt">// Partial&lt;T&gt;: patch vài field vẫn hợp lệ, nhưng field LẠ vẫn bị chặn.</span>
+  <span class="fn">update</span>(id: <span class="kw">string</span>, patch: <span class="fn">Partial</span>&lt;T&gt;): Observable&lt;T&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">patch</span>&lt;T&gt;(<span class="str">`${<span class="kw">this</span>.endpoint}/${id}`</span>, patch);
+  }
+
+  <span class="fn">remove</span>(id: <span class="kw">string</span>): Observable&lt;<span class="kw">void</span>&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">delete</span>&lt;<span class="kw">void</span>&gt;(<span class="str">`${<span class="kw">this</span>.endpoint}/${id}`</span>);
+  }
+}</code></pre>
+    </div>
+
+    <h3>So với Bài 06 — đổi đúng một thứ</h3>
+    <table class="data">
+      <thead><tr><th>Bài 06 (bộ nhớ)</th><th>Bài 10 (HTTP)</th><th>Vì sao</th></tr></thead>
+      <tbody>
+        <tr><td><code>findById(id): T | undefined</code></td><td><code>getById(id): Observable&lt;T&gt;</code></td><td>Kết quả tới <em>sau</em>, và "không thấy" thành lỗi 404 chứ không phải <code>undefined</code></td></tr>
+        <tr><td><code>update(id, patch): void</code></td><td><code>update(id, patch): Observable&lt;T&gt;</code></td><td>Server trả về bản đã cập nhật</td></tr>
+        <tr><td><code>getAll(): readonly T[]</code></td><td><code>getAll(): Observable&lt;ApiListResponse&lt;T&gt;&gt;</code></td><td>Có phân trang → cần cả <code>meta</code></td></tr>
+        <tr><td>ràng buộc <code>T extends {id: string}</code></td><td><strong>y hệt</strong></td><td>Vẫn cần <code>.id</code> để dựng URL</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>HttpParams</code> là bất biến — và im lặng khi bạn quên</div>
+      <div class="code-block">
+        <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ SAI: .set() trả object MỚI, dòng này vứt kết quả đi.</span>
+<span class="kw">let</span> p = <span class="kw">new</span> <span class="fn">HttpParams</span>();
+p.<span class="fn">set</span>(<span class="str">'page'</span>, <span class="str">'2'</span>);          <span class="cmt">// p vẫn RỖNG</span>
+
+<span class="cmt">// ✅ ĐÚNG: gán lại</span>
+p = p.<span class="fn">set</span>(<span class="str">'page'</span>, <span class="str">'2'</span>);</code></pre>
+      </div>
+      <p>
+        Không lỗi, không cảnh báo — chỉ là request thiếu param, server trả trang 1, và bạn
+        đi tìm bug ở phía backend. Cùng triết lý bất biến với <code>{...cũ, ...patch}</code> ở Bài 06.
+      </p>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Vì sao dùng <code>HttpParams</code> chứ không nối chuỗi</div>
+      <p>
+        Nối chuỗi <code>`?search=${term}`</code> vỡ ngay khi người dùng gõ dấu <code>&amp;</code>,
+        khoảng trắng, hay tiếng Việt có dấu. <code>HttpParams</code> tự encode.
+        Với ô tìm kiếm khoá học tiếng Việt, đây <strong>sẽ</strong> xảy ra.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Test service HTTP mà không cần server</h2>
+    <p>
+      Angular có sẵn công cụ giả lập tầng HTTP backend — khác MSW (Bài 09) ở chỗ nó chặn
+      <em>ngay dưới <code>HttpClient</code></em>, không cần Service Worker:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/module2.spec.ts</span>
+<pre><code><span class="kw">import</span> { provideHttpClient } <span class="kw">from</span> <span class="str">'@angular/common/http'</span>;
+<span class="kw">import</span> { HttpTestingController, provideHttpClientTesting } <span class="kw">from</span> <span class="str">'@angular/common/http/testing'</span>;
+
+<span class="fn">beforeEach</span>(() => {
+  TestBed.<span class="fn">configureTestingModule</span>({
+    providers: [<span class="fn">provideHttpClient</span>(), <span class="fn">provideHttpClientTesting</span>()],
+  });
+  httpMock = TestBed.<span class="fn">inject</span>(HttpTestingController);
+  courseService = TestBed.<span class="fn">inject</span>(CourseService);
+});
+
+<span class="fn">it</span>(<span class="str">'getAll truyền query params đúng'</span>, <span class="kw">async</span> () => {
+  <span class="cmt">// Observable LAZY (Bài 03): phải subscribe thì request mới bay đi.</span>
+  <span class="cmt">// firstValueFrom() vừa subscribe vừa cho ta await kết quả.</span>
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(courseService.<span class="fn">getAll</span>({ page: <span class="num">2</span>, search: <span class="str">'ang'</span> }));
+
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>((r) => r.url === <span class="str">'/api/courses'</span>);
+  <span class="fn">expect</span>(req.request.params.<span class="fn">get</span>(<span class="str">'page'</span>)).<span class="fn">toBe</span>(<span class="str">'2'</span>);
+  <span class="fn">expect</span>(req.request.params.<span class="fn">get</span>(<span class="str">'search'</span>)).<span class="fn">toBe</span>(<span class="str">'ang'</span>);
+
+  req.<span class="fn">flush</span>({ data: [], meta: { page: <span class="num">2</span>, limit: <span class="num">12</span>, total: <span class="num">0</span>, totalPages: <span class="num">0</span> } });
+  <span class="kw">await</span> p;
+  httpMock.<span class="fn">verify</span>();   <span class="cmt">// đỏ nếu còn request nào chưa được xử lý</span>
+});</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy tôi tự đâm vào khi soạn bài này</div>
+      <p>
+        Test đầu tiên tôi viết <code>courseService.create(u);</code> rồi
+        <code>httpMock.expectOne(...)</code> — và nhận:
+      </p>
+      <div class="code-block">
+        <span class="code-label">lỗi thật</span>
+<pre><code>Error: Expected one matching request for criteria
+"Match URL: /api/courses", found none.</code></pre>
+      </div>
+      <p>
+        Nguyên nhân: <strong>Observable lazy</strong> (Bài 03). Không <code>subscribe()</code> thì
+        <code>HttpClient</code> không gửi gì cả. Đây là lý do Bài 03 dạy lazy/eager <em>trước</em>
+        bài này — và là bug bạn sẽ gặp lại mỗi khi "gọi API mà Network tab trống".
+      </p>
+    </div>
+
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "<code>HttpTestingController</code> và MSW khác nhau thế nào?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "<code>HttpTestingController</code> chặn ngay dưới
+        <code>HttpClient</code>, trong tiến trình test — nhanh, tất định, hợp cho unit test service.
+        MSW chặn ở tầng mạng qua Service Worker (browser) hoặc interceptor của Node — chậm hơn nhưng
+        thật hơn, và cùng một bộ handler dùng được cho cả app đang chạy lẫn e2e.
+        Thực tế dùng cả hai: <code>HttpTestingController</code> cho unit test, MSW cho dev và e2e."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Vì sao <code>GenericApiService</code> là <code>abstract</code> và <strong>không</strong>
+      gắn <code>@Injectable</code>?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không liên quan tới generic. Class generic vẫn gắn @Injectable được bình thường nếu mọi dependency của nó đều resolve được.">
+      A. Vì Angular không hỗ trợ DI cho class có tham số kiểu.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Nó cần `endpoint: string` — một giá trị không có trong DI và khác nhau ở mỗi service con. Angular không thể tự dựng nó. Nó là KHUÔN, không phải dịch vụ cụ thể; chỉ lớp con (đã chốt endpoint) mới xứng đáng được DI biết tới. abstract khiến TypeScript chặn luôn việc new trực tiếp.">
+      B. Vì nó cần <code>endpoint</code> cụ thể — Angular không biết tiêm giá trị nào, nên nó là khuôn chứ không phải dịch vụ.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Ngược lại — abstract KHÔNG liên quan tới tree-shaking. Cái giúp tree-shake là providedIn:'root' trên lớp CON.">
+      C. Để Angular tree-shake nó khỏi bundle.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. <code>courseService.getAll({page: 2})</code> nhưng server luôn trả trang 1.
+      Nghi ngờ đầu tiên nên là gì?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Có thể, nhưng không phải nghi ngờ ĐẦU TIÊN. Trước khi đổ lỗi cho backend, hãy kiểm request THỰC SỰ gửi đi cái gì — Network tab cho biết ngay.">
+      A. Handler MSW đọc sai tên param.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng — và đây là lỗi phổ biến nhất với HttpParams. Nó BẤT BIẾN: .set() trả về object mới. Viết `p.set('page','2')` mà không gán lại thì p vẫn rỗng, request đi không kèm param, server mặc định trả trang 1. Không lỗi, không cảnh báo. Kiểm bằng Network tab hoặc expect(req.request.params.get('page')).">
+      B. Quên gán lại kết quả <code>HttpParams.set()</code> — nó bất biến nên param bị mất.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Sai — kiểu là chuyện lúc biên dịch, còn param bay qua dây là chuỗi. String(2) và '2' cho ra cùng một request.">
+      C. <code>page</code> là <code>number</code> nhưng URL cần <code>string</code> nên bị bỏ qua.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>GenericApiService&lt;T&gt;</code></div>
+      <p>Chấm bằng <strong>cả</strong> <code>pnpm test</code> và <code>pnpm exec tsc --noEmit -p tsconfig.spec.json</code>.</p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Lớp <code>abstract</code>, ràng buộc <code>T extends {id: string}</code>, constructor <code>protected</code> nhận <code>HttpClient</code> + <code>endpoint</code>.</li>
+        <li><strong>TC2</strong> — Đủ 5 method: <code>getAll</code>, <code>getById</code>, <code>create</code>, <code>update</code>, <code>remove</code>, với kiểu như mục 3.</li>
+        <li><strong>TC3</strong> — <code>getAll</code> nhận object param và truyền qua <code>HttpParams</code>. Test khẳng định <code>req.request.params.get('page')</code> đúng.</li>
+        <li><strong>TC4</strong> — Test bằng <code>HttpTestingController</code>: đúng URL, đúng method, và <code>httpMock.verify()</code> ở cuối.</li>
+        <li><strong>TC5</strong> — Chứng minh type-safe: <code>getById</code> trả <code>Course</code> thật (gán vào <code>const gia: number = kq.price</code>), kèm một <code>@ts-expect-error</code> khi truyền sai kiểu vào <code>create</code>.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> thêm tham số kiểu thứ hai <code>TId = string</code> để entity dùng id kiểu số vẫn hoạt động (Bài 05 mục 6).</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Mở lại <code>InMemoryRepository&lt;T&gt;</code> của Bài 06 và đổi từng chữ ký:
+      kiểu trả về bọc <code>Observable&lt;...&gt;</code>, thân hàm gọi <code>this.http.*</code>. Cấu trúc giữ nguyên.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>this.http.get&lt;X&gt;(url, { params })</code> · <code>.post&lt;T&gt;(url, body)</code> ·
+      <code>.patch&lt;T&gt;</code> · <code>.delete&lt;void&gt;</code> ·
+      <code>new HttpParams()</code> rồi <code>p = p.set(k, v)</code> ·
+      <code>provideHttpClient()</code> + <code>provideHttpClientTesting()</code>.
+    </p>
+    <p>
+      <strong>Hint 3 · Nếu test báo "found none":</strong><br>
+      Bạn quên <code>subscribe()</code>. Observable lazy — dùng
+      <code>firstValueFrom(service.getAll())</code> hoặc <code>.subscribe()</code> trước khi
+      <code>expectOne</code>.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết lớp cơ sở là <strong>khuôn</strong>, không phải service — nên <code>abstract</code>, không <code>@Injectable</code>.</li>
+      <li>Tôi dùng <code>Omit</code>/<code>Partial</code> để chữ ký nói đúng hợp đồng thật.</li>
+      <li>Tôi biết <code>HttpParams</code> bất biến và hậu quả im lặng khi quên gán lại.</li>
+      <li>Tôi test được service HTTP không cần server, và biết nó khác MSW ở tầng nào.</li>
+      <li>Tôi không quên <code>subscribe()</code> — vì tôi hiểu Observable lazy.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Lớp cơ sở cần <code>HttpClient</code>. Nhưng constructor của nó là <code>protected</code> và
+      nhận <code>HttpClient</code> làm tham số — nghĩa là <strong>lớp con phải truyền vào</strong>.
+    </p>
+    <p>
+      Lớp con lấy <code>HttpClient</code> ở đâu? Nếu bạn viết
+      <code>constructor(http: HttpClient) { super(http, '/api/courses'); }</code> thì mỗi lớp con
+      phải khai lại tham số đó. Có 6 entity là lặp 6 lần một dòng chẳng mang thông tin gì.
+    </p>
+    <p>
+      <strong>Có cách nào để lớp con chỉ cần khai đúng thứ riêng của nó — cái endpoint?</strong>
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Gợi ý: Bài 07 bạn đã dùng <code>inject()</code> làm field initializer thay cho constructor
+        param. Nó có dùng được <em>bên trong</em> lời gọi <code>super()</code> không? Bài 11 trả lời.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 11 · <code>CourseService</code> / <code>UserService</code> kế thừa</div>
+    <p class="nd">
+      Hai service, mỗi cái đúng <strong>một dòng</strong> khác nhau — và mẹo
+      <code>super(inject(HttpClient), ...)</code> giúp lớp con khỏi khai lại dependency.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0009-msw-mock-backend.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0011-course-user-service-ke-thua.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>generic-api.service.ts</code> + spec + output cả hai lệnh.
+    TC5 là phần tôi đọc kỹ nhất — nếu kiểu trả về là <code>any</code> thì cả bài này vô nghĩa.
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -75,7 +75,28 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–07** (hết Module 1). Người học **chưa nộp bài nào** → chưa có learning-record,
+- **Đã soạn: Bài 00–11** (hết Module 2). Người học đã HOÀN THÀNH Bài 00.
+- Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
+  các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
+  soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
+- **App tham chiếu:** `<scratchpad>/ref/educommerce-ng-classic/` — 14/14 test xanh, tsc sạch,
+  lazy chunk `courses-module` tách thật, MSW worker phục vụ HTTP 200.
+
+### Phát hiện khi verify Module 2 (đã đưa vào bài)
+- **pnpm chặn postinstall** → `pnpm add -D msw@2` xong thì MỌI lệnh `pnpm exec` bị chặn tới khi
+  duyệt. Key cấu hình đúng ở pnpm 11.13.1 là **`allowBuilds` (map) trong `pnpm-workspace.yaml`** —
+  `onlyBuiltDependencies` trong package.json (theo blog cũ) KHÔNG ăn. Tìm ra bằng cách chạy
+  `pnpm approve-builds msw` rồi xem nó ghi vào đâu.
+- **Handler MSW phải viết `*/api/...`** chứ không phải `/api/...`: path tương đối chạy ở browser
+  nhưng KHÔNG khớp trong `msw/node` (không có origin) → test đỏ khó hiểu.
+- **`import.meta.env` không tồn tại** trong build Angular (đó là API Vite) → dùng `isDevMode()`.
+- **Giới hạn thật của `isDevMode()`:** kiểm lúc chạy, không phải lúc build → chunk MSW (~330 kB)
+  VẪN nằm trong `dist/`. Đã nói thẳng trong Bài 09 thay vì giấu.
+- **`HttpTestingController` + Observable lazy:** quên `.subscribe()` thì `expectOne` báo
+  "found none". Đã biến thành callout ở Bài 10.
+
+## Trạng thái soạn bài (cũ)
+- ~~Đã soạn: Bài 00–07~~ Người học **chưa nộp bài nào** → chưa có learning-record,
   chưa có `GLOSSARY.md` (theo A23: chỉ thêm thuật ngữ khi người học đã dùng ĐÚNG).
 - Người học yêu cầu soạn trước cả Module 1 (2026-08-15). Đã báo rõ đánh đổi: bài chưa hiệu chỉnh
   theo năng lực thật → **phải sửa lại bài sau nếu họ vấp hoặc thấy quá dễ ở Bài 01–02**.

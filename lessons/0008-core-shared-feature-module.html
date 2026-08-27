@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 08 · CoreModule · SharedModule · Feature Module</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 1 · Bài 08 · Kiến trúc</span>
+    <h1>CoreModule · SharedModule · Feature Module</h1>
+    <p class="subtitle">
+      Ba loại module với ba <strong>vòng đời</strong> khác nhau — và vì sao <code>CoreModule</code>
+      phải tự ném lỗi khi bị import lần thứ hai.
+    </p>
+    <p class="meta-line">
+      ⏱ ~40 phút · 🎯 Dựng bộ khung EduCommerce · 🏷️ Mở màn Phase 1
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Đặt đúng một service/pipe/component vào <strong>đúng loại module</strong>, và giải thích vì sao.</li>
+      <li>Viết guard chống import hai lần, và giải thích <code>@Optional()</code> + <code>@SkipSelf()</code> làm gì.</li>
+      <li>Nói được vì sao <code>SharedModule</code> <strong>không được</strong> có <code>providers</code>.</li>
+      <li>Biết <code>exports</code> mới là thứ khiến <code>SharedModule</code> có ích, không phải <code>declarations</code>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 07 bạn học injector tree: provider ở module <strong>eager</strong> gộp vào injector gốc,
+      chỉ module <strong>lazy</strong> mới có injector riêng. Bạn cũng tự suy ra được câu hỏi cuối bài:
+      import <code>CoreModule</code> hai lần thì sao?
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>quy ước ba module là cách biến luật injector đó thành kiến trúc kiểm soát được.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: AppModule phình ra</h2>
+    <p>
+      Tuần đầu, <code>AppModule</code> có 3 component. Tháng thứ ba nó có 40 <code>declarations</code>,
+      15 <code>imports</code>, 12 <code>providers</code>. Mỗi lần build lại toàn bộ. Mỗi lần mở file
+      phải cuộn 200 dòng. Và không ai dám xoá dòng nào vì không biết ai còn dùng.
+    </p>
+    <p>
+      Tệ hơn: người dùng vào trang chủ nhưng vẫn phải tải code của trang Admin — thứ 99% người dùng
+      không bao giờ mở.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Câu hỏi phân loại không phải "file này là gì?" mà là
+        <strong>"thứ này cần tồn tại bao nhiêu bản, và tải lúc nào?"</strong>
+        Trả lời được câu đó là tự suy ra được ba loại module.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: phân loại theo VÒNG ĐỜI</h2>
+    <table class="data">
+      <thead>
+        <tr><th>Module</th><th>Import bao nhiêu lần</th><th>Chứa gì</th><th>Vì sao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>CoreModule</strong></td>
+          <td><strong>Đúng 1</strong> — chỉ ở <code>AppModule</code></td>
+          <td>Service singleton, interceptor, config token</td>
+          <td>Thứ chỉ được tồn tại <em>một bản</em> cho cả app</td>
+        </tr>
+        <tr>
+          <td><strong>SharedModule</strong></td>
+          <td><strong>Nhiều lần</strong> — mọi feature</td>
+          <td>Component/pipe/directive dùng chung. <strong>KHÔNG service.</strong></td>
+          <td>Declarable an toàn khi lặp; service thì không</td>
+        </tr>
+        <tr>
+          <td><strong>Feature module</strong></td>
+          <td>1 lần, qua <code>loadChildren</code></td>
+          <td>Màn hình của một nghiệp vụ</td>
+          <td>Tải khi người dùng thật sự cần</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Core = "chỉ một bản, cả đời app". Shared = "lặp bao nhiêu lần cũng vô hại".
+          Feature = "chỉ tải khi cần".
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. CoreModule và cơ chế tự vệ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/core.module.ts</span>
+<pre><code><span class="kw">import</span> { NgModule, Optional, SkipSelf } <span class="kw">from</span> <span class="str">'@angular/core'</span>;
+<span class="kw">import</span> { provideHttpClient, withInterceptorsFromDi } <span class="kw">from</span> <span class="str">'@angular/common/http'</span>;
+<span class="kw">import</span> { API_CONFIG } <span class="kw">from</span> <span class="str">'./tokens/api-config.token'</span>;
+
+<span class="fn">@NgModule</span>({
+  providers: [
+    <span class="cmt">// Angular 22: HttpClientModule đã DEPRECATED -> dùng provideHttpClient.</span>
+    <span class="cmt">// withInterceptorsFromDi() giữ cho class-based interceptor (Bài 24) vẫn chạy.</span>
+    <span class="fn">provideHttpClient</span>(<span class="fn">withInterceptorsFromDi</span>()),
+    { provide: API_CONFIG, useValue: { baseUrl: <span class="str">'/api'</span>, pageSize: <span class="num">12</span> } },
+  ],
+})
+<span class="kw">export class</span> CoreModule {
+  <span class="cmt">// @Optional()  -> lần import ĐẦU TIÊN, parentModule là null. Không có nó sẽ ném</span>
+  <span class="cmt">//                 NullInjectorError ngay lần đầu, tức là guard tự giết chính nó.</span>
+  <span class="cmt">// @SkipSelf()  -> bỏ qua injector của CHÍNH CoreModule, chỉ hỏi injector CHA.</span>
+  <span class="cmt">//                 Không có nó, nó luôn tự tìm thấy mình -> LÚC NÀO cũng ném lỗi.</span>
+  <span class="fn">constructor</span>(<span class="fn">@Optional</span>() <span class="fn">@SkipSelf</span>() parentModule: CoreModule | <span class="kw">null</span>) {
+    <span class="kw">if</span> (parentModule) {
+      <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="str">'CoreModule đã được import rồi. Chỉ import DUY NHẤT ở AppModule.'</span>);
+    }
+  }
+}</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Hai decorator, bỏ cái nào cũng hỏng</div>
+      <table class="data">
+        <thead><tr><th>Bỏ đi</th><th>Hậu quả</th></tr></thead>
+        <tbody>
+          <tr><td>Bỏ <code>@Optional()</code></td><td>Lần import đầu tiên đã ném <code>NullInjectorError</code> — app không chạy được lần nào.</td></tr>
+          <tr><td>Bỏ <code>@SkipSelf()</code></td><td>Angular tìm thấy chính instance đang tạo → <em>luôn</em> có <code>parentModule</code> → luôn ném lỗi.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Cặp này là một ứng dụng trực tiếp của injector tree ở Bài 07:
+        <strong>"hỏi lên trên, và chấp nhận câu trả lời rỗng"</strong>.
+      </p>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao import 2 lần lại nguy hiểm</div>
+      <p>
+        Nếu một <strong>lazy module</strong> lỡ <code>imports: [CoreModule]</code>, nó tạo
+        <code>EnvironmentInjector</code> riêng → có <strong>bản thứ hai</strong> của mọi service trong Core.
+        Người dùng đăng nhập ở bản A, trang lazy đọc bản B thấy <code>null</code>.
+        Không lỗi, không cảnh báo — chỉ là "tự nhiên bị đăng xuất khi vào trang Admin".
+      </p>
+      <p>
+        Với <code>HTTP_INTERCEPTORS</code> (<code>multi: true</code>) thì tệ hơn: interceptor
+        <strong>chạy hai lần</strong> cho mỗi request.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. SharedModule — <code>exports</code> mới là thứ có ích</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/shared.module.ts</span>
+<pre><code><span class="fn">@NgModule</span>({
+  declarations: [VndPipe],       <span class="cmt">// khai báo: pipe này THUỘC module này</span>
+  imports: [CommonModule],
+  <span class="cmt">// exports = thứ DUY NHẤT khiến SharedModule có ích.</span>
+  <span class="cmt">// Không export thì module khác import vào cũng KHÔNG dùng được gì.</span>
+  <span class="cmt">// Re-export CommonModule để feature module khỏi phải tự import (*ngIf, *ngFor).</span>
+  exports: [CommonModule, VndPipe],
+})
+<span class="kw">export class</span> SharedModule {}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 SharedModule KHÔNG được có <code>providers</code></div>
+      <p>
+        Đây là hệ quả trực tiếp của Bài 07. <code>SharedModule</code> được import vào <em>mọi</em>
+        feature module, kể cả lazy. Mỗi lazy module có <code>EnvironmentInjector</code> riêng →
+        mỗi cái nhận <strong>một bản service riêng</strong>.
+      </p>
+      <p>
+        Bạn tưởng đang dùng chung một <code>CartService</code>, thực tế trang Cart và trang Checkout
+        có hai giỏ hàng khác nhau. <strong>Service singleton luôn thuộc về Core (hoặc <code>providedIn: 'root'</code>), không bao giờ thuộc Shared.</strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Feature module — tách theo nghiệp vụ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/courses/courses.module.ts</span>
+<pre><code><span class="fn">@NgModule</span>({
+  declarations: [CourseListComponent],
+  imports: [SharedModule, CoursesRoutingModule],
+  <span class="cmt">// KHÔNG có exports: không ai import feature module cả — router tự nạp nó.</span>
+})
+<span class="kw">export class</span> CoursesModule {}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · courses-routing.module.ts — forChild, KHÔNG phải forRoot</span>
+<pre><code><span class="kw">const</span> routes: Routes = [{ path: <span class="str">''</span>, component: CourseListComponent }];
+
+<span class="fn">@NgModule</span>({
+  <span class="cmt">// forRoot() CHỈ gọi MỘT lần ở AppRoutingModule — nó dựng Router service.</span>
+  <span class="cmt">// Feature module dùng forChild(): chỉ ĐĂNG KÝ thêm route vào Router đã có.</span>
+  imports: [RouterModule.<span class="fn">forChild</span>(routes)],
+  exports: [RouterModule],
+})
+<span class="kw">export class</span> CoursesRoutingModule {}</code></pre>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Gọi <code>forRoot()</code> hai lần thì sao?</div>
+      <p>
+        Bạn có hai bản <code>Router</code> đánh nhau: URL đổi nhưng view không đổi, hoặc điều hướng
+        chạy hai lần. Quy tắc: <strong><code>forRoot()</code> đúng một lần ở gốc, mọi nơi khác dùng <code>forChild()</code>.</strong>
+        Cùng một triết lý với guard của CoreModule — chỉ khác là Router không tự bảo vệ giúp bạn.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Cây thư mục sau bài này</h2>
+    <div class="code-block">
+      <span class="code-label">Cấu trúc EduCommerce</span>
+<pre><code>src/app/
+├─ core/                      <span class="cmt"># import ĐÚNG 1 LẦN ở AppModule</span>
+│  ├─ core.module.ts
+│  ├─ models/types.ts         <span class="cmt"># copy từ mock-data/types.ts</span>
+│  ├─ services/               <span class="cmt"># Bài 10-11 sẽ đổ service vào đây</span>
+│  └─ tokens/api-config.token.ts
+├─ shared/                    <span class="cmt"># import ở MỌI feature</span>
+│  ├─ shared.module.ts
+│  └─ price.pipe.ts
+├─ features/
+│  └─ courses/                <span class="cmt"># lazy-load</span>
+│     ├─ courses.module.ts
+│     ├─ courses-routing.module.ts
+│     └─ course-list/course-list.component.ts
+├─ app.module.ts
+└─ app-routing.module.ts</code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Vì sao guard của <code>CoreModule</code> cần <strong>cả hai</strong>
+      <code>@Optional()</code> và <code>@SkipSelf()</code>?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không phải chuyện dư thừa. Mỗi decorator chặn một chế độ hỏng KHÁC nhau — bỏ cái nào guard cũng vô dụng theo một kiểu riêng.">
+      A. Chỉ cần một trong hai, viết cả hai cho chắc.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. @SkipSelf() bắt Angular bỏ qua injector của chính CoreModule và chỉ hỏi CHA — không có nó thì nó luôn tự tìm thấy mình nên LÚC NÀO cũng ném lỗi. @Optional() cho phép câu trả lời là null — không có nó thì lần import ĐẦU TIÊN đã NullInjectorError. Cần đủ cặp: 'hỏi lên trên' + 'chấp nhận rỗng'.">
+      B. <code>@SkipSelf()</code> để hỏi injector cha; <code>@Optional()</code> để lần đầu nhận <code>null</code> mà không lỗi.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Ngược lại. @Optional() liên quan tới việc CHẤP NHẬN không tìm thấy, không phải hiệu năng. Và @SkipSelf() đổi ĐIỂM BẮT ĐẦU tìm kiếm, không phải tốc độ.">
+      C. <code>@Optional()</code> để tăng tốc, <code>@SkipSelf()</code> để bỏ qua cache.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn đặt <code>CartService</code> vào <code>providers</code> của <code>SharedModule</code>.
+      App có 3 lazy module đều import <code>SharedModule</code>. Chuyện gì xảy ra?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Sai. Angular không hề báo lỗi — providers trùng ở nhiều injector là hợp lệ hoàn toàn. Đó chính là điều làm bug này khó chịu.">
+      A. Angular báo lỗi "duplicate provider".
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác, và đây là hệ quả trực tiếp của Bài 07. Mỗi lazy module tạo EnvironmentInjector riêng, nên mỗi cái dựng một CartService riêng. Thêm hàng ở trang Courses, sang trang Checkout thấy giỏ rỗng. Không lỗi, không cảnh báo. Đây là lý do service singleton phải nằm ở Core hoặc providedIn:'root', không bao giờ ở Shared.">
+      B. Mỗi lazy module có <strong>một <code>CartService</code> riêng</strong> — giỏ hàng không đồng bộ, im lặng.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Chỉ đúng nếu SharedModule chỉ được import bởi các module EAGER. Với lazy module thì mỗi cái có injector riêng nên KHÔNG dùng chung.">
+      C. Vẫn dùng chung một instance vì Angular gộp providers lại.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — dựng bộ khung EduCommerce</div>
+      <p>Tạo cấu trúc ở mục 6 trong project của bạn. Tự viết, đừng copy nguyên khối.</p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>CoreModule</code> có guard <code>@Optional() @SkipSelf()</code>, đăng ký <code>provideHttpClient(withInterceptorsFromDi())</code> và một <code>API_CONFIG</code> token.</li>
+        <li><strong>TC2</strong> — <code>SharedModule</code> có ít nhất một pipe tự viết (vd <code>VndPipe</code> format tiền Việt), <strong>export</strong> cả <code>CommonModule</code> lẫn pipe đó, và <strong>không</strong> có <code>providers</code>.</li>
+        <li><strong>TC3</strong> — <code>CoursesModule</code> + <code>CoursesRoutingModule</code> dùng <code>forChild</code>, lazy-load qua <code>loadChildren</code> từ <code>AppRoutingModule</code>.</li>
+        <li><strong>TC4</strong> — Viết test chứng minh guard: <code>new CoreModule(null)</code> chạy được, <code>new CoreModule(chaGiaLap)</code> <strong>ném lỗi</strong>.</li>
+        <li><strong>TC5</strong> — <code>pnpm build</code> hiện <strong>lazy chunk riêng</strong> tên <code>courses-module</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Với mỗi file tự hỏi: "cần bao nhiêu bản?" Một bản cho cả app → Core.
+      Lặp lại vô hại → Shared. Chỉ một màn hình cần → Feature.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>@Optional()</code>, <code>@SkipSelf()</code> từ <code>@angular/core</code> ·
+      <code>provideHttpClient</code>, <code>withInterceptorsFromDi</code> từ <code>@angular/common/http</code> ·
+      <code>RouterModule.forChild</code> · <code>loadChildren: () =&gt; import('...').then(m =&gt; m.X)</code>.
+    </p>
+    <p>
+      <strong>Hint 3 · Mẹo test TC4:</strong><br>
+      Không cần TestBed. Guard chỉ là constructor thường:
+      <code>const cha = new CoreModule(null)</code> rồi
+      <code>expect(() =&gt; new CoreModule(cha)).toThrowError(/đã được import/)</code>.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi phân loại module theo <strong>vòng đời</strong>, không theo "cho gọn".</li>
+      <li>Tôi giải thích được từng decorator trong guard, và hậu quả khi bỏ mỗi cái.</li>
+      <li>Tôi biết <code>SharedModule</code> có <code>providers</code> là bug im lặng, và biết vì sao.</li>
+      <li>Tôi biết <code>forRoot</code> một lần, <code>forChild</code> mọi nơi khác.</li>
+      <li>Tôi biết <code>HttpClientModule</code> đã deprecated ở v22 và dùng gì thay thế.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Bộ khung đã xong nhưng <code>CourseListComponent</code> chưa có dữ liệu. Backend thì chưa tồn tại —
+      bạn chỉ có mấy file JSON trong <code>mock-data/</code>.
+    </p>
+    <p>
+      Cách nhanh nhất là viết <code>CourseService</code> trả thẳng <code>of(coursesJson)</code>.
+      Nó chạy ngay. Nhưng khi backend thật xuất hiện, bạn phải <strong>viết lại</strong> service,
+      và mọi thứ bạn đã test đều test bản giả chứ không phải bản thật.
+    </p>
+    <p>
+      <strong>Có cách nào để code app dùng <code>HttpClient</code> y như thật ngay từ hôm nay,
+      mà dữ liệu vẫn là mock?</strong>
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Gợi ý: nếu thứ giả lập nằm <em>thấp hơn</em> <code>HttpClient</code> — ở tầng mạng —
+        thì code app không cần biết gì cả. Bài 09 làm đúng điều đó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 09 · Cắm MSW — giả lập backend ở tầng mạng</div>
+    <p class="nd">
+      Chặn request ở Service Worker để <code>HttpClient</code> tưởng đang nói chuyện với server thật —
+      và hai cái bẫy pnpm/MSW mà tôi đã đâm vào khi soạn bài.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0007-di-injector-tree.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0009-msw-mock-backend.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi cây thư mục + <code>core.module.ts</code> + output <code>pnpm build</code> (phần Lazy chunk files).
+    Tôi sẽ đọc code thật và chạy lại build.
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

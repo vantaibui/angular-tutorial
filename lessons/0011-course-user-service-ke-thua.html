@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 11 · CourseService / UserService kế thừa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 1 · Bài 11 · Generics thực chiến</span>
+    <h1><code>CourseService</code> / <code>UserService</code> kế thừa</h1>
+    <p class="subtitle">
+      Hai service, mỗi cái chỉ khác đúng <strong>một dòng</strong> —
+      và mẹo <code>inject()</code> giúp lớp con khỏi khai lại dependency.
+    </p>
+    <p class="meta-line">
+      ⏱ ~30 phút · 🎯 Chứng minh tái sử dụng thật, không mất type-safety · 🏷️ Bài cuối Module 2
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết service cụ thể kế thừa lớp generic, chỉ khai <strong>endpoint</strong>.</li>
+      <li>Giải thích <code>super(inject(HttpClient), ...)</code> hoạt động được nhờ đâu.</li>
+      <li>Thêm method riêng cho từng entity mà không đụng vào lớp cơ sở.</li>
+      <li>Chứng minh <code>courseService.getById()</code> trả <code>Course</code> chứ không phải <code>any</code>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 10 bạn có lớp <code>abstract</code> với constructor <code>protected</code> nhận
+      <code>HttpClient</code> và <code>endpoint</code>. Bài 07 bạn dùng <code>inject()</code> làm
+      field initializer.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong><code>inject()</code> gọi được ngay <em>bên trong</em> <code>super()</code>.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: boilerplate của lớp con</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · cách viết truyền thống</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CourseService <span class="kw">extends</span> GenericApiService&lt;Course&gt; {
+  <span class="cmt">// Dòng này KHÔNG mang thông tin gì riêng của Course —</span>
+  <span class="cmt">// nhưng phải lặp lại y hệt ở CẢ SÁU service.</span>
+  <span class="fn">constructor</span>(http: HttpClient) {
+    <span class="fn">super</span>(http, <span class="str">'/api/courses'</span>);
+  }
+}</code></pre>
+    </div>
+    <p>
+      Nó chạy được. Nhưng <code>http: HttpClient</code> là <strong>nhiễu</strong>: nó không nói gì về
+      <code>CourseService</code>, chỉ là ống dẫn để đưa dependency xuống lớp cha. Sáu entity là sáu lần lặp.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Thứ <em>duy nhất</em> phân biệt <code>CourseService</code> với <code>UserService</code> là
+        chuỗi endpoint và tham số kiểu. Lý tưởng nhất, đó phải là hai thứ duy nhất bạn phải gõ.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>inject()</code> chạy ở đâu</h2>
+    <p>
+      <code>inject()</code> không phải phép màu — nó đọc một <strong>injector "đang hoạt động"</strong>
+      mà Angular đặt sẵn trong lúc dựng instance. Angular gọi nó là <em>injection context</em>.
+    </p>
+    <table class="data">
+      <thead><tr><th>Vị trí</th><th><code>inject()</code> dùng được?</th></tr></thead>
+      <tbody>
+        <tr><td>Field initializer (<code>private x = inject(Y)</code>)</td><td>✅</td></tr>
+        <tr><td>Thân constructor</td><td>✅</td></tr>
+        <tr><td><strong>Bên trong <code>super(...)</code></strong></td><td>✅ — vẫn trong lúc dựng instance</td></tr>
+        <tr><td><code>ngOnInit</code>, event handler, callback</td><td>❌ <code>NG0203</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>inject()</code> dùng được ở bất cứ đâu <em>trong lúc Angular đang dựng instance</em> —
+          và <code>super()</code> nằm trong khoảng thời gian đó.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Viết hai service</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/course.service.ts</span>
+<pre><code><span class="kw">import</span> { HttpClient } <span class="kw">from</span> <span class="str">'@angular/common/http'</span>;
+<span class="kw">import</span> { Injectable, inject } <span class="kw">from</span> <span class="str">'@angular/core'</span>;
+<span class="kw">import</span> { GenericApiService } <span class="kw">from</span> <span class="str">'./generic-api.service'</span>;
+<span class="kw">import</span> { Course } <span class="kw">from</span> <span class="str">'../models/types'</span>;
+
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CourseService <span class="kw">extends</span> GenericApiService&lt;Course&gt; {
+  <span class="fn">constructor</span>() {
+    <span class="cmt">// inject() gọi được NGAY TRONG super() — vẫn đang trong injection context.</span>
+    <span class="cmt">// Nhờ vậy lớp con không phải khai lại HttpClient làm tham số.</span>
+    <span class="fn">super</span>(<span class="fn">inject</span>(HttpClient), <span class="str">'/api/courses'</span>);
+  }
+
+  <span class="cmt">// Method RIÊNG của Course — lớp cơ sở không biết tới.</span>
+  <span class="cmt">// Đây là lý do dùng KẾ THỪA thay vì chỉ gọi hàm dùng chung:</span>
+  <span class="cmt">// chỗ để đặt thứ đặc thù mà vẫn giữ nguyên CRUD.</span>
+  <span class="fn">getBestsellers</span>() {
+    <span class="kw">return this</span>.<span class="fn">getAll</span>({ bestseller: <span class="str">'true'</span> });
+  }
+}</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/user.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> UserService <span class="kw">extends</span> GenericApiService&lt;User&gt; {
+  <span class="fn">constructor</span>() {
+    <span class="fn">super</span>(<span class="fn">inject</span>(HttpClient), <span class="str">'/api/users'</span>);
+  }
+}</code></pre>
+    </div>
+
+    <p>
+      <code>UserService</code> chỉ có <strong>5 dòng</strong> mà đã có đủ
+      <code>getAll</code> / <code>getById</code> / <code>create</code> / <code>update</code> /
+      <code>remove</code>, tất cả gõ đúng kiểu <code>User</code>.
+    </p>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ <code>providedIn: 'root'</code> ở lớp CON, không phải lớp cha</div>
+      <p>
+        Lớp cha <code>abstract</code> không đăng ký gì vào DI (Bài 10). Mỗi lớp con là một service
+        riêng biệt với endpoint riêng, nên mỗi cái tự khai <code>providedIn: 'root'</code>.
+        Kết quả: <code>CourseService</code> và <code>UserService</code> là hai singleton
+        <strong>độc lập</strong>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh nó thật sự type-safe</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ spec đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'getById trả về ĐÚNG kiểu Course, không phải any'</span>, <span class="kw">async</span> () => {
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(courseService.<span class="fn">getById</span>(<span class="str">'c1'</span>));
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/courses/c1'</span>);
+  req.<span class="fn">flush</span>(fakeCourse);
+
+  <span class="kw">const</span> kq = <span class="kw">await</span> p;
+  <span class="cmt">// Gán vào biến khai TƯỜNG MINH là cách duy nhất chứng minh kiểu.</span>
+  <span class="cmt">// Nếu getById trả `any`, dòng này vẫn qua — nên phải kèm @ts-expect-error bên dưới.</span>
+  <span class="kw">const</span> gia: <span class="kw">number</span> = kq.price;
+  <span class="fn">expect</span>(gia).<span class="fn">toBe</span>(<span class="num">100</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'type-safe: service Course không nhận User'</span>, () => {
+  <span class="cmt">// @ts-expect-error create của CourseService không nhận User</span>
+  <span class="cmt">// .subscribe() BẮT BUỘC: Observable lazy, không subscribe thì không có request (Bài 03).</span>
+  courseService.<span class="fn">create</span>(u).<span class="fn">subscribe</span>();
+  httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/courses'</span>).<span class="fn">flush</span>({});
+});</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>@ts-expect-error</code> mới là bằng chứng thật</div>
+      <p>
+        Test runtime <strong>không</strong> chứng minh được type-safety — nếu <code>getById</code> trả
+        <code>any</code>, mọi assertion runtime vẫn xanh y hệt. Chỉ <code>@ts-expect-error</code> +
+        <code>tsc</code> mới bắt được: nó <em>đỏ khi lỗi kiểu biến mất</em> (Bài 05).
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Khi nào KHÔNG nên kế thừa</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Kế thừa là quan hệ chặt nhất trong OOP</div>
+      <p>
+        Sửa lớp cơ sở là ảnh hưởng <strong>cả sáu</strong> service cùng lúc. Với CRUD thuần thì đáng —
+        vì chúng thật sự giống nhau. Nhưng khi một entity bắt đầu lệch (vd <code>Review</code> tạo qua
+        <code>POST /api/courses/:id/reviews</code> chứ không phải <code>/api/reviews</code>), đừng cố
+        nhồi vào lớp cha bằng cờ điều kiện.
+      </p>
+    </div>
+    <table class="data">
+      <thead><tr><th>Tình huống</th><th>Nên làm</th></tr></thead>
+      <tbody>
+        <tr><td>Entity khớp hoàn toàn CRUD chuẩn</td><td>Kế thừa — như <code>UserService</code></td></tr>
+        <tr><td>Khớp CRUD + có thêm method riêng</td><td>Kế thừa rồi thêm method — như <code>getBestsellers</code></td></tr>
+        <tr><td>Vài endpoint lệch hẳn</td><td><code>override</code> đúng method đó</td></tr>
+        <tr><td>Lệch quá nửa</td><td><strong>Đừng kế thừa</strong> — viết service riêng, hoặc <em>compose</em>: giữ một <code>GenericApiService</code> làm field thay vì <code>extends</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Khi nào chọn composition thay vì inheritance cho tầng service?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Kế thừa khi lớp con thật sự <em>là</em> một biến thể của lớp cha
+        và dùng gần như toàn bộ hành vi — CRUD theo REST chuẩn là ví dụ tốt. Composition khi chỉ cần
+        <em>một phần</em>, hoặc khi lớp con phải chống lại hành vi mặc định. Dấu hiệu chọn sai:
+        bắt đầu <code>override</code> method chỉ để ném lỗi 'không hỗ trợ', hoặc thêm cờ boolean vào
+        lớp cha để phân nhánh cho một lớp con."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Vì sao <code>super(inject(HttpClient), '/api/courses')</code> hoạt động,
+      trong khi gọi <code>inject()</code> trong <code>ngOnInit</code> lại ném <code>NG0203</code>?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không có ngoại lệ đặc biệt nào cho super(). Nguyên tắc chỉ có một, và nó là về THỜI ĐIỂM.">
+      A. Vì Angular có xử lý đặc biệt cho <code>super()</code>.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. inject() cần một injector 'đang hoạt động' — injection context — mà Angular chỉ đặt sẵn TRONG LÚC dựng instance. super() chạy trong khoảng đó nên hợp lệ. ngOnInit chạy SAU khi dựng xong, context đã đóng, nên NG0203. Nguyên tắc: cứ trong lúc khởi tạo thì được, sau đó thì không.">
+      B. Vì <code>super()</code> chạy trong lúc dựng instance — injection context còn mở; <code>ngOnInit</code> chạy sau đó.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Sai. inject() không lệ thuộc providedIn của lớp đang gọi. NG0203 xảy ra kể cả với service providedIn:'root' nếu gọi sai thời điểm.">
+      C. Vì <code>CourseService</code> có <code>providedIn: 'root'</code>.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. <code>ReviewService</code> cần <code>create</code> gọi
+      <code>POST /api/courses/:courseId/reviews</code>, còn <code>getAll</code> và
+      <code>getById</code> vẫn theo chuẩn. Làm gì?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Sửa lớp cơ sở vì MỘT lớp con là con đường dẫn tới một lớp cha đầy cờ điều kiện. Năm service kia phải gánh độ phức tạp chúng không cần.">
+      A. Thêm cờ <code>nested?: boolean</code> vào <code>GenericApiService</code>.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Kế thừa để giữ phần khớp (getAll, getById, update, remove), override đúng method lệch. Lớp cơ sở không đổi một dòng, năm service kia không bị ảnh hưởng. Đây là dùng kế thừa đúng chỗ: chia sẻ cái chung, cho phép lệch cục bộ.">
+      B. Vẫn <code>extends</code>, chỉ <code>override create()</code>.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Quá tay. Chỉ MỘT method lệch mà vứt bỏ bốn method còn lại là quay về đúng chỗ copy-paste mà cả Module 2 sinh ra để tránh.">
+      C. Bỏ kế thừa, viết <code>ReviewService</code> hoàn toàn riêng.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — hai service kế thừa</div>
+      <p>Chấm bằng <code>pnpm test</code> và <code>pnpm exec tsc --noEmit -p tsconfig.spec.json</code>.</p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>CourseService extends GenericApiService&lt;Course&gt;</code>, constructor <strong>không</strong> khai tham số nào, dùng <code>super(inject(HttpClient), '/api/courses')</code>.</li>
+        <li><strong>TC2</strong> — <code>UserService</code> tương tự với <code>/api/users</code>. Test khẳng định hai service gọi <strong>đúng endpoint khác nhau</strong>.</li>
+        <li><strong>TC3</strong> — Thêm ít nhất một method riêng cho <code>CourseService</code> (vd <code>getBestsellers()</code>), test khẳng định nó truyền đúng query param.</li>
+        <li><strong>TC4</strong> — Chứng minh type-safe: gán <code>const gia: number = kq.price</code> sau <code>getById</code>, kèm <code>@ts-expect-error</code> khi truyền <code>User</code> vào <code>courseService.create</code>.</li>
+        <li><strong>TC5</strong> — Cắm <code>CourseService</code> vào <code>CourseListComponent</code>, chạy <code>pnpm start</code>, Network tab thấy <code>/api/courses</code> trả data từ MSW.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> viết <code>ReviewService</code> có
+        <code>override create()</code> gọi endpoint lồng nhau — và test rằng
+        <code>getAll</code> vẫn dùng logic của lớp cha.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Lớp con chỉ nên chứa thứ <em>riêng</em> của nó: tham số kiểu, endpoint, và method đặc thù.
+      Thấy mình gõ thứ gì lặp lại ở cả hai service — đó là dấu hiệu nó thuộc về lớp cha.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>inject(HttpClient)</code> từ <code>@angular/core</code> ·
+      <code>@Injectable({providedIn:'root'})</code> trên lớp <strong>con</strong> ·
+      <code>override</code> keyword khi ghi đè method của cha.
+    </p>
+    <p>
+      <strong>Hint 3 · Nếu TypeScript than về <code>super()</code>:</strong><br>
+      Kiểm constructor lớp cha là <code>protected</code> (không phải <code>private</code>), và
+      lớp con <strong>không</strong> khai field nào trước <code>super()</code> —
+      JavaScript bắt buộc <code>super()</code> phải là lệnh đầu tiên.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — và hết Module 2</div>
+    <ul class="checklist">
+      <li>Tôi viết được service mới bằng <strong>5 dòng</strong> mà vẫn đủ CRUD type-safe.</li>
+      <li>Tôi giải thích được injection context, và vì sao <code>inject()</code> hợp lệ trong <code>super()</code>.</li>
+      <li>Tôi biết <code>providedIn</code> thuộc lớp con, không phải lớp cha <code>abstract</code>.</li>
+      <li>Tôi biết khi nào <strong>không</strong> nên kế thừa, và dấu hiệu đã chọn sai.</li>
+      <li>Tôi chứng minh type-safety bằng <code>@ts-expect-error</code>, không bằng test runtime.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy — bắc cầu sang Phase 2</h2>
+    <p>
+      <code>AppRoutingModule</code> của bạn đang có
+      <code>loadChildren: () =&gt; import('./features/courses/courses.module')</code>, và
+      <code>pnpm build</code> cho thấy <code>courses-module</code> là một chunk riêng.
+    </p>
+    <p>
+      Nhưng Bài 07 nói: chỉ <strong>lazy module</strong> mới có <code>EnvironmentInjector</code> riêng.
+      Vậy nếu <code>CoursesModule</code> khai <code>providers: [CourseFilterService]</code>, và người
+      dùng rời trang Courses rồi quay lại — <strong>service đó có bị dựng lại không? State cũ còn không?</strong>
+    </p>
+    <p>
+      Và câu khó hơn: <code>CourseService</code> khai <code>providedIn: 'root'</code> nhưng chỉ được
+      dùng trong lazy module. Nó nằm ở chunk nào?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Hai câu này là ranh giới giữa "biết gõ <code>loadChildren</code>" và "hiểu lazy loading".
+        Module 3 mở màn bằng đúng chúng.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 12 · <code>forRoot</code>/<code>forChild</code> &amp; lazy-load theo module</div>
+    <p class="nd">
+      Chunk tách ra lúc nào, injector con sinh ra lúc nào, và vì sao
+      <code>providedIn: 'root'</code> vẫn có thể nằm trong chunk lazy.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0010-generic-api-service.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi hai service + spec + output cả hai lệnh. Đây là bài <strong>cuối Module 2</strong> —
+    nộp xong tôi sẽ ra mini-quiz trộn Bài 08–11 trước khi mở Module 3.
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

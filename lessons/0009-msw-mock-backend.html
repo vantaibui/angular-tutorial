@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 09 · Cắm MSW — giả lập backend ở tầng mạng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 1 · Bài 09 · Tooling</span>
+    <h1>Cắm MSW — giả lập backend ở tầng mạng</h1>
+    <p class="subtitle">
+      Chặn request ở Service Worker để <code>HttpClient</code> tưởng đang nói chuyện với server thật —
+      code app không có một dòng nào biết mình đang dùng mock.
+    </p>
+    <p class="meta-line">
+      ⏱ ~45 phút · 🎯 <code>GET /api/courses</code> trả data thật trong Network tab · 🏷️ EduCommerce
+    </p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích MSW chặn ở tầng nào, và vì sao điều đó khiến code app không cần đổi khi có backend thật.</li>
+      <li>Viết handler có phân trang, lọc, và trả lỗi 404 đúng shape.</li>
+      <li>Test <strong>chính logic handler</strong> bằng <code>msw/node</code> — không cần mở browser.</li>
+      <li>Chỉ bật mock ở dev, không để lọt vào build production.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 08 bạn dựng xong bộ khung nhưng <code>CourseListComponent</code> chưa có dữ liệu.
+      Bài 01 bạn đã biết <code>HttpClient</code> trả về Observable huỷ được.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>đặt thứ giả lập THẤP HƠN <code>HttpClient</code>, để không code nào của app phải biết.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: mock ở sai tầng thì phải viết lại</h2>
+    <p>Cách hay gặp nhất — và cái giá của nó:</p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ mock ở tầng SERVICE</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CourseService {
+  <span class="fn">getAll</span>() {
+    <span class="kw">return</span> <span class="fn">of</span>(coursesJson);   <span class="cmt">// chạy ngay, nhưng...</span>
+  }
+}</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Vấn đề</th><th>Vì sao đau về sau</th></tr></thead>
+      <tbody>
+        <tr><td>Phải viết lại service</td><td>Có backend thật là sửa <em>mọi</em> service, và mọi test đã viết đều test bản giả.</td></tr>
+        <tr><td>Không có HTTP thật</td><td>Interceptor (Bài 24), retry, header, status code — <strong>không có gì để chạy qua</strong>.</td></tr>
+        <tr><td>Không mô phỏng được lỗi</td><td>Muốn test 500/timeout phải viết thêm code giả lập trong chính service.</td></tr>
+        <tr><td>Network tab trống</td><td>Không debug được bằng công cụ thật.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Vấn đề không phải "mock là xấu" mà là <strong>mock đặt sai tầng</strong>.
+        Nếu chặn được ở chỗ <em>thấp hơn</em> <code>HttpClient</code>, mọi nhược điểm trên biến mất.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: MSW nằm ở đâu</h2>
+    <div class="code-block">
+      <span class="code-label">Vị trí của MSW trong chuỗi gọi</span>
+<pre><code>CourseListComponent
+      │
+      ▼
+CourseService.getAll()          <span class="cmt">// code THẬT, không biết gì về mock</span>
+      │
+      ▼
+HttpClient  ──► interceptor ──► XHR/fetch    <span class="cmt">// code THẬT</span>
+                                    │
+                                    ▼
+                        ┌───────────────────────┐
+                        │   Service Worker      │  ← MSW đứng ở ĐÂY
+                        │   (msw)               │
+                        └───────────────────────┘
+                            │              │
+                    khớp handler?      không khớp?
+                            │              │
+                            ▼              ▼
+                    trả mock JSON     đi thẳng ra mạng</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          MSW không giả lập code của bạn — nó giả lập <em>mạng</em>.
+          Nên xoá MSW đi là app tự động gọi backend thật, không sửa một dòng nào.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Cài đặt — và hai cái bẫy pnpm</h2>
+    <div class="code-block">
+      <span class="code-label">bash · bước 1 — cài gói</span>
+<pre><code><span class="fn">pnpm</span> add -D msw@2</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy 1: pnpm chặn postinstall của msw</div>
+      <p>Ngay sau lệnh trên bạn sẽ thấy:</p>
+      <div class="code-block">
+        <span class="code-label">lỗi thật</span>
+<pre><code>[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: msw@2.15.0
+
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.</code></pre>
+      </div>
+      <p>
+        Đây <strong>không phải lỗi</strong> — là tính năng bảo mật. Từ pnpm 10, mọi
+        <code>postinstall</code> của dependency bị chặn mặc định, vì đó là đường tấn công
+        supply-chain kinh điển: gói bị chiếm quyền chạy script tuỳ ý trên máy bạn ngay lúc cài.
+      </p>
+      <p>
+        Hậu quả kèm theo: <strong>mọi lệnh <code>pnpm exec</code> đều bị chặn</strong> chừng nào còn
+        gói chờ duyệt — kể cả <code>pnpm exec tsc</code>.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">bash · bước 2 — duyệt CÓ CHỌN LỌC</span>
+<pre><code><span class="cmt"># Chỉ đích danh msw. TRÁNH `--all` — nó duyệt mù mọi gói, mất luôn ý nghĩa của lớp bảo vệ.</span>
+<span class="fn">pnpm</span> approve-builds msw</code></pre>
+    </div>
+
+    <p>
+      Lệnh này ghi lựa chọn vào <code>pnpm-workspace.yaml</code>. Sau đó Angular CLI cũng sẽ hỏi duyệt
+      vài gói của nó — chúng <strong>không cần thiết</strong> (app vẫn build/test/serve bình thường khi
+      bị chặn), nên hãy từ chối tường minh để pnpm thôi hỏi lại:
+    </p>
+
+    <div class="code-block">
+      <span class="code-label">YAML · pnpm-workspace.yaml</span>
+<pre><code><span class="cmt"># pnpm chặn postinstall theo mặc định (chống supply-chain attack).</span>
+<span class="cmt"># Phải quyết định TỪNG gói một cách tường minh.</span>
+allowBuilds:
+  msw: <span class="kw">true</span>                 <span class="cmt"># cần: msw init sinh file service worker</span>
+  esbuild: <span class="kw">false</span>             <span class="cmt"># không cần: đã có binary tiền biên dịch theo nền tảng</span>
+  lmdb: <span class="kw">false</span>                <span class="cmt"># không cần: chỉ là cache tuỳ chọn của Angular CLI</span>
+  msgpackr-extract: <span class="kw">false</span>    <span class="cmt"># không cần: tăng tốc tuỳ chọn cho lmdb</span>
+  <span class="str">"@parcel/watcher"</span>: <span class="kw">false</span>  <span class="cmt"># không cần: Angular có watcher dự phòng</span></code></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Đừng tin blog cũ về key cấu hình này</div>
+      <p>
+        Nhiều bài viết bảo dùng <code>onlyBuiltDependencies</code> trong <code>package.json</code>.
+        Tôi đã thử cả hai cách đó trên pnpm <strong>11.13.1</strong> và <strong>đều không ăn</strong>.
+        Key đúng ở bản này là <code>allowBuilds</code> (dạng map) trong <code>pnpm-workspace.yaml</code> —
+        tôi tìm ra bằng cách chạy <code>pnpm approve-builds msw</code> rồi xem nó ghi vào đâu.
+        Mẹo này luôn đúng kể cả khi pnpm đổi key lần nữa.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">bash · bước 3 — sinh service worker</span>
+<pre><code><span class="cmt"># --save ghi đường dẫn worker vào package.json để lần sau msw tự biết</span>
+<span class="fn">pnpm</span> exec msw init public/ --save</code></pre>
+    </div>
+    <p>Kết quả: <code>public/mockServiceWorker.js</code> (~9.7 kB). Angular tự phục vụ mọi file trong <code>public/</code>.</p>
+  </section>
+
+  <section>
+    <h2>4. Viết handlers</h2>
+    <p>Copy <code>mock-data/</code> vào <code>src/mock-data/</code>, rồi bật đọc JSON trong <code>tsconfig.json</code>:</p>
+    <div class="code-block">
+      <span class="code-label">JSON · tsconfig.json → compilerOptions</span>
+<pre><code><span class="str">"resolveJsonModule"</span>: <span class="kw">true</span></code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/mocks/handlers.ts</span>
+<pre><code><span class="kw">import</span> { http, HttpResponse } <span class="kw">from</span> <span class="str">'msw'</span>;
+<span class="kw">import</span> coursesJson <span class="kw">from</span> <span class="str">'../mock-data/courses.json'</span>;
+<span class="kw">import</span> { Course, ApiListResponse } <span class="kw">from</span> <span class="str">'../app/core/models/types'</span>;
+
+<span class="kw">const</span> courses = coursesJson <span class="kw">as</span> Course[];
+
+<span class="cmt">// Generic! Phân trang không quan tâm T là gì — đúng bài học Bài 05.</span>
+<span class="kw">function</span> <span class="fn">paginate</span>&lt;T&gt;(items: T[], page: <span class="kw">number</span>, limit: <span class="kw">number</span>): ApiListResponse&lt;T&gt; {
+  <span class="kw">const</span> start = (page - <span class="num">1</span>) * limit;
+  <span class="kw">return</span> {
+    data: items.<span class="fn">slice</span>(start, start + limit),
+    meta: { page, limit, total: items.length, totalPages: <span class="fn">Math</span>.<span class="fn">ceil</span>(items.length / limit) },
+  };
+}
+
+<span class="kw">export const</span> handlers = [
+  <span class="cmt">// Dấu * ở đầu: khớp MỌI origin. Xem bẫy 2 bên dưới.</span>
+  http.<span class="fn">get</span>(<span class="str">'*/api/courses'</span>, ({ request }) => {
+    <span class="kw">const</span> url = <span class="kw">new</span> <span class="fn">URL</span>(request.url);
+    <span class="kw">const</span> page = <span class="fn">Number</span>(url.searchParams.<span class="fn">get</span>(<span class="str">'page'</span>) ?? <span class="num">1</span>);
+    <span class="kw">const</span> limit = <span class="fn">Number</span>(url.searchParams.<span class="fn">get</span>(<span class="str">'limit'</span>) ?? <span class="num">12</span>);
+    <span class="kw">const</span> search = (url.searchParams.<span class="fn">get</span>(<span class="str">'search'</span>) ?? <span class="str">''</span>).<span class="fn">toLowerCase</span>();
+
+    <span class="kw">let</span> ketQua = courses;
+    <span class="kw">if</span> (search) ketQua = ketQua.<span class="fn">filter</span>((c) => c.title.<span class="fn">toLowerCase</span>().<span class="fn">includes</span>(search));
+
+    <span class="kw">return</span> HttpResponse.<span class="fn">json</span>(<span class="fn">paginate</span>(ketQua, page, limit));
+  }),
+
+  http.<span class="fn">get</span>(<span class="str">'*/api/courses/:id'</span>, ({ params }) => {
+    <span class="kw">const</span> found = courses.<span class="fn">find</span>((c) => c.id === params[<span class="str">'id'</span>]);
+    <span class="kw">if</span> (!found) {
+      <span class="cmt">// Trả đúng shape ApiErrorResponse trong types.ts — để Bài 24 bắt lỗi thật.</span>
+      <span class="kw">return</span> HttpResponse.<span class="fn">json</span>({ message: <span class="str">'Không tìm thấy khoá học'</span>, statusCode: <span class="num">404</span> }, { status: <span class="num">404</span> });
+    }
+    <span class="kw">return</span> HttpResponse.<span class="fn">json</span>(found);
+  }),
+];</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy 2: <code>'/api/courses'</code> chạy ở browser nhưng CHẾT ở test</div>
+      <p>
+        Viết <code>http.get('/api/courses')</code> — trong browser chạy ngon, vì path tương đối tự
+        resolve theo origin của trang. Nhưng khi test bằng <code>msw/node</code> thì
+        <strong>không có origin nào cả</strong>, handler không khớp, và bạn nhận:
+      </p>
+      <div class="code-block">
+        <span class="code-label">lỗi thật khi test</span>
+<pre><code>[MSW] Error: intercepted a request without a matching request handler:
+  • GET http://localhost/api/courses</code></pre>
+      </div>
+      <p>
+        Sửa bằng <code>'*/api/courses'</code> — dấu <code>*</code> khớp mọi origin,
+        <strong>chạy đúng ở cả browser lẫn node</strong>. Viết như vậy ngay từ đầu.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Bật MSW — chỉ ở dev</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/mocks/browser.ts</span>
+<pre><code><span class="kw">import</span> { setupWorker } <span class="kw">from</span> <span class="str">'msw/browser'</span>;
+<span class="kw">import</span> { handlers } <span class="kw">from</span> <span class="str">'./handlers'</span>;
+
+<span class="kw">export const</span> worker = <span class="fn">setupWorker</span>(...handlers);</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/main.ts</span>
+<pre><code><span class="kw">import</span> { isDevMode } <span class="kw">from</span> <span class="str">'@angular/core'</span>;
+<span class="kw">import</span> { platformBrowser } <span class="kw">from</span> <span class="str">'@angular/platform-browser'</span>;
+<span class="kw">import</span> { AppModule } <span class="kw">from</span> <span class="str">'./app/app.module'</span>;
+
+<span class="kw">async function</span> <span class="fn">bootstrap</span>() {
+  <span class="cmt">// isDevMode() là API chính chủ Angular, false sau khi build production.</span>
+  <span class="kw">if</span> (<span class="fn">isDevMode</span>()) {
+    <span class="cmt">// import() ĐỘNG: MSW nằm ở chunk riêng, không vào bundle chính.</span>
+    <span class="kw">const</span> { worker } = <span class="kw">await</span> <span class="kw">import</span>(<span class="str">'./mocks/browser'</span>);
+    <span class="cmt">// 'bypass': request không khớp handler nào (file .js, ảnh...) đi thẳng ra mạng</span>
+    <span class="cmt">// thay vì bị MSW cảnh báo ầm ĩ trong console.</span>
+    <span class="kw">await</span> worker.<span class="fn">start</span>({ onUnhandledRequest: <span class="str">'bypass'</span> });
+  }
+
+  <span class="cmt">// await để lỗi bootstrap được .catch() bên dưới bắt.</span>
+  <span class="kw">await</span> <span class="fn">platformBrowser</span>().<span class="fn">bootstrapModule</span>(AppModule);
+}
+
+<span class="fn">bootstrap</span>().<span class="fn">catch</span>((err) => <span class="fn">console</span>.<span class="fn">error</span>(err));</code></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Nói thật: MSW vẫn bị đóng gói vào bản build production</div>
+      <p>
+        <code>isDevMode()</code> được kiểm lúc <em>chạy</em>, không phải lúc build. Nên
+        <code>pnpm build</code> vẫn sinh ra chunk chứa MSW (~330 kB) — nó <strong>không bao giờ được
+        tải</strong> vì nhánh <code>if</code> không chạy, nhưng file vẫn nằm trong <code>dist/</code>.
+      </p>
+      <p>
+        Với dự án học tập thì chấp nhận được. Với production thật, cách sạch là dùng
+        <strong>file replacement</strong> của Angular (<code>environment.ts</code> ↔
+        <code>environment.prod.ts</code>) để trình biên dịch loại hẳn nhánh đó. Tôi nêu ra vì
+        <em>biết một giải pháp có giới hạn gì</em> quan trọng hơn là dùng nó mà tưởng nó hoàn hảo.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Test handler mà không cần browser</h2>
+    <p>
+      Service Worker chỉ chạy trong browser. Nhưng <strong>logic handler</strong> — phân trang, lọc,
+      404 — thì test được bằng <code>msw/node</code>, và nên test:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/msw-handlers.spec.ts</span>
+<pre><code><span class="kw">import</span> { setupServer } <span class="kw">from</span> <span class="str">'msw/node'</span>;
+<span class="kw">import</span> { handlers } <span class="kw">from</span> <span class="str">'../mocks/handlers'</span>;
+
+<span class="cmt">// Cùng bộ handlers, khác "cổng cắm": browser dùng setupWorker, node dùng setupServer.</span>
+<span class="kw">const</span> server = <span class="fn">setupServer</span>(...handlers);
+<span class="fn">beforeAll</span>(() => server.<span class="fn">listen</span>({ onUnhandledRequest: <span class="str">'error'</span> }));
+<span class="fn">afterAll</span>(() => server.<span class="fn">close</span>());
+
+<span class="kw">const</span> BASE = <span class="str">'http://localhost'</span>;
+
+<span class="fn">it</span>(<span class="str">'phân trang: page=1 và page=2 KHÁC nhau'</span>, <span class="kw">async</span> () => {
+  <span class="kw">const</span> p1 = <span class="kw">await</span> (<span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/api/courses?page=1&limit=5`</span>)).<span class="fn">json</span>();
+  <span class="kw">const</span> p2 = <span class="kw">await</span> (<span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/api/courses?page=2&limit=5`</span>)).<span class="fn">json</span>();
+  <span class="fn">expect</span>(p1.data).<span class="fn">toHaveLength</span>(<span class="num">5</span>);
+  <span class="fn">expect</span>(p1.data[<span class="num">0</span>].id).<span class="fn">not</span>.<span class="fn">toBe</span>(p2.data[<span class="num">0</span>].id);
+});</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao đây là cách test đúng</div>
+      <p>
+        <code>onUnhandledRequest: 'error'</code> khiến test <strong>đỏ</strong> nếu có request nào
+        không khớp handler. Nhờ vậy nó bắt được đúng bẫy 2 ở mục 4 — thay vì bạn phát hiện lúc
+        chạy app rồi ngồi đoán.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+
+    <div class="q">
+      Câu 1. Backend thật lên sóng. Phải sửa bao nhiêu file trong app để chuyển từ mock sang thật?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Đó là hậu quả của mock ở tầng SERVICE (mục 1). Với MSW thì service không hề biết mock tồn tại.">
+      A. Mọi service — vì chúng đang trả dữ liệu giả.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Đúng. Đây là toàn bộ giá trị của việc mock ở tầng mạng: CourseService luôn gọi HttpClient thật, tới URL thật, qua interceptor thật. Tắt MSW đi là request bay ra ngoài. Bạn thậm chí có thể tắt từng handler để chạy lai giữa API thật và mock.">
+      B. <strong>Không file nào</strong> — chỉ cần không gọi <code>worker.start()</code>.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Không cần. handlers là mã dev, để lại cũng vô hại vì không bao giờ được start ở production. Xoá là chuyện dọn dẹp, không phải điều kiện để chạy.">
+      C. Phải xoá <code>handlers.ts</code> thì app mới gọi được API thật.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Handler viết <code>http.get('/api/courses')</code>. App chạy ngon trong browser,
+      nhưng test <code>msw/node</code> báo "intercepted a request without a matching request handler".
+      Vì sao?
+    </div>
+    <button class="opt" data-correct="false"
+      data-explain="Không. setupServer nhận đúng cùng bộ handlers như setupWorker — đó là thiết kế của MSW. Vấn đề nằm ở dạng URL, không phải ở cổng cắm.">
+      A. <code>msw/node</code> không dùng được chung handlers với browser.
+    </button>
+    <button class="opt" data-correct="true"
+      data-explain="Chính xác. Trong browser, path tương đối được resolve theo origin của trang. Trong node KHÔNG có origin nào, nên '/api/courses' không khớp 'http://localhost/api/courses'. Dùng '*/api/courses' thì khớp mọi origin và chạy đúng ở cả hai môi trường — nên viết dạng này ngay từ đầu.">
+      B. Path tương đối không có origin để resolve trong môi trường node.
+    </button>
+    <button class="opt" data-correct="false"
+      data-explain="Sai — Service Worker chỉ liên quan tới browser. Test node dùng interceptor ở tầng http của Node, không cần worker file nào.">
+      C. Vì <code>mockServiceWorker.js</code> chưa được sinh ra.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — cắm MSW vào EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Cài <code>msw@2</code>, xử lý xong màn duyệt build script, có <code>public/mockServiceWorker.js</code>.</li>
+        <li><strong>TC2</strong> — <code>handlers.ts</code> có tối thiểu 4 handler: <code>GET /api/courses</code> (phân trang + <code>search</code>), <code>GET /api/courses/:id</code>, <code>GET /api/users</code>, <code>GET /api/users/:id</code>. Dùng dạng <code>*/api/...</code>.</li>
+        <li><strong>TC3</strong> — <code>:id</code> không tồn tại → trả <strong>404</strong> đúng shape <code>ApiErrorResponse</code> trong <code>types.ts</code>.</li>
+        <li><strong>TC4</strong> — MSW chỉ chạy khi <code>isDevMode()</code>.</li>
+        <li><strong>TC5</strong> — Viết <code>msw-handlers.spec.ts</code> dùng <code>msw/node</code>, tối thiểu 4 test: cấu trúc response, phân trang khác nhau, search lọc đúng, 404. Bật <code>onUnhandledRequest: 'error'</code>.</li>
+        <li><strong>TC6</strong> — Chạy <code>pnpm start</code>, mở DevTools → Network, thấy request <code>/api/courses</code> có response data thật.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> thêm handler trả <strong>500</strong> cho <code>/api/courses?fail=true</code> — Bài 24 sẽ cần nó để test interceptor.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder — chỉ mở khi bị stuck</div>
+    <p>
+      <strong>Hint 1 · Hướng suy nghĩ:</strong><br>
+      Handler chỉ là một hàm <code>(request) =&gt; response</code>. Mọi thứ khác — phân trang, lọc —
+      là JavaScript thuần trên mảng. Đừng nghĩ nó phức tạp hơn thực tế.
+    </p>
+    <p>
+      <strong>Hint 2 · API cần dùng:</strong><br>
+      <code>http.get(pattern, resolver)</code> · <code>HttpResponse.json(body, { status })</code> ·
+      <code>new URL(request.url).searchParams.get('x')</code> · <code>params['id']</code> cho route param ·
+      <code>setupWorker</code> (browser) vs <code>setupServer</code> (node).
+    </p>
+    <p>
+      <strong>Hint 3 · Nếu TC6 không thấy request:</strong><br>
+      Kiểm theo thứ tự: (1) DevTools → Application → Service Workers có <code>mockServiceWorker.js</code>
+      đang activated không; (2) console có dòng <code>[MSW] Mocking enabled</code> không;
+      (3) đã <strong>hard reload</strong> chưa — Service Worker cần đăng ký lại sau khi đổi file.
+    </p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải thích được vì sao mock ở <strong>tầng mạng</strong> tốt hơn mock ở tầng service.</li>
+      <li>Tôi biết pnpm chặn postinstall là <strong>tính năng bảo mật</strong>, và duyệt có chọn lọc thay vì <code>--all</code>.</li>
+      <li>Tôi viết handler dạng <code>*/api/...</code> để chạy đúng ở cả browser lẫn node.</li>
+      <li>Tôi test được logic handler mà không cần mở browser.</li>
+      <li>Tôi biết giới hạn thật của <code>isDevMode()</code> — MSW vẫn nằm trong <code>dist/</code>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa viết handler cho <code>courses</code> và <code>users</code>. Sắp tới còn
+      <code>reviews</code>, <code>enrollments</code>, <code>categories</code>, <code>coupons</code>.
+      Bên phía Angular, mỗi cái sẽ cần một service với <code>getAll</code>, <code>getById</code>,
+      <code>create</code>, <code>update</code>, <code>remove</code> — <strong>logic y hệt nhau</strong>,
+      chỉ khác endpoint và kiểu dữ liệu.
+    </p>
+    <p>
+      Bài 06 bạn đã viết <code>InMemoryRepository&lt;T&gt;</code> giải đúng bài toán này cho kho bộ nhớ.
+      <strong>Đưa nó lên HTTP thì đổi những gì?</strong> Và <code>create</code> — thứ mà server sinh
+      <code>id</code> — chữ ký phải viết thế nào để người gọi không truyền <code>id</code> được?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Nếu bạn trả lời được "đổi kiểu trả về từ <code>T</code> sang <code>Observable&lt;T&gt;</code>,
+        và dùng <code>Omit&lt;T, 'id'&gt;</code>" thì bạn đã tự viết xong Bài 10 trong đầu rồi.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 10 · <code>GenericApiService&lt;T&gt;</code> — Generics vào việc thật</div>
+    <p class="nd">
+      Biến <code>InMemoryRepository&lt;T&gt;</code> của Bài 06 thành tầng service HTTP dùng chung
+      cho mọi entity — và vì sao lớp cơ sở <strong>không</strong> được gắn <code>@Injectable</code>.
+    </p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0008-core-shared-feature-module.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0010-generic-api-service.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong>
+    Gửi <code>handlers.ts</code> + output <code>pnpm test</code> + ảnh chụp Network tab.
+    Tôi quan tâm nhất TC5: test bằng <code>msw/node</code> là thứ phân biệt "cắm cho chạy"
+    với "hiểu mình đang làm gì".
+  </p>
+
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Reactive Forms &amp; Custom Complex Forms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 15–23 ⭐</span>
+    <h1>Reactive Forms &amp; Custom Complex Forms — cheat-sheet</h1>
+    <p class="subtitle">Module trọng tâm nhất của khoá, cô đọng để ôn trước phỏng vấn.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular <strong>22.1.4</strong> · CDK 22.1.4 · 55 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. Ba loại nút của cây form</h2>
+    <table class="data">
+      <thead><tr><th>Loại</th><th>Truy cập</th><th>Số con</th><th>Dùng cho</th></tr></thead>
+      <tbody>
+        <tr><td><code>FormControl</code></td><td>—</td><td>0</td><td>Một ô nhập</td></tr>
+        <tr><td><code>FormGroup</code></td><td>tên khoá</td><td>Cố định</td><td>Object shape biết trước</td></tr>
+        <tr><td><code>FormArray</code></td><td>chỉ số</td><td><strong>Đổi lúc chạy</strong></td><td>Danh sách người dùng tự thêm bớt</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Validator gắn ở nút nào thì thấy đúng nút đó và con cháu.</strong> Cần so hai ô → gắn ở cha chung.</p>
+    <div class="callout danger">
+      <div class="ct">🔥 Lỗi ở group KHÔNG lan xuống control con</div>
+      <p>
+        Gắn cross-field ở group thì <code>form.get('confirm').errors</code> vẫn <code>null</code>.
+        Template đọc theo control sẽ <strong>không hiện gì</strong> — form invalid mà không báo lỗi,
+        người dùng bế tắc. Đọc ở <code>form.errors</code>.
+      </p>
+    </div>
+    <table class="data">
+      <thead><tr><th>API</th><th>Lưu ý</th></tr></thead>
+      <tbody>
+        <tr><td><code>form.value</code></td><td><strong>Bỏ qua</strong> control disabled</td></tr>
+        <tr><td><code>form.getRawValue()</code></td><td>Lấy đủ, kể cả disabled — <strong>dùng khi submit</strong></td></tr>
+        <tr><td><code>setValue</code></td><td>Đòi đủ mọi field, thiếu là ném lỗi</td></tr>
+        <tr><td><code>patchValue</code></td><td>Nhận một phần; gõ sai tên field <strong>im lặng</strong></td></tr>
+        <tr><td><code>markAllAsTouched()</code></td><td>Gọi khi submit, nếu không lỗi không hiện</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. ControlValueAccessor — 4 method</h2>
+    <table class="data">
+      <thead><tr><th>Method</th><th>Chiều</th><th>Thiếu thì hỏng gì</th></tr></thead>
+      <tbody>
+        <tr><td><code>writeValue(v)</code></td><td>Form → Component</td><td>Mở form Sửa → ô <strong>trống</strong>; <code>reset()</code> không xoá được</td></tr>
+        <tr><td><code>registerOnChange(fn)</code></td><td>Trao callback</td><td>UI đổi nhưng <code>form.value</code> <strong>không đổi</strong></td></tr>
+        <tr><td><code>registerOnTouched(fn)</code></td><td>Trao callback</td><td>Mãi <code>untouched</code> → lỗi <strong>không bao giờ hiện</strong></td></tr>
+        <tr><td><code>setDisabledState(b)</code></td><td>Form → Component</td><td><code>form.disable()</code> mà ô <strong>vẫn bấm được</strong></td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn chuẩn</span>
+<pre><code>providers: [
+  { provide: NG_VALUE_ACCESSOR, useExisting: <span class="fn">forwardRef</span>(() => MyComponent), multi: <span class="kw">true</span> },
+  <span class="cmt">// Tuỳ chọn: control TỰ mang validator -> nơi dùng không thể quên</span>
+  { provide: NG_VALIDATORS,     useExisting: <span class="fn">forwardRef</span>(() => MyComponent), multi: <span class="kw">true</span> },
+]
+
+<span class="kw">private readonly</span> cdr = <span class="fn">inject</span>(ChangeDetectorRef);   <span class="cmt">// ⚠️ zoneless</span>
+<span class="kw">private</span> onChange: (v: T) => <span class="kw">void</span> = () => {};
+onTouched: () => <span class="kw">void</span> = () => {};                       <span class="cmt">// public: template gọi ở (blur)</span>
+
+<span class="fn">writeValue</span>(v: T | <span class="kw">null</span>)      { <span class="kw">this</span>.value = v ?? macDinh; <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); }
+<span class="fn">registerOnChange</span>(fn)        { <span class="kw">this</span>.onChange = fn; }
+<span class="fn">registerOnTouched</span>(fn)       { <span class="kw">this</span>.onTouched = fn; }
+<span class="fn">setDisabledState</span>(d)         { <span class="kw">this</span>.isDisabled = d; <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); }</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Angular 22 mặc định ZONELESS</div>
+      <p>
+        <code>ng new</code> v22 <strong>không có <code>zone.js</code></strong>. Khi form đẩy giá trị
+        xuống (<code>writeValue</code>, <code>setDisabledState</code>) không có event nào để kích hoạt
+        change detection → <strong>DOM không cập nhật</strong>. Phải <code>markForCheck()</code>.
+      </p>
+      <p>
+        <strong>Triệu chứng nhận dạng:</strong> test "bấm → form nhận giá trị" XANH nhưng
+        "setValue → UI đổi" ĐỎ. Một chiều chạy, một chiều không.
+      </p>
+    </div>
+    <table class="data">
+      <thead><tr><th>Chi tiết</th><th>Vì sao bắt buộc</th></tr></thead>
+      <tbody>
+        <tr><td><code>forwardRef</code></td><td><code>providers</code> chạy <em>trong lúc</em> định nghĩa class — tên class chưa tồn tại</td></tr>
+        <tr><td><code>useExisting</code> (không phải <code>useClass</code>)</td><td><code>useClass</code> tạo instance <strong>thứ hai</strong> — Angular nói chuyện với bản sao vô hình</td></tr>
+        <tr><td><code>multi: true</code></td><td>Là multi token (Bài 07); quên → ghi đè accessor khác</td></tr>
+        <tr><td><code>type="button"</code></td><td>Nút trong form mặc định là <code>submit</code> — bấm chọn sao sẽ <strong>gửi form</strong></td></tr>
+        <tr><td>Tạo giá trị <strong>mới</strong></td><td><code>push</code> giữ tham chiếu → <code>OnPush</code> không vẽ lại, <code>distinctUntilChanged</code> nuốt thay đổi</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. FormArray</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code>arr.<span class="fn">push</span>(factory());  arr.<span class="fn">insert</span>(i, ctrl);  arr.<span class="fn">removeAt</span>(i);
+arr.<span class="fn">at</span>(i);  arr.length;  arr.<span class="fn">clear</span>();
+
+<span class="cmt">// Sắp xếp: DI CHUYỂN control, KHÔNG chép giá trị</span>
+<span class="kw">const</span> ctrl = arr.<span class="fn">at</span>(from); arr.<span class="fn">removeAt</span>(from); arr.<span class="fn">insert</span>(to, ctrl);</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · lồng hai tầng</span>
+<pre><code>&lt;div formArrayName="sections"&gt;
+  @for (s of sections.controls; track s; let i = $index) {
+    &lt;div [formGroupName]="i"&gt;                  <span class="cmt">&lt;!-- ⚠️ CÓ ngoặc vuông --&gt;</span>
+      &lt;input formControlName="sectionTitle" /&gt;
+      &lt;div formArrayName="lessons"&gt;
+        @for (l of lessonsCua(i).controls; track l; let j = $index) {
+          &lt;div [formGroupName]="j"&gt;&lt;input formControlName="title" /&gt;&lt;/div&gt;
+        }
+      &lt;/div&gt;
+    &lt;/div&gt;
+  }
+&lt;/div&gt;</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Bốn bẫy FormArray</div>
+      <ol>
+        <li><strong><code>track $index</code></strong> → xoá giữa chừng, Angular tái dùng DOM sai dòng: input giữ giá trị cũ, focus nhảy. Track theo <strong>tham chiếu control</strong>.</li>
+        <li><strong>Tái dùng cùng một instance</strong> thay vì factory → mọi dòng chia sẻ state, gõ dòng này dòng kia đổi.</li>
+        <li><strong><code>formGroupName="i"</code></strong> thiếu ngoặc vuông → tìm control tên <em>"i"</em> → <em>"Cannot find control with name: i"</em>.</li>
+        <li><strong>Giữ chỉ số làm state</strong> → xoá dòng trên là trỏ nhầm.</li>
+      </ol>
+    </div>
+    <p>
+      <strong>CDK drag-drop:</strong> CDK lo DOM, <em>bạn</em> lo dữ liệu. Quên xử lý
+      <code>(cdkDropListDropped)</code> → thả xong item <strong>bật về chỗ cũ</strong>.
+      Luôn dùng <code>cdkDragHandle</code> khi item có input.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Dynamic form từ schema</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// K extends keyof TModel -> gõ sai tên field là LỖI BIÊN DỊCH</span>
+<span class="kw">export interface</span> FormFieldSchema&lt;TModel = <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;, K <span class="kw">extends keyof</span> TModel = <span class="kw">keyof</span> TModel&gt; {
+  name: K;  label: <span class="kw">string</span>;  type: FieldType;
+  defaultValue?: TModel[K];  validators?: ValidatorFn[];
+}
+
+<span class="cmt">// buildForm() gọi trong ngOnInit — constructor chạy TRƯỚC khi @Input được gán</span>
+<span class="fn">ngOnInit</span>() { <span class="kw">this</span>.form = <span class="kw">this</span>.<span class="fn">buildForm</span>(); }</code></pre>
+    </div>
+    <p>
+      Mặc định phải <strong>đúng kiểu</strong>: <code>tags</code> → <code>[]</code> (không phải
+      <code>''</code>, nếu không <code>@for</code> render từng ký tự thành chip).
+    </p>
+    <table class="data">
+      <thead><tr><th>Dùng khi</th><th>KHÔNG dùng khi</th></tr></thead>
+      <tbody>
+        <tr><td>Nhiều form CRUD đồng dạng (admin)</td><td>Layout riêng, nhiều cột</td></tr>
+        <tr><td>Field do server định nghĩa</td><td>Logic liên field (<em>hiện ô X khi chọn Y</em>)</td></tr>
+        <tr><td></td><td>Thông báo lỗi cần cụ thể</td></tr>
+        <tr><td></td><td>App chỉ có 2 form → over-engineer</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Async validator</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">return</span> <span class="fn">timer</span>(<span class="num">400</span>).<span class="fn">pipe</span>(          <span class="cmt">// timer, KHÔNG debounceTime</span>
+  <span class="fn">switchMap</span>(() => http.<span class="fn">get</span>(url, { params: { email } })),
+  <span class="fn">map</span>((r) => (r.exists ? { emailExists: <span class="kw">true</span> } : <span class="kw">null</span>)),
+  <span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>)),      <span class="cmt">// lỗi mạng -> không kẹt invalid</span>
+);
+
+<span class="cmt">// ⚠️ VỊ TRÍ THỨ BA. Nhét vào mảng sync -> KHÔNG chạy, không lỗi.</span>
+email: [<span class="str">''</span>, [Validators.required, Validators.email], [<span class="fn">emailExistsValidator</span>(http)]]</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Điều</th><th>Chi tiết</th></tr></thead>
+      <tbody>
+        <tr><td><code>PENDING</code></td><td><code>form.valid === false</code> → nút Submit <strong>tự khoá</strong> lúc đang kiểm. Mặc định an toàn.</td></tr>
+        <tr><td>Sync chạy trước</td><td>Email sai định dạng bị chặn <strong>không tốn request</strong></td></tr>
+        <tr><td><code>timer</code> vs <code>debounceTime</code></td><td>Angular gọi lại validator từ đầu mỗi lần đổi → mỗi lần một Observable MỚI, <code>debounceTime</code> không có gì để gộp</td></tr>
+        <tr><td>Rỗng → <code>of(null)</code></td><td>Không gọi API, và control không kẹt <code>PENDING</code></td></tr>
+        <tr><td>Không chạy lại khi submit</td><td>Chờ 10 phút rồi submit vẫn báo VALID → <strong>server phải kiểm lần cuối</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. Test forms</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · component test PHẢI thuộc NgModule lúc BIÊN DỊCH</span>
+<pre><code><span class="cmt">// TestBed.declarations là QUÁ MUỘN -> "'app-x' is not a known element"</span>
+<span class="fn">@NgModule</span>({ declarations: [HostComponent], imports: [FormControlsModule] })
+<span class="kw">class</span> TestHostModule {}
+
+TestBed.<span class="fn">configureTestingModule</span>({ imports: [TestHostModule] });</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Test cái gì</th><th>Cách</th></tr></thead>
+      <tbody>
+        <tr><td>Cấu trúc form, FormArray</td><td>Inject service, thao tác trực tiếp — <strong>không cần DOM</strong></td></tr>
+        <tr><td>CVA</td><td>Host component + <code>FormGroup</code> thật + DOM thật (mới bắt được lỗi zoneless)</td></tr>
+        <tr><td>Sắp xếp drag-drop</td><td>Gọi thẳng handler với <code>{previousIndex, currentIndex}</code> giả</td></tr>
+        <tr><td>Async validator</td><td><code>vi.useFakeTimers()</code> + <code>HttpTestingController</code></td></tr>
+        <tr><td>Ràng buộc kiểu (schema)</td><td><code>@ts-expect-error</code> + <code>pnpm exec tsc --noEmit</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>7. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Cross-field validator đặt ở đâu?</td><td>Ở <code>FormGroup</code> chứa cả hai control — <code>ValidatorFn</code> chỉ nhận control nó gắn vào. Hệ quả: lỗi ở <code>form.errors</code>, không ở control con, nên template phải đọc đúng chỗ.</td></tr>
+        <tr><td><code>ControlValueAccessor</code> có mấy method?</td><td>Bốn. <code>writeValue</code> và <code>setDisabledState</code> là Angular ra lệnh; <code>registerOnChange</code>/<code>registerOnTouched</code> là Angular trao callback để component báo ngược lên. Hay quên nhất là <code>setDisabledState</code> — chỉ lộ khi có form chỉ-xem.</td></tr>
+        <tr><td><code>NG_VALIDATORS</code> để làm gì?</td><td>Control tự mang validator, nơi dùng không phải khai — không thể quên, không khai lệch giữa các form. Giống <code>&lt;input type="email"&gt;</code> tự biết luật email.</td></tr>
+        <tr><td>Kéo thả sắp xếp <code>FormArray</code>?</td><td>CDK đổi DOM và báo cặp index; mình tự <code>removeAt</code>+<code>insert</code>. <strong>Di chuyển control</strong>, không <code>patchValue</code> — chép giá trị làm <code>touched</code>/lỗi ở lại sai dòng.</td></tr>
+        <tr><td>Dynamic form — đánh đổi?</td><td>Được tái sử dụng cho form CRUD đồng dạng; mất layout tự do, logic liên field và thông báo lỗi cụ thể. Form checkout thì viết tay.</td></tr>
+        <tr><td>Async validator chống spam API?</td><td><code>timer()</code> đầu pipe + Angular tự huỷ lần validate trước. Sync chạy trước nên input sai định dạng không tốn request. Lúc chờ là <code>PENDING</code> → <code>form.valid</code> false → Submit tự khoá.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="kien-truc-routing-cheatsheet.html">← Kiến trúc &amp; Routing</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    📌 Nguồn: <a href="https://angular.dev/api/forms/ControlValueAccessor" target="_blank" rel="noopener noreferrer">ControlValueAccessor API</a> ·
+    <a href="https://material.angular.dev/cdk/drag-drop/overview" target="_blank" rel="noopener noreferrer">CDK Drag &amp; Drop</a>.
+    Mọi hành vi đã được chứng minh bằng 55 test chạy xanh trên Angular 22.1.4.
+  </p>
+</div>
+</body>
+</html>

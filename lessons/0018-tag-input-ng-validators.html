@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 18 · app-tag-input + NG_VALIDATORS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 18 · Forms ⭐⭐</span>
+    <h1><code>&lt;app-tag-input&gt;</code> + <code>NG_VALIDATORS</code></h1>
+    <p class="subtitle">
+      Control <strong>tự mang</strong> validator của nó — nơi dùng không phải khai gì thêm,
+      nên không thể quên.
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 Chip input với luật max 5 tag · 🏷️ EduCommerce · form Course</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết CVA quản lý <strong>giá trị mảng</strong>, không chỉ giá trị đơn.</li>
+      <li>Dùng <code>NG_VALIDATORS</code> để control tự mang luật của nó.</li>
+      <li>Giải thích vì sao phải tạo <strong>mảng mới</strong> thay vì <code>push</code>.</li>
+      <li>Biết validator nội bộ chạy cả khi giá trị được set từ ngoài.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>Bài 17: CVA với giá trị <code>number</code>. Bài 07: <code>multi: true</code> gom nhiều provider thành mảng.</p>
+    <p>Bài này thêm hai mảnh: <strong>giá trị mảng</strong>, và <strong>control tự khai validator qua một multi token thứ hai</strong>.</p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: luật đi lạc khỏi control</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ luật nằm ở nơi dùng</span>
+<pre><code><span class="cmt">// form tạo khoá học</span>
+tags: [[], [<span class="fn">maxLengthArray</span>(<span class="num">5</span>)]],
+
+<span class="cmt">// form sửa khoá học — ai đó quên</span>
+tags: [[]],
+
+<span class="cmt">// form nhân bản khoá học — ai đó nhớ nhưng gõ 10</span>
+tags: [[], [<span class="fn">maxLengthArray</span>(<span class="num">10</span>)]],</code></pre>
+    </div>
+    <p>
+      Ba nơi, ba luật khác nhau cho <em>cùng một</em> khái niệm. Không có gì báo lỗi.
+      Sau đó backend từ chối bản ghi có 8 tag và không ai hiểu vì sao form cho qua.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        <code>&lt;input type="email"&gt;</code> không bắt bạn khai luật email ở mọi form.
+        Luật đi <em>kèm</em> control. Custom control của bạn cũng làm được điều đó — bằng đường nào?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: hai multi token song song</h2>
+    <table class="data">
+      <thead><tr><th>Token</th><th>Trả lời câu hỏi</th><th>Interface</th></tr></thead>
+      <tbody>
+        <tr><td><code>NG_VALUE_ACCESSOR</code></td><td>"Đọc/ghi giá trị của control này kiểu gì?"</td><td><code>ControlValueAccessor</code></td></tr>
+        <tr><td><code>NG_VALIDATORS</code></td><td>"Giá trị này có hợp lệ không?"</td><td><code>Validator</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Luật thuộc về <em>control</em>, không thuộc về form dùng nó.
+          Đăng ký qua <code>NG_VALIDATORS</code> thì nơi dùng không thể quên.
+        </strong>
+      </p>
+    </div>
+    <p>
+      Cả hai đều là <strong>multi token</strong> — đúng cơ chế bạn học ở Bài 07 với
+      <code>HTTP_INTERCEPTORS</code>. Angular gom tất cả validator (của control + của form khai thêm)
+      thành một mảng và chạy hết.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/form-controls/tag-input.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-tag-input'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;div class="tag-input"&gt;
+      @for (tag of tags; track tag) {
+        &lt;span class="chip"&gt;
+          {{ tag }}
+          &lt;button type="button" [disabled]="isDisabled" (click)="xoa(tag)"&gt;×&lt;/button&gt;
+        &lt;/span&gt;
+      }
+      &lt;input
+        [value]="nhap"
+        [disabled]="isDisabled"
+        (input)="nhap = $any($event.target).value"
+        (keydown.enter)="them($event)"
+        (blur)="onTouched()"
+        placeholder="Nhập tag rồi Enter" /&gt;
+    &lt;/div&gt;
+  `</span>,
+  providers: [
+    { provide: NG_VALUE_ACCESSOR, useExisting: <span class="fn">forwardRef</span>(() => TagInputComponent), multi: <span class="kw">true</span> },
+    <span class="cmt">// Control TỰ mang validator -> nơi dùng không phải khai gì thêm.</span>
+    { provide: NG_VALIDATORS, useExisting: <span class="fn">forwardRef</span>(() => TagInputComponent), multi: <span class="kw">true</span> },
+  ],
+})
+<span class="kw">export class</span> TagInputComponent <span class="kw">implements</span> ControlValueAccessor, Validator {
+  <span class="fn">@Input</span>() maxTags = <span class="num">5</span>;
+
+  <span class="kw">private readonly</span> cdr = <span class="fn">inject</span>(ChangeDetectorRef);   <span class="cmt">// zoneless (Bài 16)</span>
+
+  tags: <span class="kw">string</span>[] = [];
+  nhap = <span class="str">''</span>;
+  isDisabled = <span class="kw">false</span>;
+
+  <span class="kw">private</span> onChange: (v: <span class="kw">string</span>[]) => <span class="kw">void</span> = () => {};
+  onTouched: () => <span class="kw">void</span> = () => {};
+
+  <span class="fn">writeValue</span>(value: <span class="kw">string</span>[] | <span class="kw">null</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.tags = value ?? [];   <span class="cmt">// null từ reset() -> mảng rỗng</span>
+    <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();
+  }
+  <span class="fn">registerOnChange</span>(fn: (v: <span class="kw">string</span>[]) => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onChange = fn; }
+  <span class="fn">registerOnTouched</span>(fn: () => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onTouched = fn; }
+  <span class="fn">setDisabledState</span>(d: <span class="kw">boolean</span>): <span class="kw">void</span> { <span class="kw">this</span>.isDisabled = d; <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); }
+
+  <span class="cmt">// Interface Validator — Angular gọi mỗi khi giá trị đổi, dù đổi từ đâu.</span>
+  <span class="fn">validate</span>(_control: AbstractControl): ValidationErrors | <span class="kw">null</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.tags.length &gt; <span class="kw">this</span>.maxTags) {
+      <span class="cmt">// Payload có thông tin -> UI nói được "tối đa 5, bạn đang có 6" (Bài 15).</span>
+      <span class="kw">return</span> { maxTags: { max: <span class="kw">this</span>.maxTags, thucTe: <span class="kw">this</span>.tags.length } };
+    }
+    <span class="kw">return</span> <span class="kw">null</span>;
+  }
+
+  <span class="fn">them</span>(ev: Event): <span class="kw">void</span> {
+    ev.<span class="fn">preventDefault</span>();       <span class="cmt">// Enter trong form = submit. Chặn.</span>
+    <span class="kw">const</span> t = <span class="kw">this</span>.nhap.<span class="fn">trim</span>();
+    <span class="kw">if</span> (!t || <span class="kw">this</span>.isDisabled) <span class="kw">return</span>;
+    <span class="kw">if</span> (<span class="kw">this</span>.tags.<span class="fn">includes</span>(t)) { <span class="kw">this</span>.nhap = <span class="str">''</span>; <span class="kw">return</span>; }   <span class="cmt">// chặn trùng</span>
+
+    <span class="cmt">// MẢNG MỚI, không push tại chỗ — xem mục 4.</span>
+    <span class="kw">this</span>.tags = [...<span class="kw">this</span>.tags, t];
+    <span class="kw">this</span>.nhap = <span class="str">''</span>;
+    <span class="kw">this</span>.onChange(<span class="kw">this</span>.tags);
+    <span class="kw">this</span>.onTouched();
+  }
+
+  <span class="fn">xoa</span>(tag: <span class="kw">string</span>): <span class="kw">void</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.isDisabled) <span class="kw">return</span>;
+    <span class="kw">this</span>.tags = <span class="kw">this</span>.tags.<span class="fn">filter</span>((x) => x !== tag);
+    <span class="kw">this</span>.onChange(<span class="kw">this</span>.tags);
+    <span class="kw">this</span>.onTouched();
+  }
+}</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Vì sao mảng MỚI, không <code>push</code></h2>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>push</code> giữ nguyên tham chiếu — mọi so sánh đều "không đổi"</div>
+      <div class="code-block">
+        <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ cùng một object trước và sau</span>
+<span class="kw">this</span>.tags.<span class="fn">push</span>(t);
+<span class="kw">this</span>.onChange(<span class="kw">this</span>.tags);
+
+<span class="cmt">// ✅ object mới -> so sánh tham chiếu phát hiện được</span>
+<span class="kw">this</span>.tags = [...<span class="kw">this</span>.tags, t];
+<span class="kw">this</span>.onChange(<span class="kw">this</span>.tags);</code></pre>
+      </div>
+      <p>Với <code>push</code>, ba thứ hỏng cùng lúc:</p>
+      <ul>
+        <li><code>OnPush</code> change detection so tham chiếu → không vẽ lại (Bài 40).</li>
+        <li><code>distinctUntilChanged</code> trên <code>valueChanges</code> nuốt luôn thay đổi (Bài 01).</li>
+        <li>Form cha giữ tham chiếu tới <em>cùng</em> mảng → so sánh "giá trị ban đầu vs hiện tại" để hỏi <em>"bạn có muốn rời trang?"</em> luôn nói "không đổi".</li>
+      </ul>
+      <p>
+        Cùng nguyên tắc bất biến với <code>{...cũ, ...patch}</code> ở Bài 06 và
+        <code>HttpParams</code> ở Bài 10. Đây là chủ đề lặp lại xuyên suốt Angular.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Validator chạy cả khi set từ ngoài</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'validator chạy CẢ KHI set từ ngoài, không chỉ khi gõ'</span>, () => {
+  host.form.<span class="fn">get</span>(<span class="str">'tags'</span>)!.<span class="fn">setValue</span>([<span class="str">'a'</span>,<span class="str">'b'</span>,<span class="str">'c'</span>,<span class="str">'d'</span>,<span class="str">'e'</span>,<span class="str">'f'</span>]);
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(host.form.<span class="fn">get</span>(<span class="str">'tags'</span>)!.errors?.[<span class="str">'maxTags'</span>]).<span class="fn">toBeTruthy</span>();
+});</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao test này quan trọng</div>
+      <p>
+        Dữ liệu bẩn không chỉ tới từ bàn phím. Nó tới từ API trả về bản ghi cũ có 8 tag,
+        từ <code>patchValue</code> khi nhân bản khoá học. Nếu validator chỉ chạy lúc gõ,
+        form sẽ báo <strong>valid</strong> cho dữ liệu sai và bạn gửi thẳng lên server.
+      </p>
+      <p>
+        Angular gọi <code>validate()</code> mỗi khi giá trị control đổi — <em>bất kể</em> đổi từ đâu.
+        Đó là điều <code>NG_VALIDATORS</code> cho bạn miễn phí, còn validator khai ở form thì cũng vậy;
+        khác biệt duy nhất là <strong>không thể quên khai</strong>.
+      </p>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Giới hạn: <code>@Input() maxTags</code> đổi không tự chạy lại validator</div>
+      <p>
+        Nếu <code>maxTags</code> đổi động lúc chạy, Angular <strong>không</strong> tự validate lại —
+        nó không biết validator phụ thuộc vào input đó. Phải gọi
+        <code>control.updateValueAndValidity()</code> thủ công trong <code>ngOnChanges</code>.
+        Với EduCommerce thì <code>maxTags</code> cố định nên không cần, nhưng biết giới hạn này
+        trước khi nó cắn bạn thì tốt hơn.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Lợi ích thật của <code>NG_VALIDATORS</code> so với khai
+      <code>tags: [[], maxLengthArray(5)]</code> ở form?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Hiệu năng giống nhau — Angular chạy cùng số validator. Lợi ích nằm ở chỗ khác.">
+      A. Chạy nhanh hơn vì validator nằm trong component.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Luật đi kèm control nên MỌI nơi dùng <app-tag-input> đều có nó tự động — không thể quên, không thể khai lệch 5 chỗ này 10 chỗ kia. Giống <input type='email'> tự biết luật email. Đây là dịch chuyển trách nhiệm từ 'người dùng component phải nhớ' sang 'component tự lo'.">
+      B. Luật đi kèm control nên <strong>không thể quên</strong> và không thể khai lệch giữa các form.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — form vẫn khai thêm validator được, và Angular gom tất cả lại (multi token) rồi chạy hết. Không cái nào loại trừ cái nào.">
+      C. Vì form không được phép khai thêm validator cho control này nữa.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn đổi <code>this.tags = [...this.tags, t]</code> thành <code>this.tags.push(t)</code>.
+      Test "thêm tag → form nhận mảng" vẫn XANH. An toàn chưa?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Test xanh chỉ chứng minh NỘI DUNG mảng đúng — vì onChange truyền cùng một tham chiếu và nội dung đã đổi. Nó không kiểm tra tham chiếu có mới không.">
+      A. An toàn — test xanh nghĩa là hành vi đúng.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. toEqual so NỘI DUNG nên không phân biệt được. Nhưng OnPush sẽ không vẽ lại, distinctUntilChanged sẽ nuốt thay đổi, và so sánh 'form có dirty không' sẽ sai. Các bug này chỉ lộ ở Bài 40 hoặc trên production. Muốn test bắt được thì phải giữ tham chiếu cũ và expect(moi).not.toBe(cu).">
+      B. Chưa — <code>toEqual</code> so nội dung nên không thấy; bug sẽ lộ ở <code>OnPush</code> và <code>distinctUntilChanged</code>.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không có lỗi runtime nào. Đó chính là điều nguy hiểm: nó chạy êm cho tới khi bạn bật OnPush ở Bài 40.">
+      C. Không — <code>push</code> sẽ ném lỗi vì mảng là readonly.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>TagInputComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Đủ 4 method CVA (như Bài 17) nhưng với giá trị <code>string[]</code>.</li>
+        <li><strong>TC2</strong> — <code>NG_VALIDATORS</code>: quá <code>maxTags</code> → <code>errors.maxTags</code> có <code>{max, thucTe}</code>; form KHÔNG khai validator nào.</li>
+        <li><strong>TC3</strong> — Validator chạy khi <code>setValue</code> từ ngoài, không chỉ khi gõ.</li>
+        <li><strong>TC4</strong> — Chặn tag trùng.</li>
+        <li><strong>TC5</strong> — <code>disable()</code> khoá <strong>cả</strong> ô nhập lẫn nút xoá chip.</li>
+        <li><strong>TC6</strong> — Chứng minh tạo <strong>mảng mới</strong>: giữ tham chiếu cũ, thêm tag, <code>expect(moi).not.toBe(cu)</code>.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> Backspace ở ô rỗng xoá chip cuối — hành vi chuẩn của mọi chip input thật.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Bắt đầu bằng cách copy cấu trúc CVA của Bài 17, đổi kiểu <code>number</code> → <code>string[]</code>. Phần <code>Validator</code> thêm sau, khi 4 method đã xanh.</p>
+    <p><strong>Hint 2 · API:</strong> <code>NG_VALIDATORS</code> · <code>implements Validator</code> · <code>(keydown.enter)</code> · <code>$any($event.target).value</code> · <code>ev.preventDefault()</code>.</p>
+    <p><strong>Hint 3 · TC6:</strong> <code>const cu = form.get('tags').value; themTag('x'); expect(form.get('tags').value).not.toBe(cu);</code> — <code>not.toBe</code> so tham chiếu, đúng thứ cần chứng minh.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi cho control tự mang validator qua <code>NG_VALIDATORS</code> — nơi dùng không thể quên.</li>
+      <li>Tôi luôn tạo <strong>giá trị mới</strong>, không sửa tại chỗ, và biết ba thứ hỏng nếu không.</li>
+      <li>Tôi biết validator chạy cả khi giá trị đến từ API, không chỉ từ bàn phím.</li>
+      <li>Tôi biết đổi <code>@Input</code> không tự validate lại — phải <code>updateValueAndValidity()</code>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Form tạo khoá học không chỉ có tags. Instructor cần thêm <strong>nhiều Section</strong>,
+      mỗi Section có <strong>nhiều Lesson</strong> — và số lượng do họ quyết định lúc chạy.
+    </p>
+    <p>
+      <code>FormGroup</code> có tập khoá <em>cố định</em> lúc khai báo. Bạn không biết trước
+      người dùng sẽ tạo 2 hay 20 section.
+    </p>
+    <p>
+      <strong>Cấu trúc nào của Reactive Forms mô tả được "một danh sách control mà số lượng thay đổi"?</strong>
+      Và khi xoá section thứ 2 trong 5 cái, làm sao 3 cái còn lại không bị lệch dữ liệu?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Bài 19 giới thiệu <code>FormArray</code>, và Bài 20 lồng chúng vào nhau.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 19 · <code>FormArray</code> động — thêm/xoá không mất data</div>
+    <p class="nd">Danh sách control thay đổi lúc chạy, và bẫy <code>index</code> khi xoá giữa chừng.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0017-rating-input-cva.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0019-formarray-dong.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output.
+    TC6 là phần tôi đọc kỹ nhất — nó phân biệt "chạy được" với "đúng về bản chất".
+  </p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

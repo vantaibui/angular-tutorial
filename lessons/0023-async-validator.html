@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 23 · Async Validator — check email, không spam API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 23 · Forms</span>
+    <h1>Async Validator — check email, không spam API</h1>
+    <p class="subtitle">
+      RxJS quay lại: <code>timer</code> + <code>switchMap</code> <strong>ngay trong validator</strong>.
+      Bài cuối Module 4.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Gõ 17 ký tự, gọi 1 request · 🏷️ EduCommerce · form đăng ký</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết <code>AsyncValidatorFn</code> tự debounce, không spam API.</li>
+      <li>Giải thích trạng thái <code>PENDING</code> và vì sao nó cứu bạn khỏi một bug bảo mật.</li>
+      <li>Xử lý lỗi mạng để form không kẹt invalid vĩnh viễn.</li>
+      <li>Test async validator bằng fake timer, không chờ thật.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 01: <code>debounceTime</code> + <code>switchMap</code> chống spam và race condition.
+      Bài 15: validator đồng bộ trả <code>ValidationErrors | null</code>.
+    </p>
+    <p>Bài này ghép chúng: <strong>validator trả về <code>Observable&lt;ValidationErrors | null&gt;</code>.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: 17 ký tự, 17 request</h2>
+    <p>
+      Người dùng gõ <code>nguyen@gmail.com</code>. Validator ngây thơ gọi API mỗi lần giá trị đổi —
+      <strong>17 request</strong>, phần lớn cho email dở dang như <code>ngu</code>, <code>nguye@</code>.
+    </p>
+    <p>
+      Và chúng có thể về <strong>ngược thứ tự</strong>: kết quả của <code>nguye</code> tới sau kết quả
+      của <code>nguyen@gmail.com</code> và ghi đè lên. Đúng race condition Bài 01, lần này nằm trong validator.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Mental model: ba trạng thái, không phải hai</h2>
+    <table class="data">
+      <thead><tr><th>Trạng thái</th><th>Nghĩa</th><th><code>form.valid</code></th></tr></thead>
+      <tbody>
+        <tr><td><code>VALID</code></td><td>Mọi validator qua</td><td><code>true</code></td></tr>
+        <tr><td><code>INVALID</code></td><td>Có validator fail</td><td><code>false</code></td></tr>
+        <tr><td><strong><code>PENDING</code></strong></td><td><strong>Async validator đang chạy</strong></td><td><code>false</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>PENDING</code> làm <code>form.valid</code> là <code>false</code> —
+          "chưa biết" được coi như "chưa hợp lệ".
+        </strong>
+      </p>
+      <p>
+        Đây không phải chi tiết vụn: nó là thứ khiến <code>[disabled]="form.invalid"</code> tự động
+        chặn người dùng submit <em>trong lúc</em> đang kiểm email. Nếu <code>PENDING</code> được tính
+        là valid, người gõ nhanh sẽ bấm Submit trước khi server kịp trả lời — và đăng ký được
+        email trùng.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · thứ tự chạy</span>
+<pre><code>giá trị đổi
+   │
+   ▼
+validator ĐỒNG BỘ chạy trước
+   │
+   ├─ fail ──► INVALID. DỪNG. (async KHÔNG chạy — tiết kiệm request)
+   │
+   └─ pass ──► PENDING ──► async chạy ──► VALID hoặc INVALID</code></pre>
+    </div>
+    <p>
+      Thứ tự này là món quà: đặt <code>Validators.email</code> đồng bộ trước thì
+      <code>ngu</code>, <code>nguye@</code> bị chặn ngay, API <strong>không</strong> bị gọi.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/validators/email-exists.validator.ts</span>
+<pre><code><span class="kw">export function</span> <span class="fn">emailExistsValidator</span>(http: HttpClient, debounceMs = <span class="num">400</span>): AsyncValidatorFn {
+  <span class="kw">return</span> (control: AbstractControl): Observable&lt;ValidationErrors | <span class="kw">null</span>&gt; => {
+    <span class="kw">const</span> email = (control.value ?? <span class="str">''</span>).<span class="fn">trim</span>();
+
+    <span class="cmt">// Rỗng thì để Validators.required lo — đừng gọi API cho chuỗi rỗng.</span>
+    <span class="cmt">// of(null) hoàn thành NGAY nên control không kẹt PENDING.</span>
+    <span class="kw">if</span> (!email) <span class="kw">return</span> <span class="fn">of</span>(<span class="kw">null</span>);
+
+    <span class="kw">return</span> <span class="fn">timer</span>(debounceMs).<span class="fn">pipe</span>(
+      <span class="cmt">// switchMap: gõ tiếp -> Angular gọi lại validator -> lần kiểm trước bị HUỶ.</span>
+      <span class="fn">switchMap</span>(() =>
+        http.<span class="fn">get</span>&lt;{ exists: <span class="kw">boolean</span> }&gt;(<span class="str">'/api/users/check-email'</span>, { params: { email } }),
+      ),
+      <span class="fn">map</span>((res) => (res.exists ? { emailExists: <span class="kw">true</span> } : <span class="kw">null</span>)),
+      <span class="cmt">// Lỗi mạng KHÔNG được làm form invalid vĩnh viễn -> coi như hợp lệ,</span>
+      <span class="cmt">// để server chặn lần cuối. Xem mục 5.</span>
+      <span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>)),
+    );
+  };
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · gắn vào form — tham số THỨ BA</span>
+<pre><code>form = <span class="kw">this</span>.fb.<span class="fn">group</span>({
+  email: [
+    <span class="str">''</span>,
+    [Validators.required, Validators.email],        <span class="cmt">// đồng bộ — chạy trước</span>
+    [<span class="fn">emailExistsValidator</span>(<span class="kw">this</span>.http)],              <span class="cmt">// BẤT ĐỒNG BỘ — vị trí thứ 3</span>
+  ],
+});</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Nhét async validator vào mảng thứ hai = im lặng không chạy</div>
+      <p>
+        <code>[..., [Validators.required, emailExistsValidator(http)]]</code> — TypeScript
+        <strong>không</strong> phải lúc nào cũng bắt được, và validator sẽ không bao giờ chạy.
+        Không lỗi, không cảnh báo, form luôn báo hợp lệ. Nhớ: <strong>sync ở vị trí 2, async ở vị trí 3.</strong>
+      </p>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Vì sao <code>timer()</code> chứ không <code>debounceTime()</code></div>
+      <p>
+        <code>debounceTime</code> chỉ có nghĩa trên một stream <em>liên tục</em>. Nhưng Angular gọi
+        validator <strong>lại từ đầu</strong> mỗi lần giá trị đổi — mỗi lần là một Observable
+        <em>mới</em>, nên <code>debounceTime</code> không có gì để gộp.
+      </p>
+      <p>
+        <code>timer(400)</code> tạo độ trễ, và Angular <strong>tự huỷ</strong> Observable của lần
+        validate trước khi giá trị đổi. Kết quả giống debounce, nhưng đúng cơ chế.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Hiển thị trạng thái chờ</h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>&lt;input formControlName="email" /&gt;
+
+@if (form.get('email')?.pending) {
+  &lt;span class="spinner"&gt;Đang kiểm tra…&lt;/span&gt;
+}
+@if (form.get('email')?.errors?.['emailExists']) {
+  &lt;small class="err"&gt;Email này đã được dùng&lt;/small&gt;
+}
+
+<span class="cmt">&lt;!-- form.invalid đã bao gồm PENDING -> nút tự khoá lúc đang kiểm --&gt;</span>
+&lt;button type="submit" [disabled]="form.invalid"&gt;Đăng ký&lt;/button&gt;</code></pre>
+    </div>
+    <p>
+      Không có spinner thì người dùng gõ xong email hợp lệ mà nút Submit vẫn xám — họ tưởng app hỏng.
+      Spinner biến 400ms khó hiểu thành 400ms có lý do.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Lỗi mạng: chọn "cho qua" hay "chặn"?</div>
+      <div class="code-block">
+        <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>))                       <span class="cmt">// A: coi như HỢP LỆ</span>
+<span class="fn">catchError</span>(() => <span class="fn">of</span>({ khongKiemTraDuoc: <span class="kw">true</span> }))   <span class="cmt">// B: coi như KHÔNG hợp lệ</span></code></pre>
+      </div>
+      <table class="data">
+        <thead><tr><th></th><th>A — cho qua</th><th>B — chặn</th></tr></thead>
+        <tbody>
+          <tr><td>Mất mạng</td><td>Vẫn đăng ký được</td><td><strong>Không đăng ký được</strong></td></tr>
+          <tr><td>Rủi ro</td><td>Server chặn ở bước cuối</td><td>Mất người dùng vì lỗi phía mình</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Tôi chọn <strong>A</strong> vì đây là kiểm tra <em>tiện lợi</em>, không phải kiểm tra
+        <em>bảo mật</em> — server vẫn phải kiểm email trùng khi tạo tài khoản (đúng tinh thần
+        "guard là UX, không phải bảo mật" ở Bài 14). Chặn người dùng vì API của <em>mình</em> lỗi
+        là trừng phạt sai người.
+      </p>
+      <p>
+        Với validator <em>bảo mật thật</em> (vd kiểm mã giảm giá còn hạn), chọn B —
+        nhưng phải kèm thông báo rõ và nút thử lại.
+      </p>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Async validator KHÔNG chạy lại khi submit</div>
+      <p>
+        Người dùng gõ email, chờ kiểm xong (VALID), rồi ngồi 10 phút mới bấm Submit.
+        Trong 10 phút đó ai đó đã đăng ký email này. Form vẫn báo VALID vì validator
+        <strong>không chạy lại</strong>.
+      </p>
+      <p>
+        Đây là lý do <strong>không bao giờ</strong> được tin async validator thay cho kiểm tra ở server.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Test bằng fake timer</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'email đã tồn tại -> lỗi emailExists'</span>, () => {
+  <span class="fn">vi</span>.<span class="fn">useFakeTimers</span>();
+  <span class="kw">const</span> c = <span class="kw">new</span> <span class="fn">FormControl</span>(<span class="str">'a@b.com'</span>, { asyncValidators: [<span class="fn">emailExistsValidator</span>(http, <span class="num">400</span>)] });
+
+  <span class="fn">expect</span>(c.status).<span class="fn">toBe</span>(<span class="str">'PENDING'</span>);      <span class="cmt">// chưa hết debounce</span>
+  <span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">400</span>);          <span class="cmt">// tua qua timer</span>
+
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>((r) => r.url === <span class="str">'/api/users/check-email'</span>);
+  <span class="fn">expect</span>(req.request.params.<span class="fn">get</span>(<span class="str">'email'</span>)).<span class="fn">toBe</span>(<span class="str">'a@b.com'</span>);
+  req.<span class="fn">flush</span>({ exists: <span class="kw">true</span> });
+
+  <span class="fn">expect</span>(c.errors?.[<span class="str">'emailExists'</span>]).<span class="fn">toBe</span>(<span class="kw">true</span>);
+  <span class="fn">expect</span>(c.status).<span class="fn">toBe</span>(<span class="str">'INVALID'</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'lỗi mạng -> KHÔNG làm form invalid vĩnh viễn'</span>, () => {
+  <span class="fn">vi</span>.<span class="fn">useFakeTimers</span>();
+  <span class="kw">const</span> c = <span class="kw">new</span> <span class="fn">FormControl</span>(<span class="str">'a@b.com'</span>, { asyncValidators: [<span class="fn">emailExistsValidator</span>(http, <span class="num">400</span>)] });
+  <span class="fn">vi</span>.<span class="fn">advanceTimersByTime</span>(<span class="num">400</span>);
+  httpMock.<span class="fn">expectOne</span>((r) => r.url === <span class="str">'/api/users/check-email'</span>)
+    .<span class="fn">flush</span>({ message: <span class="str">'sap'</span> }, { status: <span class="num">500</span>, statusText: <span class="str">'Server Error'</span> });
+
+  <span class="fn">expect</span>(c.status).<span class="fn">toBe</span>(<span class="str">'VALID'</span>);   <span class="cmt">// quyết định A ở mục 5</span>
+});</code></pre>
+    </div>
+    <p>
+      Đúng kỹ thuật Bài 01: fake timer để tua thời gian, và <code>HttpTestingController</code>
+      (Bài 10) để không cần server. Test chạy trong mili-giây, tất định, không flaky.
+    </p>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Async validator hoạt động thế nào? Tránh spam API ra sao?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Trả <code>Observable&lt;ValidationErrors|null&gt;</code>, đặt ở
+        tham số thứ ba của <code>fb.group</code>. Trong lúc chờ, control ở trạng thái
+        <code>PENDING</code> và <code>form.valid</code> là <code>false</code> — nên nút Submit tự khoá,
+        người dùng không submit kịp trước khi biết kết quả. Chống spam bằng <code>timer()</code> ở đầu
+        pipe: Angular tự huỷ Observable của lần validate trước khi giá trị đổi. Và validator đồng bộ
+        chạy trước, nên email sai định dạng bị chặn mà không tốn request nào."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Trong lúc async validator đang chạy, <code>form.valid</code> bằng gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Nếu PENDING được tính là valid thì người gõ nhanh sẽ bấm Submit trước khi server trả lời — và đăng ký được email trùng. Angular không thiết kế lỏng lẻo như vậy.">
+      A. <code>true</code> — chưa có lỗi nào nên tạm coi là hợp lệ.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. PENDING làm form.valid = false: 'chưa biết' được coi như 'chưa hợp lệ'. Nhờ vậy [disabled]='form.invalid' tự động chặn submit trong lúc đang kiểm — bạn không phải viết thêm logic nào. Đây là mặc định an toàn, và là lý do nên hiện spinner để người dùng biết vì sao nút đang xám.">
+      B. <code>false</code> — <code>PENDING</code> được coi là chưa hợp lệ, nên nút Submit tự khoá.
+    </button>
+    <button class="opt" data-correct="false" data-explain="valid là boolean, không bao giờ undefined. Trạng thái 'chưa biết' được biểu diễn qua control.status === 'PENDING' và control.pending.">
+      C. <code>undefined</code> cho tới khi có kết quả.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Bạn đặt async validator vào <strong>mảng thứ hai</strong> cùng với
+      <code>Validators.required</code>. Chuyện gì xảy ra?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không có lỗi runtime. Đó chính là điều nguy hiểm — mọi thứ chạy êm.">
+      A. Angular ném lỗi "async validator in sync array".
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng, và đây là bug im lặng kinh điển. Angular coi nó là validator đồng bộ, gọi và nhận về một Observable — mà Observable là object truthy, không phải null, nên... tuỳ trường hợp có thể thành lỗi vĩnh viễn hoặc bị bỏ qua. Dù kiểu nào, việc kiểm email KHÔNG bao giờ thật sự chạy. Nhớ: sync vị trí 2, async vị trí 3.">
+      B. Validator <strong>không bao giờ chạy đúng</strong> — không lỗi, không cảnh báo.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không. Vị trí quyết định Angular xử lý nó theo cơ chế đồng bộ hay bất đồng bộ — đó không phải chi tiết hình thức.">
+      C. Vẫn chạy bình thường, vị trí chỉ là quy ước cho dễ đọc.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>emailExistsValidator</code></div>
+      <p>Cần thêm handler MSW <code>GET */api/users/check-email</code> (Bài 09).</p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Validator nhận <code>debounceMs</code> làm tham số; giá trị rỗng → <code>of(null)</code>, <strong>không</strong> gọi API (test bằng <code>httpMock.expectNone</code>).</li>
+        <li><strong>TC2</strong> — Trước khi hết debounce, <code>control.status === 'PENDING'</code>.</li>
+        <li><strong>TC3</strong> — Email trùng → <code>errors.emailExists</code>, status <code>INVALID</code>.</li>
+        <li><strong>TC4</strong> — Email mới → <code>VALID</code>.</li>
+        <li><strong>TC5</strong> — Lỗi 500 → <code>VALID</code> (và ghi comment giải thích bạn chọn A hay B, vì sao).</li>
+        <li><strong>TC6</strong> — Gõ liên tục 3 lần trong 400ms → chỉ <strong>một</strong> request bay đi.</li>
+        <li><strong>TC7</strong> — Template có spinner lúc <code>pending</code> và nút Submit khoá.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> validator kiểm mã giảm giá còn hạn, chọn hướng B khi lỗi mạng — và giải thích vì sao khác email.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Async validator chỉ là hàm trả Observable. Viết bản <code>of(null)</code> luôn hợp lệ trước, gắn vào form, xác nhận status đổi đúng — rồi mới thêm HTTP.</p>
+    <p><strong>Hint 2 · API:</strong> <code>AsyncValidatorFn</code> · <code>timer(ms)</code> · <code>switchMap</code> · <code>catchError(() =&gt; of(null))</code> · <code>control.pending</code> · <code>fb.group({ x: [val, [sync], [async]] })</code>.</p>
+    <p><strong>Hint 3 · TC6:</strong> tạo control, <code>setValue</code> ba lần cách nhau 100ms bằng <code>vi.advanceTimersByTime(100)</code>, rồi tua nốt 400ms. <code>httpMock.expectOne</code> sẽ đỏ nếu có nhiều hơn một request — đúng thứ cần chứng minh.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — và hết Module 4</div>
+    <ul class="checklist">
+      <li>Tôi biết <code>PENDING</code> tính là <strong>chưa hợp lệ</strong>, và đó là mặc định an toàn.</li>
+      <li>Tôi dùng <code>timer()</code> chứ không <code>debounceTime()</code>, và giải thích được vì sao.</li>
+      <li>Tôi đặt async validator ở <strong>vị trí thứ ba</strong> — nhầm chỗ là hỏng im lặng.</li>
+      <li>Tôi quyết định có chủ đích khi lỗi mạng, và biết server vẫn phải kiểm lần cuối.</li>
+      <li>Tôi test async validator bằng fake timer, không chờ thật.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy — bắc cầu sang Phase 4</h2>
+    <p>
+      Form đăng ký xong. Người dùng bấm Đăng nhập, server trả về một <strong>token</strong>.
+      Từ giờ <em>mọi</em> request đều phải kèm <code>Authorization: Bearer &lt;token&gt;</code>.
+    </p>
+    <p>
+      Bạn có thể thêm header thủ công trong <code>GenericApiService</code> (Bài 10). Nhưng token
+      còn hết hạn — và khi hết hạn, mọi request trả 401, phải gọi refresh rồi <strong>thử lại</strong>
+      request cũ.
+    </p>
+    <p>
+      <strong>Có chỗ nào nằm giữa <code>HttpClient</code> và mạng để làm cả hai việc đó
+      một lần cho tất cả request?</strong> Và nếu 5 request cùng nhận 401 một lúc, làm sao
+      chỉ gọi refresh <em>một</em> lần thay vì 5 lần?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Câu thứ hai là bài toán RxJS khó nhất của cả app, và là câu phỏng vấn senior kinh điển.
+        Module 5 mở màn bằng đúng nó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 24 · Class <code>HttpInterceptor</code> + <code>HTTP_INTERCEPTORS</code></div>
+    <p class="nd">Mở màn Module 5 (Auth Classic) — nơi <code>multi: true</code> ở Bài 07 được dùng thật.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0022-dynamic-form-schema.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong> Gửi validator + spec + output.
+    Đây là bài <strong>cuối Module 4</strong> — nộp xong tôi ra mini-quiz trộn Bài 15–23,
+    module trọng tâm nhất của cả khoá.
+  </p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

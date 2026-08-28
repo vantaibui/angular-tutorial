@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 17 · app-rating-input — custom control đầu tiên</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 17 · Forms ⭐⭐</span>
+    <h1><code>&lt;app-rating-input&gt;</code> — custom control đầu tiên</h1>
+    <p class="subtitle">
+      Viết đủ 4 method, rồi chứng minh bằng test trên một <code>FormGroup</code> thật —
+      không phải bằng cảm giác "trông nó chạy".
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 5 sao hoạt động y hệt <code>&lt;input&gt;</code> · 🏷️ EduCommerce · form Review</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết một CVA hoàn chỉnh chạy đúng trong <code>FormGroup</code>.</li>
+      <li>Test cả 4 method bằng DOM thật, không mock.</li>
+      <li>Quyết định được <code>onTouched</code> gọi lúc nào và bảo vệ lựa chọn đó.</li>
+      <li>Nhận ra triệu chứng zoneless và biết vá.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>Bài 16: hợp đồng 4 method + <code>NG_VALUE_ACCESSOR</code> + <code>forwardRef</code>.</p>
+    <p>Bài này chỉ thêm một mảnh mới: <strong>biến hợp đồng đó thành code chạy được, và chứng minh nó.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Bản đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/form-controls/rating-input.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-rating-input'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;div class="rating" role="radiogroup"&gt;
+      @for (sao of saoList; track sao) {
+        &lt;button
+          type="button"                        &lt;!-- KHÔNG có: bấm sao sẽ SUBMIT form --&gt;
+          class="star"
+          [class.active]="sao &lt;= value"
+          [disabled]="isDisabled"
+          role="radio"
+          [attr.aria-checked]="sao === value"
+          (click)="chon(sao)"
+          (blur)="onTouched()"
+        &gt;★&lt;/button&gt;
+      }
+    &lt;/div&gt;
+  `</span>,
+  providers: [{
+    provide: NG_VALUE_ACCESSOR,
+    useExisting: <span class="fn">forwardRef</span>(() => RatingInputComponent),
+    multi: <span class="kw">true</span>,
+  }],
+})
+<span class="kw">export class</span> RatingInputComponent <span class="kw">implements</span> ControlValueAccessor {
+  <span class="fn">@Input</span>() max = <span class="num">5</span>;
+
+  <span class="cmt">// Angular 22 zoneless: form đẩy giá trị xuống thì không có event nào</span>
+  <span class="cmt">// để kích hoạt change detection -> phải tự báo (Bài 16 mục 5).</span>
+  <span class="kw">private readonly</span> cdr = <span class="fn">inject</span>(ChangeDetectorRef);
+
+  value = <span class="num">0</span>;
+  isDisabled = <span class="kw">false</span>;
+
+  <span class="kw">get</span> <span class="fn">saoList</span>(): <span class="kw">number</span>[] {
+    <span class="kw">return</span> <span class="fn">Array</span>.<span class="fn">from</span>({ length: <span class="kw">this</span>.max }, (_, i) => i + <span class="num">1</span>);
+  }
+
+  <span class="cmt">// Khởi tạo rỗng -> không phải kiểm null mỗi lần gọi.</span>
+  <span class="cmt">// Angular LUÔN gọi register* trước khi dùng, nhưng test thì có thể không.</span>
+  <span class="kw">private</span> onChange: (v: <span class="kw">number</span>) => <span class="kw">void</span> = () => {};
+  onTouched: () => <span class="kw">void</span> = () => {};   <span class="cmt">// public: template gọi được ở (blur)</span>
+
+  <span class="cmt">// ① Form -> component</span>
+  <span class="fn">writeValue</span>(value: <span class="kw">number</span> | <span class="kw">null</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.value = value ?? <span class="num">0</span>;   <span class="cmt">// reset() truyền null -> phải chịu được</span>
+    <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();
+  }
+
+  <span class="cmt">// ② + ③ Angular trao callback, ta cất đi</span>
+  <span class="fn">registerOnChange</span>(fn: (v: <span class="kw">number</span>) => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onChange = fn; }
+  <span class="fn">registerOnTouched</span>(fn: () => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onTouched = fn; }
+
+  <span class="cmt">// ④ Form -> component</span>
+  <span class="fn">setDisabledState</span>(isDisabled: <span class="kw">boolean</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.isDisabled = isDisabled;
+    <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();
+  }
+
+  <span class="fn">chon</span>(sao: <span class="kw">number</span>): <span class="kw">void</span> {
+    <span class="cmt">// Chốt chặn thứ hai: [disabled] lo phần UI, dòng này lo phần logic.</span>
+    <span class="cmt">// Cần cả hai vì click có thể tới từ code, không chỉ từ chuột.</span>
+    <span class="kw">if</span> (<span class="kw">this</span>.isDisabled) <span class="kw">return</span>;
+
+    <span class="kw">this</span>.value = sao;
+    <span class="kw">this</span>.onChange(sao);   <span class="cmt">// báo LÊN form</span>
+    <span class="kw">this</span>.onTouched();     <span class="cmt">// bấm = đã tương tác</span>
+  }
+}</code></pre>
+    </div>
+
+    <div class="callout danger">
+      <div class="ct">🔥 <code>type="button"</code> — thiếu là form tự submit</div>
+      <p>
+        Mặc định <code>&lt;button&gt;</code> trong <code>&lt;form&gt;</code> có
+        <code>type="submit"</code>. Bấm chọn sao sẽ <strong>gửi form</strong>.
+        Bug này rất hay gặp và cực khó đoán, vì triệu chứng là "trang tự reload khi tôi chấm sao".
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. <code>onTouched</code> gọi lúc nào? — câu hỏi tư duy Bài 16</h2>
+    <p>Tôi chọn gọi ở <strong>cả hai</strong> chỗ, có lý do:</p>
+    <table class="data">
+      <thead><tr><th>Gọi ở</th><th>Vì sao</th></tr></thead>
+      <tbody>
+        <tr><td><code>(blur)</code> trên mỗi nút</td><td>Người dùng lướt qua rồi bỏ đi mà không chọn → vẫn tính là đã xem. Giống hệt <code>&lt;input&gt;</code>.</td></tr>
+        <tr><td>Trong <code>chon()</code></td><td>Bấm là tương tác rõ ràng nhất. Không đợi blur mới báo — nếu đây là ô cuối form thì blur có thể không bao giờ xảy ra.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <div class="ct">⚖️ Chỉ dùng <code>(blur)</code> thì có lỗ</div>
+      <p>
+        Rating là ô cuối, người dùng bấm 4 sao rồi bấm thẳng Submit. Nút Submit lấy focus →
+        blur <em>có</em> xảy ra. Nhưng nếu họ bấm sao rồi dùng phím tắt gửi form, hoặc form tự submit
+        khi đủ điều kiện, thì <code>touched</code> vẫn <code>false</code> và thông báo lỗi liên quan
+        sẽ không hiện. Gọi ở cả hai chỗ là rẻ và bịt được lỗ đó.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Test — chứng minh từng method</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · host component để test trong FormGroup THẬT</span>
+<pre><code><span class="fn">@Component</span>({
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;form [formGroup]="form"&gt;
+      &lt;app-rating-input formControlName="rating"&gt;&lt;/app-rating-input&gt;
+    &lt;/form&gt;
+  `</span>,
+})
+<span class="kw">class</span> HostComponent {
+  form: FormGroup;
+  <span class="fn">constructor</span>(fb: FormBuilder) { <span class="kw">this</span>.form = fb.<span class="fn">group</span>({ rating: [<span class="num">0</span>] }); }
+}
+
+<span class="cmt">// ⚠️ Component dùng trong test PHẢI thuộc một NgModule lúc BIÊN DỊCH.</span>
+<span class="cmt">// Khai qua TestBed.declarations là quá muộn — trình biên dịch template</span>
+<span class="cmt">// không thấy được và báo "'app-rating-input' is not a known element".</span>
+<span class="fn">@NgModule</span>({ declarations: [HostComponent], imports: [FormControlsModule] })
+<span class="kw">class</span> TestHostModule {}</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · 5 test, mỗi test một method (đã verify xanh)</span>
+<pre><code><span class="fn">it</span>(<span class="str">'writeValue: form.setValue -> UI cập nhật'</span>, () => {
+  host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.<span class="fn">setValue</span>(<span class="num">4</span>);
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(<span class="fn">stars</span>().<span class="fn">filter</span>((b) => b.classList.<span class="fn">contains</span>(<span class="str">'active'</span>))).<span class="fn">toHaveLength</span>(<span class="num">4</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'registerOnChange: bấm sao -> form nhận giá trị'</span>, () => {
+  <span class="fn">stars</span>()[<span class="num">2</span>].<span class="fn">click</span>();
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.value).<span class="fn">toBe</span>(<span class="num">3</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'registerOnTouched: chưa chạm untouched, chạm rồi touched'</span>, () => {
+  <span class="fn">expect</span>(host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.touched).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  <span class="fn">stars</span>()[<span class="num">0</span>].<span class="fn">click</span>();
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.touched).<span class="fn">toBe</span>(<span class="kw">true</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'setDisabledState: form.disable() -> nút disable THẬT'</span>, () => {
+  host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.<span class="fn">disable</span>();
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(<span class="fn">stars</span>().<span class="fn">every</span>((b) => b.disabled)).<span class="fn">toBe</span>(<span class="kw">true</span>);
+});
+
+<span class="fn">it</span>(<span class="str">'disable rồi bấm -> giá trị KHÔNG đổi'</span>, () => {
+  host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.<span class="fn">setValue</span>(<span class="num">2</span>);
+  host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.<span class="fn">disable</span>();
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">stars</span>()[<span class="num">4</span>].<span class="fn">click</span>();
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(host.form.<span class="fn">get</span>(<span class="str">'rating'</span>)!.value).<span class="fn">toBe</span>(<span class="num">2</span>);
+});</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao test qua DOM chứ không gọi thẳng method</div>
+      <p>
+        Gọi <code>cmp.writeValue(4)</code> rồi <code>expect(cmp.value).toBe(4)</code> chỉ chứng minh
+        bạn biết gán biến. Nó <strong>không</strong> chứng minh Angular tìm thấy accessor của bạn,
+        hay UI thật sự đổi. Test qua <code>FormGroup</code> + DOM mới bắt được lỗi zoneless ở Bài 16 —
+        và nó <em>đã</em> bắt được, khi tôi soạn bài này.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Test "bấm sao → form nhận giá trị" XANH, nhưng "setValue → UI cập nhật" ĐỎ. Nghĩ gì đầu tiên?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Nếu provider sai thì Angular ném 'No value accessor for form control' ngay khi dựng form, và test bấm sao cũng đỏ. Ở đây một cái xanh nên provider đúng.">
+      A. Provider <code>NG_VALUE_ACCESSOR</code> khai sai.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Hai test hỏng theo chiều KHÁC nhau: chiều component→form (bấm) xanh, chiều form→component (setValue) đỏ. Bấm là event của template nên zoneless biết vẽ lại; setValue thì không có event nào. Thiếu markForCheck() trong writeValue. Đây chính xác là lỗi tôi gặp khi soạn bài.">
+      B. Chiều component→form ổn, chiều form→component hỏng — thiếu <code>markForCheck()</code> trong <code>writeValue</code>.
+    </button>
+    <button class="opt" data-correct="false" data-explain="detectChanges() chạy CD cho fixture, nhưng ở zoneless với component chưa được mark là dirty thì view của component con không được kiểm lại. Thêm detectChanges nữa cũng không giúp.">
+      C. Quên gọi <code>fixture.detectChanges()</code> lần hai.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao <code>chon()</code> kiểm <code>if (this.isDisabled) return</code> trong khi
+      template đã có <code>[disabled]="isDisabled"</code>?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không thừa. Hai chốt chặn ở hai tầng khác nhau, và tầng nào cũng có thể bị vượt qua theo cách riêng.">
+      A. Thừa — <code>[disabled]</code> đã đủ, xoá đi cho gọn.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. [disabled] chặn ở tầng DOM cho chuột và bàn phím. Nhưng chon() vẫn gọi được từ code — test, script, hoặc chính component cha. Guard trong method bảo vệ tính đúng đắn của DỮ LIỆU, còn [disabled] bảo vệ trải nghiệm. Cùng nguyên tắc với RoleGuard tự kiểm !user ở Bài 14: đúng kể cả khi đứng một mình.">
+      B. <code>[disabled]</code> chặn ở tầng DOM; guard trong method chặn cả lời gọi từ code.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không liên quan. [disabled] chạy tốt ở mọi trình duyệt Angular hỗ trợ.">
+      C. Vì <code>[disabled]</code> không hoạt động trên Safari.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>RatingInputComponent</code></div>
+      <p>Tự viết từ hợp đồng ở Bài 16, đừng copy mục 1. Đây là bài <strong>chế độ thử thách</strong> đầu tiên.</p>
+      <strong>Tiêu chí (Definition of Done — cả 6 xanh)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>writeValue</code>: <code>setValue(4)</code> → đúng 4 sao có class active.</li>
+        <li><strong>TC2</strong> — <code>registerOnChange</code>: click sao thứ 3 → <code>form.value.rating === 3</code>.</li>
+        <li><strong>TC3</strong> — <code>registerOnTouched</code>: trước khi chạm <code>touched === false</code>, sau khi chạm <code>true</code>.</li>
+        <li><strong>TC4</strong> — <code>setDisabledState</code>: <code>disable()</code> → <strong>mọi</strong> nút <code>disabled</code>.</li>
+        <li><strong>TC5</strong> — Disable rồi click → giá trị <strong>không đổi</strong>.</li>
+        <li><strong>TC6</strong> — <code>@Input() max</code>: đặt <code>max=10</code> → render 10 nút.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> hỗ trợ bàn phím — mũi tên trái/phải đổi số sao,
+        và <code>aria-checked</code> đúng. Custom control mà không dùng được bằng bàn phím là
+        đã hỏng một nửa.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết 4 method <em>rỗng</em> trước, gắn vào form, chạy app. Bạn sẽ thấy ngay method nào đang bị thiếu qua triệu chứng ở bảng Bài 16 mục 3.</p>
+    <p><strong>Hint 2 · API:</strong> <code>implements ControlValueAccessor</code> · <code>NG_VALUE_ACCESSOR</code> + <code>forwardRef</code> + <code>multi: true</code> · <code>inject(ChangeDetectorRef)</code> · <code>@for (x of list; track x)</code>.</p>
+    <p><strong>Hint 3 · Nếu test báo "is not a known element":</strong> component test phải nằm trong một <code>@NgModule</code> khai ngay trong file spec (mục 3) — <code>TestBed.declarations</code> là quá muộn cho trình biên dịch.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi viết được CVA hoàn chỉnh và chứng minh bằng test qua DOM thật.</li>
+      <li>Tôi biết <code>type="button"</code> là bắt buộc trong form.</li>
+      <li>Tôi gọi <code>onTouched</code> ở cả <code>blur</code> lẫn lúc chọn, và giải thích được vì sao.</li>
+      <li>Tôi có hai chốt chặn cho disabled: template và method.</li>
+      <li>Tôi đọc được kiểu hỏng "một chiều xanh, một chiều đỏ" là dấu hiệu zoneless.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy</h2>
+    <p>
+      Rating có một giá trị. Nhưng ô <strong>tags</strong> của khoá học thì giữ một <em>mảng</em>,
+      và có luật riêng: <strong>tối đa 5 tag</strong>.
+    </p>
+    <p>
+      Bạn có thể để component cha khai
+      <code>tags: [[], maxLengthArray(5)]</code>. Nhưng như thế <em>mọi</em> nơi dùng
+      <code>&lt;app-tag-input&gt;</code> đều phải nhớ khai lại validator đó — quên một chỗ là thủng một chỗ.
+    </p>
+    <p>
+      <strong>Có cách nào để control TỰ mang theo validator của nó,</strong> giống như
+      <code>&lt;input type="email"&gt;</code> tự biết luật email?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Gợi ý: <code>NG_VALUE_ACCESSOR</code> là multi token cho <em>giá trị</em>.
+        Angular có một multi token song song cho <em>validator</em>. Bài 18 dùng nó.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 18 · <code>&lt;app-tag-input&gt;</code> + <code>NG_VALIDATORS</code></div>
+    <p class="nd">Control tự mang validator — nơi dùng không phải khai gì thêm.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0016-control-value-accessor.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0018-tag-input-ng-validators.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output.
+    Tôi review 5 trục: hợp đồng đủ chưa · zoneless xử lý đúng chưa · a11y ·
+    test có chứng minh thật không · API component có sạch không.
+  </p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

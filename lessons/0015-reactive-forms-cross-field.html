@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 15 · Reactive Forms nền + cross-field validator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 15 · Forms ⭐</span>
+    <h1>Reactive Forms nền + cross-field validator</h1>
+    <p class="subtitle">
+      Form là một <strong>cây</strong>. Validator sống ở đúng tầng nào của cây đó —
+      và vì sao "xác nhận mật khẩu" không thuộc về ô nào cả.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Form đăng ký validate đúng · 🏷️ Mở màn Module 4 (9 bài)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích form là cây <code>AbstractControl</code>, và lỗi nổi lên tầng nào.</li>
+      <li>Viết custom validator trả về <code>ValidationErrors</code> có <strong>thông tin dùng được</strong>.</li>
+      <li>Đặt cross-field validator ở <strong>đúng tầng</strong> và biết đọc lỗi ở đâu.</li>
+      <li>Hiển thị lỗi theo <code>touched</code>/<code>dirty</code> thay vì spam đỏ ngay khi mở form.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 14 kết bằng câu hỏi: luật "hai mật khẩu phải khớp" sống ở đâu?
+      Không ô nào nhìn thấy ô kia.
+    </p>
+    <p>Bài này chỉ thêm một mảnh mới: <strong>form là cây, và validator gắn được ở BẤT KỲ nút nào của cây.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: luật không thuộc về ô nào</h2>
+    <p>
+      Form đăng ký: <code>email</code>, <code>password</code>, <code>confirmPassword</code>.
+      Hai luật đầu dễ — <code>required</code>, <code>email</code>, độ dài. Luật thứ ba thì khác:
+      <strong>"password và confirmPassword phải khớp"</strong>.
+    </p>
+    <p>
+      Gắn vào <code>confirmPassword</code> thì nó cần đọc giá trị của <code>password</code> — mà
+      <code>ValidatorFn</code> chỉ nhận đúng một <code>AbstractControl</code>: chính nó.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Nếu control không thấy anh em của nó, thì thứ <em>duy nhất</em> thấy được cả hai là
+        <strong>cha</strong> của chúng. Vậy validator nên gắn ở đâu?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: form là một cái cây</h2>
+    <div class="code-block">
+      <span class="code-label">Cấu trúc cây</span>
+<pre><code>FormGroup (đăng ký)          ← cross-field validator gắn ở ĐÂY
+├─ FormControl  email
+├─ FormControl  password     ← validator riêng của ô này
+└─ FormControl  confirm
+
+<span class="cmt">// Cả ba đều kế thừa AbstractControl -> cùng có:</span>
+<span class="cmt">//   value · valid/invalid · errors · touched/untouched · dirty/pristine</span>
+<span class="cmt">//   setValue/patchValue · valueChanges · statusChanges</span></code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Validator gắn ở nút nào thì nhìn thấy đúng nút đó và con cháu.
+          Cần so hai ô với nhau → gắn ở cha chung gần nhất.
+        </strong>
+      </p>
+    </div>
+    <table class="data">
+      <thead><tr><th>Loại</th><th>Gắn ở</th><th>Đọc lỗi ở</th></tr></thead>
+      <tbody>
+        <tr><td><code>required</code>, <code>minLength</code></td><td>FormControl</td><td><code>form.get('x').errors</code></td></tr>
+        <tr><td>Cross-field (khớp mật khẩu)</td><td><strong>FormGroup</strong></td><td><code>form.errors</code></td></tr>
+        <tr><td>Luật toàn form</td><td>FormGroup gốc</td><td><code>form.errors</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy: lỗi ở group KHÔNG xuất hiện ở control con</div>
+      <p>
+        Gắn validator ở group thì <code>form.get('confirm').errors</code> vẫn là <code>null</code>.
+        Template hiển thị lỗi theo control sẽ <strong>không thấy gì</strong> — form invalid mà không
+        báo lỗi nào, người dùng bấm Submit không được và không hiểu vì sao.
+      </p>
+      <p>Phải đọc ở <code>form.errors</code>, hoặc cho validator tự gán lỗi xuống control con.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Viết validator</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/validators/cross-field.validator.ts</span>
+<pre><code><span class="kw">export function</span> <span class="fn">matchFields</span>(fieldA: <span class="kw">string</span>, fieldB: <span class="kw">string</span>): ValidatorFn {
+  <span class="cmt">// Trả về HÀM -> tham số hoá được, dùng lại cho email/confirmEmail...</span>
+  <span class="kw">return</span> (group: AbstractControl): ValidationErrors | <span class="kw">null</span> => {
+    <span class="kw">const</span> a = group.<span class="fn">get</span>(fieldA);
+    <span class="kw">const</span> b = group.<span class="fn">get</span>(fieldB);
+    <span class="kw">if</span> (!a || !b) <span class="kw">return</span> <span class="kw">null</span>;
+
+    <span class="cmt">// Chưa nhập gì thì CHƯA phải lỗi "không khớp" — để required lo việc đó.</span>
+    <span class="cmt">// Không có dòng này, form vừa mở đã đỏ lòm.</span>
+    <span class="kw">if</span> (!b.value) <span class="kw">return</span> <span class="kw">null</span>;
+
+    <span class="cmt">// null = HỢP LỆ. Object = LỖI. Ngược trực giác nhưng là quy ước của Angular.</span>
+    <span class="kw">return</span> a.value === b.value ? <span class="kw">null</span> : { fieldsMismatch: { fieldA, fieldB } };
+  };
+}</code></pre>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · validator trả về THÔNG TIN, không chỉ true</span>
+<pre><code><span class="kw">export function</span> <span class="fn">strongPassword</span>(): ValidatorFn {
+  <span class="kw">return</span> (control: AbstractControl): ValidationErrors | <span class="kw">null</span> => {
+    <span class="kw">const</span> v = (control.value ?? <span class="str">''</span>) <span class="kw">as string</span>;
+    <span class="kw">if</span> (!v) <span class="kw">return</span> <span class="kw">null</span>;
+
+    <span class="kw">const</span> loi: <span class="kw">string</span>[] = [];
+    <span class="kw">if</span> (v.length &lt; <span class="num">8</span>) loi.<span class="fn">push</span>(<span class="str">'doDai'</span>);
+    <span class="kw">if</span> (!/[A-Z]/.<span class="fn">test</span>(v)) loi.<span class="fn">push</span>(<span class="str">'chuHoa'</span>);
+    <span class="kw">if</span> (!/[a-z]/.<span class="fn">test</span>(v)) loi.<span class="fn">push</span>(<span class="str">'chuThuong'</span>);
+    <span class="kw">if</span> (!/[0-9]/.<span class="fn">test</span>(v)) loi.<span class="fn">push</span>(<span class="str">'so'</span>);
+
+    <span class="cmt">// Trả DANH SÁCH thiếu gì -> template nói được "còn thiếu chữ hoa và số"</span>
+    <span class="cmt">// thay vì "mật khẩu không hợp lệ" (vô dụng với người dùng).</span>
+    <span class="kw">return</span> loi.length ? { strongPassword: { thieu: loi } } : <span class="kw">null</span>;
+  };
+}</code></pre>
+    </div>
+
+    <div class="callout why">
+      <div class="ct">🔎 Payload của lỗi là thứ phân biệt form tốt và form tệ</div>
+      <p>
+        <code>{ required: true }</code> đủ vì chỉ có một cách sai. Nhưng mật khẩu có
+        <strong>bốn</strong> cách sai — trả về danh sách cụ thể để UI hướng dẫn được người dùng
+        sửa đúng chỗ. Test đã verify: nhập <code>'abc'</code> ra
+        <code>thieu: ['doDai', 'chuHoa', 'so']</code>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Ráp vào form</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · register.component.ts</span>
+<pre><code><span class="kw">private readonly</span> fb = <span class="fn">inject</span>(FormBuilder);
+
+form = <span class="kw">this</span>.fb.<span class="fn">group</span>(
+  {
+    email: [<span class="str">''</span>, [Validators.required, Validators.email]],
+    password: [<span class="str">''</span>, [Validators.required, <span class="fn">strongPassword</span>()]],
+    confirm: [<span class="str">''</span>, Validators.required],
+  },
+  <span class="cmt">// Tham số THỨ HAI của fb.group() = options của chính GROUP.</span>
+  <span class="cmt">// Đặt nhầm vào trong object thứ nhất là tạo một control tên "validators".</span>
+  { validators: <span class="fn">matchFields</span>(<span class="str">'password'</span>, <span class="str">'confirm'</span>) },
+);</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · hiển thị lỗi đúng lúc</span>
+<pre><code>&lt;input formControlName="password" /&gt;
+
+<span class="cmt">&lt;!-- touched: đã chạm rồi rời đi. Không có nó thì form vừa mở đã đỏ. --&gt;</span>
+@if (form.get('password')?.touched &amp;&amp; form.get('password')?.errors?.['strongPassword']) {
+  &lt;small&gt;Còn thiếu: {{ form.get('password')?.errors?.['strongPassword'].thieu.join(', ') }}&lt;/small&gt;
+}
+
+<span class="cmt">&lt;!-- Lỗi cross-field đọc ở FORM, không phải ở control --&gt;</span>
+@if (form.errors?.['fieldsMismatch'] &amp;&amp; form.get('confirm')?.touched) {
+  &lt;small&gt;Mật khẩu xác nhận không khớp&lt;/small&gt;
+}</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Cờ</th><th>Nghĩa</th><th>Dùng khi</th></tr></thead>
+      <tbody>
+        <tr><td><code>touched</code></td><td>Đã focus rồi blur</td><td><strong>Mặc định</strong> — hiện lỗi sau khi rời ô</td></tr>
+        <tr><td><code>dirty</code></td><td>Giá trị đã đổi</td><td>Hiện lỗi ngay khi gõ</td></tr>
+        <tr><td>không dùng cờ</td><td>Hiện luôn</td><td>Sau khi bấm Submit</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>value</code> bỏ qua control bị disable</div>
+      <p>
+        <code>form.value</code> <strong>không</strong> chứa control đang <code>disabled</code>.
+        Bạn disable ô <code>role</code> cho người dùng thường, submit lên server thiếu hẳn field đó,
+        và backend báo lỗi validation khó hiểu.
+      </p>
+      <p>Dùng <code>form.getRawValue()</code> khi cần <em>toàn bộ</em> giá trị kể cả ô disabled.</p>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ <code>setValue</code> vs <code>patchValue</code></div>
+      <p>
+        <code>setValue</code> đòi <strong>đủ mọi</strong> field, thiếu một cái là ném lỗi —
+        an toàn khi bạn muốn chắc chắn không sót. <code>patchValue</code> nhận một phần,
+        im lặng bỏ qua khoá lạ — tiện nhưng gõ sai tên field thì <strong>không ai báo</strong>.
+      </p>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Cross-field validator đặt ở đâu, vì sao?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Ở <code>FormGroup</code> chứa cả hai control, vì
+        <code>ValidatorFn</code> chỉ nhận đúng control mà nó gắn vào — control con không thấy anh em.
+        Hệ quả cần nhớ: lỗi nằm ở <code>form.errors</code> chứ không ở
+        <code>form.get('confirm').errors</code>, nên template phải đọc đúng chỗ, nếu không form
+        invalid mà chẳng hiện lỗi nào."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Bạn gắn <code>matchFields</code> ở <code>FormGroup</code>. Template kiểm
+      <code>form.get('confirm')?.errors</code> để hiện lỗi. Người dùng nhập lệch hai mật khẩu — thấy gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không. Validator ở group ghi lỗi vào form.errors, KHÔNG lan xuống control con. Angular không tự sao chép lỗi xuống dưới.">
+      A. Thấy lỗi bình thường — Angular tự đẩy lỗi xuống control liên quan.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng, và đây là bug UX rất hay gặp. form.errors có fieldsMismatch nhưng form.get('confirm').errors là null, nên template không hiện gì. Người dùng thấy nút Submit bị khoá mà không biết vì sao — tệ hơn cả không validate. Phải đọc form.errors, hoặc cho validator tự setErrors xuống control con.">
+      B. <strong>Không thấy lỗi nào</strong>, nhưng nút Submit vẫn bị khoá — người dùng bế tắc.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không có lỗi runtime. form.get('confirm').errors trả null hoàn toàn hợp lệ — đó chính là lý do bug này im lặng.">
+      C. Lỗi runtime vì <code>errors</code> là <code>null</code>.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Validator của bạn <code>return { minAge: true }</code> khi tuổi &lt; 18. Có gì chưa ổn?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — quy ước Angular là null nghĩa là HỢP LỆ, object nghĩa là CÓ LỖI. Trả object khi sai là đúng.">
+      A. Sai quy ước — phải trả <code>null</code> khi có lỗi.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Nó CHẠY được, nhưng payload không mang thông tin nên template chỉ nói được 'tuổi không hợp lệ'. Trả { minAge: { canToiThieu: 18, thucTe: 15 } } thì UI hiện được 'Cần đủ 18 tuổi, bạn đang 15' — và thông báo lỗi dùng lại được ở nhiều nơi mà không hard-code số 18 trong template.">
+      B. Chạy được, nhưng payload rỗng nghĩa — nên trả kèm giá trị tối thiểu và giá trị thực tế.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Tên khoá tuỳ bạn đặt, không có danh sách cố định nào. Chỉ cần template đọc đúng khoá đó.">
+      C. Tên khoá <code>minAge</code> không hợp lệ, phải dùng tên Angular định sẵn.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>RegisterForm</code> + <code>LoginForm</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>matchFields(a, b)</code> nhận tên field làm tham số, dùng lại được. Test: lệch → <code>form.errors.fieldsMismatch</code>; khớp → <code>form.valid</code>.</li>
+        <li><strong>TC2</strong> — Test khẳng định lỗi nằm ở <strong>group</strong>: <code>form.get('confirm').errors</code> phải là <code>null</code>.</li>
+        <li><strong>TC3</strong> — <code>strongPassword()</code> trả <strong>danh sách</strong> thứ còn thiếu. Test <code>'abc'</code> → <code>['doDai','chuHoa','so']</code>.</li>
+        <li><strong>TC4</strong> — Ô confirm rỗng → <strong>không</strong> báo mismatch (để <code>required</code> lo).</li>
+        <li><strong>TC5</strong> — Template hiện lỗi theo <code>touched</code>; mở form lần đầu <strong>không</strong> có chữ đỏ nào.</li>
+        <li><strong>TC6</strong> — Chứng minh <code>form.value</code> bỏ qua control disabled còn <code>getRawValue()</code> thì không.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> <code>ValidatorFn</code> chỉ là <code>(control) =&gt; ValidationErrors | null</code>. Muốn tham số hoá thì viết hàm <em>trả về</em> hàm đó.</p>
+    <p><strong>Hint 2 · API:</strong> <code>fb.group(controls, { validators })</code> · <code>group.get('x')</code> · <code>control.errors</code> · <code>form.errors</code> · <code>markAllAsTouched()</code> khi submit.</p>
+    <p><strong>Hint 3 · TC6:</strong> <code>form.get('x').disable()</code> rồi so <code>Object.keys(form.value)</code> với <code>Object.keys(form.getRawValue())</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi coi form là <strong>cây</strong> và gắn validator ở đúng tầng.</li>
+      <li>Tôi biết lỗi ở group <strong>không</strong> lan xuống control con, và template phải đọc đúng chỗ.</li>
+      <li>Validator của tôi trả <strong>thông tin dùng được</strong>, không chỉ <code>true</code>.</li>
+      <li>Tôi biết <code>value</code> bỏ qua control disabled — dùng <code>getRawValue()</code> khi submit.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Form Review cần chọn <strong>số sao</strong>. Không có thẻ HTML nào làm việc đó —
+      bạn phải tự vẽ 5 ngôi sao bằng <code>&lt;button&gt;</code>.
+    </p>
+    <p>
+      Bạn có thể để component phát <code>@Output() ratingChange</code> rồi component cha tự
+      <code>form.get('rating').setValue(...)</code>. Nó chạy. Nhưng khi form gọi
+      <code>disable()</code>, component sao của bạn <strong>không biết gì</strong> — vẫn bấm được.
+      Và <code>form.reset()</code> cũng không xoá được số sao.
+    </p>
+    <p>
+      <strong>Làm sao để component tự viết hoạt động y hệt <code>&lt;input formControlName&gt;</code></strong> —
+      nhận được cả giá trị lẫn trạng thái disabled từ form?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Angular phải có một <strong>hợp đồng</strong> để component nói chuyện hai chiều với form.
+        Bài 16 mổ xẻ đúng hợp đồng đó — 4 method, và ai gọi cái nào.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 16 · <code>ControlValueAccessor</code> — 4 method và ai gọi chúng</div>
+    <p class="nd">Kỹ thuật phân biệt rõ nhất mid và senior Angular. Học hợp đồng trước, code sau.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0014-role-guard-route-data.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0016-control-value-accessor.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong> Gửi validator + spec + output.
+    TC2 là phần tôi đọc kỹ nhất — nó chứng minh bạn hiểu lỗi nằm ở tầng nào.
+  </p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

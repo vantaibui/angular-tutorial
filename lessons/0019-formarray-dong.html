@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 19 · FormArray động — thêm/xoá không mất data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 19 · Forms ⭐</span>
+    <h1><code>FormArray</code> động — thêm/xoá không mất data</h1>
+    <p class="subtitle">Danh sách control mà số lượng do người dùng quyết định lúc chạy.</p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Thêm/xoá không làm lệch dữ liệu · 🏷️ EduCommerce · Course Builder</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>FormArray</code> cho danh sách control động.</li>
+      <li>Biết vì sao <code>track</code> theo <code>index</code> là bẫy khi xoá giữa chừng.</li>
+      <li>Tách việc dựng form ra khỏi component.</li>
+      <li>Đọc được giá trị lồng nhau bằng <code>getRawValue()</code>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>Bài 15: form là cây với <code>FormGroup</code> (khoá cố định) và <code>FormControl</code> (lá).</p>
+    <p>Bài này thêm nút thứ ba: <strong><code>FormArray</code> — danh sách con mà số lượng đổi được lúc chạy.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Ba loại nút của cây form</h2>
+    <table class="data">
+      <thead><tr><th>Loại</th><th>Truy cập bằng</th><th>Số con</th><th>Dùng cho</th></tr></thead>
+      <tbody>
+        <tr><td><code>FormControl</code></td><td>—</td><td>0 (lá)</td><td>Một ô nhập</td></tr>
+        <tr><td><code>FormGroup</code></td><td><strong>tên</strong> khoá</td><td>Cố định lúc khai</td><td>Object có shape biết trước</td></tr>
+        <tr><td><code>FormArray</code></td><td><strong>chỉ số</strong></td><td><strong>Đổi lúc chạy</strong></td><td>Danh sách dài ngắn tuỳ người dùng</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p><strong>Biết trước tên khoá → <code>FormGroup</code>. Chỉ biết "một danh sách" → <code>FormArray</code>.</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Tách việc dựng form ra khỏi component</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/instructor/course-builder.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CourseBuilderService {
+  <span class="kw">private readonly</span> fb = <span class="fn">inject</span>(FormBuilder);
+
+  <span class="cmt">// Factory: mỗi lần gọi trả về một FormGroup MỚI, độc lập.</span>
+  <span class="cmt">// Dùng chung một instance cho nhiều dòng = mọi dòng đổi cùng lúc.</span>
+  <span class="fn">taoLesson</span>(title = <span class="str">''</span>, durationSeconds = <span class="num">0</span>): FormGroup {
+    <span class="kw">return this</span>.fb.<span class="fn">group</span>({
+      title: [title, [Validators.required, Validators.<span class="fn">minLength</span>(<span class="num">3</span>)]],
+      durationSeconds: [durationSeconds, [Validators.required, Validators.<span class="fn">min</span>(<span class="num">1</span>)]],
+      isFreePreview: [<span class="kw">false</span>],
+    });
+  }
+
+  <span class="cmt">// Helper ép kiểu — dùng ở CẢ template lẫn code, viết một lần ở đây.</span>
+  <span class="fn">lessons</span>(section: FormGroup): FormArray {
+    <span class="kw">return</span> section.<span class="fn">get</span>(<span class="str">'lessons'</span>) <span class="kw">as</span> FormArray;
+  }
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao tách ra service</div>
+      <p>
+        Component lo <em>hiển thị</em>; service lo <em>cấu trúc</em>. Nhờ vậy test logic form
+        không cần dựng component nào — toàn bộ test Bài 19–20 của tôi chạy thẳng trên service,
+        nhanh hơn nhiều và không phụ thuộc DOM.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Thêm / xoá / sắp xếp</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · API của FormArray</span>
+<pre><code><span class="kw">const</span> lessons = svc.<span class="fn">lessons</span>(section);
+
+lessons.<span class="fn">push</span>(svc.<span class="fn">taoLesson</span>());          <span class="cmt">// thêm cuối</span>
+lessons.<span class="fn">insert</span>(<span class="num">1</span>, svc.<span class="fn">taoLesson</span>());      <span class="cmt">// chèn giữa</span>
+lessons.<span class="fn">removeAt</span>(<span class="num">2</span>);                     <span class="cmt">// xoá theo CHỈ SỐ</span>
+lessons.<span class="fn">at</span>(<span class="num">0</span>).<span class="fn">patchValue</span>({ title: <span class="str">'X'</span> });
+lessons.length;                            <span class="cmt">// KHÔNG phải .controls.length</span>
+lessons.<span class="fn">clear</span>();                          <span class="cmt">// xoá sạch</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · template</span>
+<pre><code>&lt;div formArrayName="lessons"&gt;
+  @for (ctrl of lessons.controls; track ctrl; let i = $index) {
+    <span class="cmt">&lt;!-- formGroupName nhận CHỈ SỐ, không phải tên --&gt;</span>
+    &lt;div [formGroupName]="i"&gt;
+      &lt;input formControlName="title" /&gt;
+      &lt;button type="button" (click)="lessons.removeAt(i)"&gt;Xoá&lt;/button&gt;
+    &lt;/div&gt;
+  }
+&lt;/div&gt;</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>track $index</code> là bẫy khi xoá giữa chừng</div>
+      <p>
+        Có 5 lesson, xoá cái thứ 2. Với <code>track $index</code>, Angular thấy "index 1 giờ có nội
+        dung khác" và <strong>tái sử dụng DOM cũ</strong> cho control mới — ô input giữ nguyên giá trị
+        đang gõ dở của dòng cũ, và focus nhảy lung tung.
+      </p>
+      <p>
+        <code>track ctrl</code> (tham chiếu của chính control) thì Angular biết chính xác dòng nào
+        biến mất. Đây là lý do trong <code>@for</code> nên track theo <strong>danh tính</strong>
+        chứ không theo <strong>vị trí</strong>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Happy path chưa đủ</h2>
+    <div class="callout warn">
+      <div class="ct">⚖️ Xoá xong thì chỉ số của các control sau ĐỔI</div>
+      <p>
+        Nếu bạn lưu <code>selectedIndex = 3</code> ở đâu đó rồi xoá dòng 1, biến đó giờ trỏ nhầm dòng.
+        Đừng giữ chỉ số làm state — hãy giữ <strong>tham chiếu control</strong>, hoặc một
+        <code>id</code> trong chính giá trị form.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'xoá section GIỮA chừng không làm lệch các section còn lại'</span>, () => {
+  sections.<span class="fn">at</span>(<span class="num">0</span>).<span class="fn">patchValue</span>({ sectionTitle: <span class="str">'A'</span> });
+  sections.<span class="fn">push</span>(svc.<span class="fn">taoSection</span>(<span class="str">'B'</span>));
+  sections.<span class="fn">push</span>(svc.<span class="fn">taoSection</span>(<span class="str">'C'</span>));
+
+  sections.<span class="fn">removeAt</span>(<span class="num">1</span>);   <span class="cmt">// xoá B</span>
+
+  <span class="fn">expect</span>(sections.controls.<span class="fn">map</span>((c) => c.value.sectionTitle)).<span class="fn">toEqual</span>([<span class="str">'A'</span>, <span class="str">'C'</span>]);
+});</code></pre>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "<code>FormArray</code> khác <code>FormGroup</code> ở đâu?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "<code>FormGroup</code> có tập khoá cố định, truy cập theo tên —
+        hợp với object shape biết trước. <code>FormArray</code> truy cập theo chỉ số và
+        <code>push</code>/<code>removeAt</code> lúc chạy — hợp với danh sách người dùng tự thêm bớt.
+        Bẫy thực tế là track theo index trong <code>@for</code>: xoá giữa chừng sẽ khiến Angular
+        tái dùng DOM sai dòng."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. 5 lesson, người dùng đang gõ dở lesson 4, rồi xoá lesson 2.
+      Template dùng <code>track $index</code>. Chuyện gì xảy ra?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Dữ liệu trong FormArray thì đúng — removeAt xử lý chuẩn. Vấn đề nằm ở tầng DOM/hiển thị.">
+      A. Dữ liệu các lesson còn lại bị lệch một dòng.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. FormArray đúng, nhưng Angular thấy 'index 1 giờ có nội dung khác' nên tái dùng DOM node cũ thay vì tạo mới. Kết quả: ô input hiển thị giá trị cũ đang gõ dở, con trỏ nhảy chỗ. Bug này rất khó tả và chỉ hết khi đổi sang track theo tham chiếu control.">
+      B. Dữ liệu đúng nhưng <strong>DOM bị tái dùng sai dòng</strong> — ô input giữ giá trị cũ, focus nhảy.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không lỗi. Angular xử lý bình thường, chỉ là kết quả hiển thị sai — đó mới là điều khó chịu.">
+      C. Angular ném lỗi vì <code>formGroupName</code> trỏ tới chỉ số không tồn tại.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao <code>taoLesson()</code> là hàm trả về <code>FormGroup</code> mới,
+      chứ không phải một biến <code>lessonTemplate</code> dùng chung?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Bộ nhớ không phải vấn đề — FormGroup rất nhẹ. Vấn đề nghiêm trọng hơn nhiều.">
+      A. Để tiết kiệm bộ nhớ.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. push cùng một instance nhiều lần thì FormArray chứa N tham chiếu tới CÙNG một object — gõ vào dòng 1 thì dòng 2, 3 đổi theo. Bug trông như ma ám. Factory function đảm bảo mỗi dòng có state độc lập.">
+      B. Vì <code>push</code> cùng một instance nhiều lần = mọi dòng dùng chung state, gõ dòng này dòng kia đổi theo.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Angular không hề chặn. Nó cho push cùng một control nhiều lần, và đó chính là nguồn bug.">
+      C. Vì Angular cấm dùng lại cùng một <code>FormGroup</code>.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — danh sách Lesson động</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>CourseBuilderService</code> với factory <code>taoLesson()</code> và helper ép kiểu.</li>
+        <li><strong>TC2</strong> — Thêm lesson <strong>không</strong> làm mất data lesson đã nhập.</li>
+        <li><strong>TC3</strong> — Xoá lesson <strong>giữa chừng</strong>: các lesson còn lại giữ đúng dữ liệu (test bằng <code>map</code> qua <code>controls</code>).</li>
+        <li><strong>TC4</strong> — Validator trong lesson có hiệu lực: lesson thiếu title → <code>form.valid === false</code>.</li>
+        <li><strong>TC5</strong> — Template dùng <code>track ctrl</code>, <strong>không</strong> phải <code>$index</code>.</li>
+        <li><strong>TC6</strong> — <code>getRawValue()</code> ra mảng lesson đúng thứ tự.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Test logic form <strong>không cần</strong> component. Inject service, gọi <code>taoCourseForm()</code>, thao tác trên <code>FormArray</code> rồi assert — nhanh và sạch hơn nhiều.</p>
+    <p><strong>Hint 2 · API:</strong> <code>fb.array([...])</code> · <code>arr.push/removeAt/insert/at/clear</code> · <code>arr.length</code> · <code>form.get('x') as FormArray</code> · <code>formArrayName</code> + <code>[formGroupName]="i"</code>.</p>
+    <p><strong>Hint 3 · TC3:</strong> <code>expect(arr.controls.map(c =&gt; c.value.title)).toEqual(['A','C'])</code> — so cả nội dung lẫn thứ tự trong một dòng.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi chọn <code>FormArray</code> khi số lượng đổi lúc chạy, <code>FormGroup</code> khi shape biết trước.</li>
+      <li>Tôi dùng <strong>factory function</strong>, không tái dùng cùng một instance.</li>
+      <li>Tôi track theo <strong>danh tính</strong> chứ không theo vị trí.</li>
+      <li>Tôi không giữ chỉ số làm state vì nó đổi khi xoá.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Một Course có nhiều <strong>Section</strong>, và mỗi Section lại có nhiều <strong>Lesson</strong>.
+      Nghĩa là bạn cần một <code>FormArray</code> mà <em>mỗi phần tử</em> của nó lại chứa một
+      <code>FormArray</code> khác.
+    </p>
+    <p>
+      Trong template, làm sao Angular biết <code>formControlName="title"</code> đang nói về title của
+      <em>Section</em> hay của <em>Lesson</em>? Cả hai đều tên <code>title</code>.
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Bài 20 làm form phức tạp nhất của cả app — và nó chỉ là Bài 19 lồng thêm một tầng.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 20 · Nested <code>FormArray</code> — Course Builder</div>
+    <p class="nd">Section → Lesson, hai tầng lồng nhau, và cách template không bị lạc đường.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0018-tag-input-ng-validators.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0020-nested-formarray-course-builder.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 Gửi service + spec + output. TC3 là phần quan trọng nhất.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

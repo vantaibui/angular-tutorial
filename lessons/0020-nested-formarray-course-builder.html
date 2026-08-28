@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 20 · Nested FormArray — Course Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 20 · Forms ⭐⭐⭐</span>
+    <h1>Nested <code>FormArray</code> — Course Builder</h1>
+    <p class="subtitle">Form phức tạp nhất của app: Course → Section → Lesson, hai tầng lồng nhau.</p>
+    <p class="meta-line">⏱ ~50 phút · 🎯 Submit ra JSON lồng khớp <code>types.ts</code> · 🏷️ EduCommerce · Instructor</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dựng form lồng hai tầng và giữ template không bị lạc đường.</li>
+      <li>Giải thích trạng thái <code>valid</code> lan từ lá lên gốc thế nào.</li>
+      <li>Thao tác trên nhánh này không đụng nhánh kia.</li>
+      <li>Xuất ra JSON đúng cấu trúc backend cần.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>Bài 19: <code>FormArray</code> một tầng, factory function, track theo danh tính.</p>
+    <p>Bài này chỉ thêm một mảnh: <strong>phần tử của <code>FormArray</code> là <code>FormGroup</code> chứa <code>FormArray</code> khác.</strong> Không có API mới — chỉ là lồng.</p>
+  </section>
+
+  <section>
+    <h2>1. Cấu trúc đích</h2>
+    <div class="code-block">
+      <span class="code-label">Cây form</span>
+<pre><code>FormGroup (course)
+├─ FormControl  title
+├─ FormControl  tags          ← app-tag-input (Bài 18)
+└─ FormArray    sections
+   └─ FormGroup [0]
+      ├─ FormControl  sectionTitle
+      └─ FormArray    lessons
+         └─ FormGroup [0]
+            ├─ FormControl  title
+            ├─ FormControl  durationSeconds
+            └─ FormControl  isFreePreview</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · dựng bằng factory lồng factory</span>
+<pre><code><span class="fn">taoSection</span>(sectionTitle = <span class="str">''</span>): FormGroup {
+  <span class="kw">return this</span>.fb.<span class="fn">group</span>({
+    sectionTitle: [sectionTitle, Validators.required],
+    <span class="cmt">// Section mới luôn có sẵn 1 lesson — form trống hoàn toàn khiến</span>
+    <span class="cmt">// người dùng không biết phải bấm gì tiếp theo.</span>
+    lessons: <span class="kw">this</span>.fb.<span class="fn">array</span>([<span class="kw">this</span>.<span class="fn">taoLesson</span>()]),
+  });
+}
+
+<span class="fn">taoCourseForm</span>(): FormGroup {
+  <span class="kw">return this</span>.fb.<span class="fn">group</span>({
+    title: [<span class="str">''</span>, [Validators.required, Validators.<span class="fn">minLength</span>(<span class="num">5</span>)]],
+    tags: [[] <span class="kw">as string</span>[]],
+    sections: <span class="kw">this</span>.fb.<span class="fn">array</span>([<span class="kw">this</span>.<span class="fn">taoSection</span>()]),
+  });
+}</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Template — trả lời câu hỏi tư duy Bài 19</h2>
+    <p>
+      Angular biết <code>formControlName="title"</code> nói về ai nhờ <strong>ngữ cảnh lồng nhau</strong>
+      của các directive. Mỗi tầng thu hẹp phạm vi một bậc:
+    </p>
+    <div class="code-block">
+      <span class="code-label">HTML · course-builder.component.html</span>
+<pre><code>&lt;form [formGroup]="form"&gt;
+  &lt;input formControlName="title" /&gt;              <span class="cmt">&lt;!-- title của COURSE --&gt;</span>
+  &lt;app-tag-input formControlName="tags"&gt;&lt;/app-tag-input&gt;
+
+  &lt;div formArrayName="sections"&gt;
+    @for (s of sections.controls; track s; let i = $index) {
+
+      &lt;div [formGroupName]="i"&gt;                  <span class="cmt">&lt;!-- vào section thứ i --&gt;</span>
+        &lt;input formControlName="sectionTitle" /&gt;
+
+        &lt;div formArrayName="lessons"&gt;
+          @for (l of lessonsCua(i).controls; track l; let j = $index) {
+
+            &lt;div [formGroupName]="j"&gt;            <span class="cmt">&lt;!-- vào lesson thứ j --&gt;</span>
+              &lt;input formControlName="title" /&gt;  <span class="cmt">&lt;!-- title của LESSON --&gt;</span>
+              &lt;input type="number" formControlName="durationSeconds" /&gt;
+              &lt;button type="button" (click)="xoaLesson(i, j)"&gt;Xoá bài&lt;/button&gt;
+            &lt;/div&gt;
+          }
+        &lt;/div&gt;
+
+        &lt;button type="button" (click)="themLesson(i)"&gt;+ Bài học&lt;/button&gt;
+        &lt;button type="button" (click)="xoaSection(i)"&gt;Xoá chương&lt;/button&gt;
+      &lt;/div&gt;
+    }
+  &lt;/div&gt;
+
+  &lt;button type="button" (click)="themSection()"&gt;+ Chương&lt;/button&gt;
+  &lt;button type="submit" [disabled]="form.invalid"&gt;Lưu&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Mỗi <code>formGroupName</code>/<code>formArrayName</code> đi xuống <em>một</em> tầng của cây.
+          <code>formControlName</code> luôn tương đối với tầng gần nhất bao quanh nó.
+        </strong>
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Ba lỗi template hay gặp</div>
+      <ul>
+        <li><code>formGroupName="i"</code> thiếu ngoặc vuông → Angular tìm khoá tên <em>"i"</em> chứ không phải chỉ số. Phải là <code>[formGroupName]="i"</code>.</li>
+        <li>Quên <code>&lt;div formArrayName="lessons"&gt;</code> bọc ngoài → <code>[formGroupName]="j"</code> tìm trong section thay vì trong lessons.</li>
+        <li>Gọi hàm trong <code>@for</code> (<code>lessonsCua(i)</code>) chạy lại mỗi chu kỳ CD. Chấp nhận được vì nó chỉ ép kiểu; nhưng đừng đặt tính toán nặng ở đó.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Trạng thái lan từ lá lên gốc</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'form INVALID khi lesson lồng sâu bị thiếu -> lỗi nổi lên tận gốc'</span>, () => {
+  <span class="fn">expect</span>(form.valid).<span class="fn">toBe</span>(<span class="kw">false</span>);
+
+  form.<span class="fn">patchValue</span>({ title: <span class="str">'Angular căn bản'</span> });
+  <span class="kw">const</span> s0 = svc.<span class="fn">sections</span>(form).<span class="fn">at</span>(<span class="num">0</span>) <span class="kw">as</span> FormGroup;
+  s0.<span class="fn">patchValue</span>({ sectionTitle: <span class="str">'Mở đầu'</span> });
+  svc.<span class="fn">lessons</span>(s0).<span class="fn">at</span>(<span class="num">0</span>).<span class="fn">patchValue</span>({ title: <span class="str">'Giới thiệu'</span>, durationSeconds: <span class="num">60</span> });
+
+  <span class="fn">expect</span>(form.valid).<span class="fn">toBe</span>(<span class="kw">true</span>);   <span class="cmt">// mọi lá hợp lệ -> gốc hợp lệ</span>
+});</code></pre>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Ưu điểm và nhược điểm của việc lỗi nổi lên</div>
+      <p>
+        <strong>Ưu:</strong> <code>[disabled]="form.invalid"</code> ở nút Lưu tự động đúng, không cần
+        kiểm từng nhánh.
+      </p>
+      <p>
+        <strong>Nhược:</strong> người dùng thấy nút Lưu bị khoá mà không biết lỗi nằm ở
+        <em>chương 3, bài 7</em>. Với form sâu, phải có cách <strong>chỉ đường</strong> — đánh dấu
+        chương nào đang lỗi, hoặc cuộn tới ô sai đầu tiên khi bấm Lưu.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Thao tác nhánh này không đụng nhánh kia</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'thêm lesson vào section 2 không đụng section 1'</span>, () => {
+  sections.<span class="fn">push</span>(svc.<span class="fn">taoSection</span>(<span class="str">'S2'</span>));
+
+  <span class="kw">const</span> lessons2 = svc.<span class="fn">lessons</span>(sections.<span class="fn">at</span>(<span class="num">1</span>) <span class="kw">as</span> FormGroup);
+  lessons2.<span class="fn">push</span>(svc.<span class="fn">taoLesson</span>(<span class="str">'Bài 2'</span>, <span class="num">120</span>));
+
+  <span class="fn">expect</span>(svc.<span class="fn">lessons</span>(sections.<span class="fn">at</span>(<span class="num">0</span>) <span class="kw">as</span> FormGroup).length).<span class="fn">toBe</span>(<span class="num">1</span>);
+  <span class="fn">expect</span>(lessons2.length).<span class="fn">toBe</span>(<span class="num">2</span>);
+});</code></pre>
+    </div>
+    <p>
+      Test này nhìn có vẻ hiển nhiên — nhưng nó chính là thứ <strong>đỏ</strong> nếu bạn dùng
+      <code>lessonTemplate</code> dùng chung thay vì factory (Bài 19, Câu 2).
+      Nó bảo vệ bạn khỏi đúng cái bug khó tả nhất của form lồng.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Xuất ra JSON</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">onSubmit</span>(): <span class="kw">void</span> {
+  <span class="kw">if</span> (<span class="kw">this</span>.form.invalid) {
+    <span class="cmt">// Không có dòng này thì ô chưa chạm vẫn untouched -> không hiện lỗi,</span>
+    <span class="cmt">// người dùng bấm Lưu và "không có gì xảy ra".</span>
+    <span class="kw">this</span>.form.<span class="fn">markAllAsTouched</span>();
+    <span class="kw">return</span>;
+  }
+  <span class="cmt">// getRawValue() để lấy cả control disabled (Bài 15).</span>
+  <span class="kw">this</span>.courseService.<span class="fn">create</span>(<span class="kw">this</span>.form.<span class="fn">getRawValue</span>()).<span class="fn">subscribe</span>();
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">JSON · kết quả, khớp types.ts</span>
+<pre><code>{
+  <span class="str">"title"</span>: <span class="str">"Angular căn bản"</span>,
+  <span class="str">"tags"</span>: [<span class="str">"angular"</span>],
+  <span class="str">"sections"</span>: [
+    {
+      <span class="str">"sectionTitle"</span>: <span class="str">"Mở đầu"</span>,
+      <span class="str">"lessons"</span>: [
+        { <span class="str">"title"</span>: <span class="str">"Giới thiệu"</span>, <span class="str">"durationSeconds"</span>: <span class="num">60</span>, <span class="str">"isFreePreview"</span>: <span class="kw">false</span> }
+      ]
+    }
+  ]
+}</code></pre>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Làm form lồng nhiều tầng thế nào, khó nhất ở đâu?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "<code>FormArray</code> chứa <code>FormGroup</code> chứa
+        <code>FormArray</code>, dựng bằng factory function để mỗi nhánh có state độc lập.
+        Template lồng <code>formArrayName</code> → <code>[formGroupName]="i"</code> theo đúng tầng.
+        Khó nhất không phải cú pháp mà là <strong>UX</strong>: lỗi ở lá làm cả form invalid,
+        nên phải chỉ đường cho người dùng biết lỗi nằm ở chương nào bài nào, chứ không chỉ khoá nút Lưu."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Bạn viết <code>&lt;div formGroupName="i"&gt;</code> (không có ngoặc vuông). Chuyện gì xảy ra?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không tương đương. Không ngoặc vuông thì Angular nhận CHUỖI 'i', có ngoặc vuông mới là GIÁ TRỊ của biến i.">
+      A. Giống hệt <code>[formGroupName]="i"</code>, ngoặc vuông chỉ là tuỳ chọn.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Không ngoặc vuông = truyền chuỗi tĩnh 'i'. Angular đi tìm control tên 'i' trong FormArray, không thấy, và ném lỗi 'Cannot find control with name: i'. Thông báo này khá rõ nhưng dễ nhìn nhầm thành lỗi khác nếu bạn không biết nguyên nhân.">
+      B. Angular tìm control tên <code>"i"</code> và ném <em>"Cannot find control with name: i"</em>.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không im lặng. Angular ném lỗi rõ ràng ở runtime khi dựng form.">
+      C. Im lặng bỏ qua, form vẫn chạy nhưng không bind.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Form có 5 chương, 40 bài. Người dùng bấm Lưu, nút bị khoá vì
+      <code>form.invalid</code>. Vấn đề UX ở đây là gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không phải vấn đề kỹ thuật — form.invalid hoàn toàn chính xác. Vấn đề là người dùng không hành động được với thông tin đó.">
+      A. <code>form.invalid</code> tính sai với form lồng sâu.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Trạng thái invalid lan từ lá lên gốc, nên gốc biết 'có lỗi' nhưng người dùng không biết lỗi ở ĐÂU trong 40 bài. Phải đánh dấu chương/bài đang lỗi, hoặc cuộn tới ô sai đầu tiên khi bấm Lưu. Đây là lý do markAllAsTouched() một mình chưa đủ với form sâu.">
+      B. Người dùng không biết lỗi nằm ở bài nào trong 40 bài — cần chỉ đường, không chỉ khoá nút.
+    </button>
+    <button class="opt" data-correct="false" data-explain="markAllAsTouched là cần thiết nhưng chưa đủ: nó làm lỗi HIỆN RA, nhưng nếu lỗi nằm ở bài 37 ngoài màn hình thì người dùng vẫn không thấy.">
+      C. Chỉ cần gọi <code>markAllAsTouched()</code> là xong.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — Course Builder</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Cấu trúc đúng cây ở mục 1, dựng bằng factory lồng factory.</li>
+        <li><strong>TC2</strong> — Thêm/xoá Section <strong>và</strong> Lesson đều hoạt động, không mất data phần khác.</li>
+        <li><strong>TC3</strong> — Thao tác trên section 2 <strong>không</strong> ảnh hưởng section 1.</li>
+        <li><strong>TC4</strong> — Lesson thiếu title → <code>form.invalid</code>; điền đủ → <code>form.valid</code>.</li>
+        <li><strong>TC5</strong> — <code>getRawValue()</code> ra JSON lồng đúng như mục 5.</li>
+        <li><strong>TC6</strong> — Template render được, <code>pnpm start</code> thêm/xoá bằng chuột chạy đúng.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> khi bấm Lưu mà form invalid, tự động
+        <strong>mở rộng chương đầu tiên có lỗi</strong> và cuộn tới ô sai — giải đúng vấn đề UX ở Câu 2.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Dựng và test <strong>service</strong> cho xong trước, template làm sau. Sai cấu trúc mà đi sửa template là gấp đôi công.</p>
+    <p><strong>Hint 2 · API:</strong> <code>fb.array([fb.group({...})])</code> · helper <code>lessonsCua(i)</code> ép kiểu · <code>markAllAsTouched()</code> · <code>getRawValue()</code>.</p>
+    <p><strong>Hint 3 · Nếu "Cannot find control":</strong> đếm ngược từ <code>formControlName</code> lên gốc, mỗi <code>formArrayName</code>/<code>[formGroupName]</code> phải khớp đúng một tầng của cây ở mục 1.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi dựng được form lồng hai tầng mà không lạc đường trong template.</li>
+      <li>Tôi biết trạng thái lan từ lá lên gốc, và <strong>hệ quả UX</strong> của nó.</li>
+      <li>Tôi test cấu trúc form ở tầng service, không phụ thuộc DOM.</li>
+      <li>Tôi biết <code>markAllAsTouched()</code> là cần nhưng chưa đủ với form sâu.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Instructor tạo xong 8 chương rồi muốn <strong>đổi thứ tự</strong> — kéo chương 5 lên đầu.
+    </p>
+    <p>
+      Bạn có thể thêm nút ▲▼ gọi <code>removeAt</code> rồi <code>insert</code>. Nhưng với 8 chương,
+      kéo chương cuối lên đầu là <strong>7 lần bấm</strong>.
+    </p>
+    <p>
+      <strong>Kéo-thả thì cần gì?</strong> Và khi thả xuống, làm sao đổi vị trí control
+      mà <em>không</em> dựng lại nó — vì dựng lại là mất sạch trạng thái <code>touched</code>,
+      <code>dirty</code> và cả những gì đang gõ dở?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã thấy kỹ thuật này trong một test ở Bài 19 rồi.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 21 · CDK Drag &amp; Drop — sắp xếp trong <code>FormArray</code></div>
+    <p class="nd">Kéo thả giữ nguyên control, không dựng lại — nên không mất trạng thái.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0019-formarray-dong.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0021-cdk-drag-drop-formarray.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 Gửi service + spec + output + ảnh chụp form chạy thật.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

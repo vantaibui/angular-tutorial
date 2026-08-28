@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 21 · CDK Drag &amp; Drop — sắp xếp trong FormArray</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 21 · Forms</span>
+    <h1>CDK Drag &amp; Drop — sắp xếp trong <code>FormArray</code></h1>
+    <p class="subtitle">Đổi vị trí control mà <strong>không dựng lại</strong> nó — nên không mất trạng thái.</p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Kéo thả chương/bài, giữ nguyên data · 🏷️ EduCommerce · Instructor</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Cắm CDK Drag &amp; Drop vào một <code>FormArray</code>.</li>
+      <li>Đổi vị trí bằng <code>removeAt</code> + <code>insert</code> và nói được vì sao <strong>không</strong> dựng lại control.</li>
+      <li>Đồng bộ thứ tự DOM với thứ tự dữ liệu — hai thứ khác nhau.</li>
+      <li>Test logic sắp xếp mà không cần mô phỏng chuột.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>Bài 19: <code>removeAt</code>/<code>insert</code>. Bài 20: form lồng hai tầng.</p>
+    <p>Bài này thêm một mảnh: <strong>CDK chỉ báo "từ index A sang index B" — phần còn lại là <code>FormArray</code> thuần.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Cài đặt</h2>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code><span class="fn">pnpm</span> add @angular/cdk</code></pre>
+    </div>
+    <p>Đã verify: <code>@angular/cdk 22.1.4</code>, khớp version Angular. CDK không kéo theo Material — chỉ là hành vi, không có style áp đặt.</p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · module</span>
+<pre><code><span class="kw">import</span> { DragDropModule } <span class="kw">from</span> <span class="str">'@angular/cdk/drag-drop'</span>;
+
+<span class="fn">@NgModule</span>({ imports: [DragDropModule, ...] })
+<span class="kw">export class</span> InstructorModule {}</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: DOM và dữ liệu là hai thứ khác nhau</h2>
+    <div class="code-block">
+      <span class="code-label">Chuyện gì xảy ra khi thả</span>
+<pre><code>Người dùng thả chuột
+      │
+      ▼
+CDK phát (cdkDropListDropped) với { previousIndex: 4, currentIndex: 0 }
+      │
+      ▼
+CDK ĐÃ tự đổi vị trí DOM (hiệu ứng mượt)
+      │
+      ▼
+BẠN phải đổi vị trí trong FormArray  ← không làm thì DỮ LIỆU vẫn thứ tự cũ
+      │
+      ▼
+Angular render lại theo FormArray -> hai bên khớp nhau</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          CDK lo phần <em>nhìn thấy</em>. Bạn lo phần <em>dữ liệu</em>.
+          Quên vế thứ hai thì UI đúng, submit lên server sai thứ tự.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Code</h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>&lt;div formArrayName="sections" cdkDropList (cdkDropListDropped)="doiChoSection($event)"&gt;
+  @for (s of sections.controls; track s; let i = $index) {
+    &lt;div [formGroupName]="i" cdkDrag&gt;
+      <span class="cmt">&lt;!-- Handle riêng: kéo bằng icon, không kéo bằng cả khối --&gt;</span>
+      <span class="cmt">&lt;!-- Thiếu handle thì chọn chữ trong input cũng kích hoạt kéo --&gt;</span>
+      &lt;span cdkDragHandle class="handle"&gt;⠿&lt;/span&gt;
+      &lt;input formControlName="sectionTitle" /&gt;
+    &lt;/div&gt;
+  }
+&lt;/div&gt;</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">import</span> { CdkDragDrop } <span class="kw">from</span> <span class="str">'@angular/cdk/drag-drop'</span>;
+
+<span class="fn">doiChoSection</span>(ev: CdkDragDrop&lt;<span class="kw">unknown</span>[]&gt;): <span class="kw">void</span> {
+  <span class="kw">if</span> (ev.previousIndex === ev.currentIndex) <span class="kw">return</span>;   <span class="cmt">// thả tại chỗ</span>
+
+  <span class="kw">const</span> arr = <span class="kw">this</span>.sections;
+
+  <span class="cmt">// GIỮ NGUYÊN control rồi chèn lại — KHÔNG tạo control mới.</span>
+  <span class="cmt">// Tạo mới sẽ mất touched/dirty/errors và cả những gì đang gõ dở.</span>
+  <span class="kw">const</span> ctrl = arr.<span class="fn">at</span>(ev.previousIndex);
+  arr.<span class="fn">removeAt</span>(ev.previousIndex);
+  arr.<span class="fn">insert</span>(ev.currentIndex, ctrl);
+
+  <span class="cmt">// Sắp xếp là một thay đổi thật -> đánh dấu để nút Lưu bật lên.</span>
+  arr.<span class="fn">markAsDirty</span>();
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Đừng dùng <code>patchValue</code> để sắp xếp</div>
+      <div class="code-block">
+        <span class="code-label">TypeScript · ❌ cách sai hay gặp</span>
+<pre><code><span class="kw">const</span> giaTri = arr.<span class="fn">getRawValue</span>();
+<span class="fn">moveItemInArray</span>(giaTri, ev.previousIndex, ev.currentIndex);
+arr.<span class="fn">patchValue</span>(giaTri);   <span class="cmt">// ← giá trị đổi, nhưng CONTROL thì không</span></code></pre>
+      </div>
+      <p>
+        Cách này chỉ chép <em>giá trị</em> sang control ở vị trí khác. Hậu quả:
+      </p>
+      <ul>
+        <li>Trạng thái <code>touched</code>/<code>dirty</code> ở lại <strong>sai dòng</strong>.</li>
+        <li>Thông báo lỗi hiện ở dòng không có lỗi.</li>
+        <li>Với form lồng (Bài 20), mảng <code>lessons</code> bên trong bị chép cạn — hai section dùng chung tham chiếu.</li>
+      </ul>
+      <p><strong>Di chuyển <em>control</em>, không phải chép <em>giá trị</em>.</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Test không cần chuột</h2>
+    <p>
+      Mô phỏng thao tác kéo trong test rất phiền và giòn. Nhưng thứ đáng test không phải cử chỉ chuột —
+      mà là <strong>logic sắp xếp</strong>. Gọi thẳng handler:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'đổi chỗ 2 section giữ nguyên toàn bộ data con'</span>, () => {
+  sections.<span class="fn">at</span>(<span class="num">0</span>).<span class="fn">patchValue</span>({ sectionTitle: <span class="str">'A'</span> });
+  sections.<span class="fn">push</span>(svc.<span class="fn">taoSection</span>(<span class="str">'B'</span>));
+
+  <span class="cmt">// Chính kỹ thuật CDK dùng — test được mà không cần chuột.</span>
+  <span class="kw">const</span> ctrl = sections.<span class="fn">at</span>(<span class="num">0</span>);
+  sections.<span class="fn">removeAt</span>(<span class="num">0</span>);
+  sections.<span class="fn">insert</span>(<span class="num">1</span>, ctrl);
+
+  <span class="fn">expect</span>(sections.controls.<span class="fn">map</span>((c) => c.value.sectionTitle)).<span class="fn">toEqual</span>([<span class="str">'B'</span>, <span class="str">'A'</span>]);
+});</code></pre>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Kéo thả để sắp xếp <code>FormArray</code> — cần lưu ý gì?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "CDK chỉ đổi DOM và báo cặp index; mình phải tự đổi trong
+        <code>FormArray</code>, nếu không dữ liệu submit vẫn thứ tự cũ. Quan trọng là
+        <strong>di chuyển control</strong> bằng <code>removeAt</code>+<code>insert</code>, chứ không
+        <code>patchValue</code> giá trị — chép giá trị làm <code>touched</code>/<code>dirty</code>
+        và lỗi ở lại sai dòng. Và luôn dùng <code>cdkDragHandle</code>, nếu không người dùng
+        không bôi đen được chữ trong input."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Bạn cắm <code>cdkDropList</code> + <code>cdkDrag</code> nhưng <strong>quên</strong>
+      xử lý <code>(cdkDropListDropped)</code>. Người dùng kéo — thấy gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="CDK không đụng vào FormArray của bạn — nó không biết gì về Angular Forms. Nó chỉ báo sự kiện.">
+      A. Vẫn chạy đúng — CDK tự cập nhật <code>FormArray</code>.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng, và đây là bug khó chịu nhất của kéo thả. Kéo thì mượt, thả thì item BẬT VỀ CHỖ CŨ — vì Angular render lại theo FormArray, mà FormArray chưa đổi. Người dùng tưởng thao tác kéo bị lỗi. Nếu bạn chỉ đổi DOM mà không đổi dữ liệu thì còn tệ hơn: UI đúng nhưng submit sai thứ tự.">
+      B. Kéo mượt nhưng thả xong item <strong>bật về chỗ cũ</strong> — vì Angular render theo <code>FormArray</code> chưa đổi.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Không lỗi. CDK phát sự kiện, không ai nghe — hoàn toàn hợp lệ về mặt kỹ thuật.">
+      C. Angular ném lỗi vì thiếu handler.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao <code>removeAt</code>+<code>insert</code> tốt hơn <code>patchValue</code> mảng đã sắp xếp?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Hiệu năng không đáng kể ở quy mô này. Khác biệt nằm ở tính ĐÚNG.">
+      A. Vì nhanh hơn với danh sách dài.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. patchValue chỉ chép GIÁ TRỊ sang control ở vị trí mới; bản thân control (cùng touched, dirty, errors, và FormArray lessons lồng bên trong) vẫn ở nguyên chỗ cũ. Kết quả: lỗi hiện sai dòng, và với form lồng thì mảng con bị chia sẻ tham chiếu. Di chuyển control giữ trọn danh tính của nó.">
+      B. Vì <code>patchValue</code> chỉ chép giá trị — <code>touched</code>/<code>dirty</code>/lỗi ở lại sai dòng.
+    </button>
+    <button class="opt" data-correct="false" data-explain="patchValue hoàn toàn dùng được với FormArray. Vấn đề không phải nó có chạy hay không, mà là nó làm SAI việc.">
+      C. Vì <code>patchValue</code> không dùng được với <code>FormArray</code>.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — kéo thả Section và Lesson</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Kéo thả đổi thứ tự <strong>Section</strong>, dữ liệu trong <code>FormArray</code> đổi theo.</li>
+        <li><strong>TC2</strong> — Kéo thả <strong>Lesson trong một Section</strong> (drop list lồng nhau).</li>
+        <li><strong>TC3</strong> — Dùng <code>cdkDragHandle</code>: kéo bằng icon, vẫn bôi đen được chữ trong input.</li>
+        <li><strong>TC4</strong> — Test logic sắp xếp <strong>không mô phỏng chuột</strong>: gọi thẳng handler với <code>{previousIndex, currentIndex}</code> giả.</li>
+        <li><strong>TC5</strong> — Sau khi sắp xếp, gõ dở ở một ô <strong>không</strong> bị mất; <code>touched</code> đi theo đúng dòng.</li>
+        <li><strong>TC6</strong> — Thả tại chỗ (<code>previousIndex === currentIndex</code>) không làm form <code>dirty</code>.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> kéo Lesson từ Section này sang Section khác (<code>cdkDropListGroup</code> + <code>transferArrayItem</code> phiên bản FormArray).</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Làm Section trước cho chạy, rồi mới lồng Lesson. Drop list lồng nhau cần <code>cdkDropListGroup</code> ở ngoài.</p>
+    <p><strong>Hint 2 · API:</strong> <code>cdkDropList</code> · <code>cdkDrag</code> · <code>cdkDragHandle</code> · <code>(cdkDropListDropped)</code> · <code>CdkDragDrop&lt;T&gt;</code> có <code>previousIndex</code>/<code>currentIndex</code>.</p>
+    <p><strong>Hint 3 · TC4:</strong> handler chỉ cần một object có đúng hai field đó: <code>cmp.doiChoSection({ previousIndex: 0, currentIndex: 1 } as CdkDragDrop&lt;unknown[]&gt;)</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết CDK lo DOM, tôi lo dữ liệu — quên vế hai thì submit sai thứ tự.</li>
+      <li>Tôi <strong>di chuyển control</strong>, không chép giá trị.</li>
+      <li>Tôi luôn dùng <code>cdkDragHandle</code> khi trong item có input.</li>
+      <li>Tôi test logic chứ không test cử chỉ chuột.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa hard-code template cho Course info: <code>title</code>, <code>tags</code>, <code>level</code>…
+      Sắp tới cần form sửa Category, form profile User, form Coupon — mỗi cái một template riêng,
+      nhưng <strong>cấu trúc thì giống hệt</strong>: nhãn, ô nhập, thông báo lỗi.
+    </p>
+    <p>
+      Nếu bạn mô tả form bằng một <strong>mảng object</strong> (field nào, kiểu gì, validator gì)
+      thì một component duy nhất render được mọi form.
+    </p>
+    <p>
+      <strong>Nhưng làm sao để gõ sai tên field là lỗi biên dịch, chứ không phải bug runtime?</strong>
+      Bài 14 đã cho bạn thấy <code>route.data</code> gõ nhầm nguy hiểm thế nào.
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: Bài 05 mục 5 — <code>keyof</code>. Bài 22 ghép Generics với Forms.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 22 · <code>DynamicFormComponent</code> — render form từ schema</div>
+    <p class="nd">Một component, mọi form. Đổi schema không sửa template.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0020-nested-formarray-course-builder.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0022-dynamic-form-schema.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 Gửi handler + spec + video/ảnh kéo thả chạy thật. TC5 là phần tôi kiểm kỹ nhất.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

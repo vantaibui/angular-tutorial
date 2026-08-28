@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 22 · DynamicFormComponent — render form từ schema</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 22 · Forms ⭐⭐⭐</span>
+    <h1><code>DynamicFormComponent</code> — render form từ schema</h1>
+    <p class="subtitle">
+      Một component, mọi form. Đổi schema mà <strong>không sửa một dòng template</strong> —
+      nơi Generics (Bài 05) gặp Forms.
+    </p>
+    <p class="meta-line">⏱ ~50 phút · 🎯 Component tái sử dụng thật · 🏷️ Bài đỉnh của Module 4</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Mô tả form bằng dữ liệu, và dựng <code>FormGroup</code> từ mô tả đó.</li>
+      <li>Dùng <code>keyof</code> để gõ sai tên field là <strong>lỗi biên dịch</strong>.</li>
+      <li>Render đúng loại control theo <code>type</code>, kể cả custom control Bài 17–18.</li>
+      <li>Biết khi nào dynamic form là <strong>sai lựa chọn</strong>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 05: <code>&lt;T, K extends keyof T&gt;</code> giữ quan hệ giữa các vị trí trong chữ ký.
+      Bài 17–18: hai custom control cắm được vào bất kỳ form nào.
+    </p>
+    <p>Bài này ghép chúng lại: <strong>form trở thành dữ liệu, và dữ liệu đó được kiểm kiểu.</strong></p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: cùng một khuôn, chép năm lần</h2>
+    <p>
+      Form Course, Category, User profile, Coupon — cấu trúc HTML <strong>giống hệt</strong>:
+      nhãn, ô nhập, thông báo lỗi. Chỉ khác danh sách field.
+    </p>
+    <p>
+      Chép template năm lần nghĩa là: đổi cách hiển thị lỗi phải sửa năm chỗ,
+      và chắc chắn sẽ có một chỗ bị bỏ sót.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Thứ thay đổi giữa năm form là <strong>dữ liệu</strong> (danh sách field), không phải
+        <strong>logic</strong> (dựng control, render, hiện lỗi). Đúng bài toán Bài 14 đã giải cho guard
+        bằng <code>route.data</code> — chỉ khác quy mô.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Schema — và <code>keyof</code> để không gõ sai tên</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/dynamic-form/form-field-schema.ts</span>
+<pre><code><span class="kw">export type</span> FieldType = <span class="str">'text'</span> | <span class="str">'number'</span> | <span class="str">'textarea'</span> | <span class="str">'select'</span> | <span class="str">'rating'</span> | <span class="str">'tags'</span>;
+
+<span class="cmt">/**
+ * K ràng buộc theo keyof TModel -> gõ sai tên field là LỖI BIÊN DỊCH,
+ * không phải bug runtime (đúng bài học Bài 05 mục 5).
+ */</span>
+<span class="kw">export interface</span> FormFieldSchema&lt;
+  TModel = <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;,
+  K <span class="kw">extends keyof</span> TModel = <span class="kw">keyof</span> TModel,
+&gt; {
+  name: K;
+  label: <span class="kw">string</span>;
+  type: FieldType;
+  <span class="cmt">// TModel[K]: giá trị mặc định phải ĐÚNG KIỂU của chính field đó.</span>
+  defaultValue?: TModel[K];
+  validators?: ValidatorFn[];
+  options?: { value: <span class="kw">string</span>; label: <span class="kw">string</span> }[];   <span class="cmt">// cho 'select'</span>
+  maxTags?: <span class="kw">number</span>;                                <span class="cmt">// cho 'tags'</span>
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · dùng có kiểu</span>
+<pre><code><span class="kw">const</span> courseSchema: FormFieldSchema&lt;Course&gt;[] = [
+  { name: <span class="str">'title'</span>, label: <span class="str">'Tiêu đề'</span>, type: <span class="str">'text'</span>, validators: [Validators.required] },
+  { name: <span class="str">'price'</span>, label: <span class="str">'Giá'</span>, type: <span class="str">'number'</span> },
+  { name: <span class="str">'tags'</span>, label: <span class="str">'Thẻ'</span>, type: <span class="str">'tags'</span>, maxTags: <span class="num">5</span> },
+];
+
+<span class="cmt">// @ts-expect-error 'titel' không phải field của Course</span>
+<span class="kw">const</span> sai: FormFieldSchema&lt;Course&gt;[] = [{ name: <span class="str">'titel'</span>, label: <span class="str">'X'</span>, type: <span class="str">'text'</span> }];</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>keyof</code> đáng công ở đây</div>
+      <p>
+        Bài 14 bạn thấy <code>route.data</code> gõ nhầm <code>role</code>/<code>roles</code> biến route
+        admin thành công khai — <em>không lỗi biên dịch nào</em>. Schema form cũng là dữ liệu thô,
+        và cũng dễ gõ nhầm y hệt.
+      </p>
+      <p>
+        Khác biệt: ở đây ta <strong>ràng buộc được</strong>. <code>K extends keyof TModel</code> biến
+        lỗi chính tả từ bug runtime thành lỗi đỏ trong IDE. Đó là lý do Bài 05 nằm ở Module 1.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Component</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · dựng FormGroup từ schema</span>
+<pre><code><span class="kw">export class</span> DynamicFormComponent <span class="kw">implements</span> OnInit {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) schema: FormFieldSchema[] = [];
+  <span class="fn">@Input</span>() initialValue: <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt; = {};
+  <span class="fn">@Output</span>() submit = <span class="kw">new</span> EventEmitter&lt;<span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;&gt;();
+
+  <span class="kw">private readonly</span> fb = <span class="fn">inject</span>(FormBuilder);
+  form!: FormGroup;
+
+  <span class="cmt">// ngOnInit chứ không phải constructor: @Input chưa có giá trị lúc constructor chạy.</span>
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> { <span class="kw">this</span>.form = <span class="kw">this</span>.<span class="fn">buildForm</span>(); }
+
+  <span class="kw">private</span> <span class="fn">buildForm</span>(): FormGroup {
+    <span class="kw">const</span> controls: <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>[]&gt; = {};
+    <span class="kw">for</span> (<span class="kw">const</span> f <span class="kw">of this</span>.schema) {
+      <span class="kw">const</span> key = f.name <span class="kw">as string</span>;
+      <span class="cmt">// Thứ tự ưu tiên: giá trị truyền vào > mặc định của schema > mặc định theo type</span>
+      <span class="kw">const</span> giaTri = <span class="kw">this</span>.initialValue[key] ?? f.defaultValue ?? <span class="kw">this</span>.<span class="fn">macDinhTheoType</span>(f.type);
+      controls[key] = [giaTri, f.validators ?? []];
+    }
+    <span class="kw">return this</span>.fb.<span class="fn">group</span>(controls);
+  }
+
+  <span class="cmt">// Mặc định SAI KIỂU là nguồn bug: tags phải là [], không phải ''.</span>
+  <span class="kw">private</span> <span class="fn">macDinhTheoType</span>(type: <span class="kw">string</span>): <span class="kw">unknown</span> {
+    <span class="kw">if</span> (type === <span class="str">'tags'</span>) <span class="kw">return</span> [];
+    <span class="kw">if</span> (type === <span class="str">'rating'</span> || type === <span class="str">'number'</span>) <span class="kw">return</span> <span class="num">0</span>;
+    <span class="kw">return</span> <span class="str">''</span>;
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · @switch chọn control theo type</span>
+<pre><code>&lt;form [formGroup]="form" (ngSubmit)="submit.emit(form.getRawValue())"&gt;
+  @for (field of schema; track field.name) {
+    &lt;div class="field"&gt;
+      &lt;label [attr.for]="field.name"&gt;{{ field.label }}&lt;/label&gt;
+
+      @switch (field.type) {
+        @case ('textarea') { &lt;textarea [formControlName]="field.name"&gt;&lt;/textarea&gt; }
+        @case ('select') {
+          &lt;select [formControlName]="field.name"&gt;
+            @for (opt of field.options ?? []; track opt.value) {
+              &lt;option [value]="opt.value"&gt;{{ opt.label }}&lt;/option&gt;
+            }
+          &lt;/select&gt;
+        }
+        <span class="cmt">&lt;!-- Custom control Bài 17-18 cắm vào y như control chuẩn --&gt;</span>
+        @case ('rating') { &lt;app-rating-input [formControlName]="field.name"&gt;&lt;/app-rating-input&gt; }
+        @case ('tags')   { &lt;app-tag-input [formControlName]="field.name" [maxTags]="field.maxTags ?? 5"&gt;&lt;/app-tag-input&gt; }
+        @default         { &lt;input [type]="field.type" [formControlName]="field.name" /&gt; }
+      }
+
+      @if (form.get(field.name)?.invalid &amp;&amp; form.get(field.name)?.touched) {
+        &lt;small class="err"&gt;{{ field.label }} không hợp lệ&lt;/small&gt;
+      }
+    &lt;/div&gt;
+  }
+  &lt;button type="submit" [disabled]="form.invalid"&gt;Lưu&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Đây là lúc công sức Bài 17–18 được trả lại</div>
+      <p>
+        <code>&lt;app-rating-input&gt;</code> cắm vào đây <strong>không cần sửa gì</strong>, vì nó đã
+        tuân thủ hợp đồng <code>ControlValueAccessor</code>. Nếu nó chỉ là component với
+        <code>@Output</code> thì bạn sẽ phải viết code đặc biệt cho riêng nó trong dynamic form —
+        và ý tưởng "một component render mọi form" sụp đổ.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh nó thật sự tái sử dụng</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'ĐỔI SCHEMA -> form đổi theo, KHÔNG sửa template'</span>, () => {
+  <span class="kw">const</span> f2 = TestBed.<span class="fn">createComponent</span>(DynamicFormComponent);
+  f2.componentInstance.schema = [
+    { name: <span class="str">'price'</span>, label: <span class="str">'Giá'</span>, type: <span class="str">'number'</span> },
+    { name: <span class="str">'desc'</span>, label: <span class="str">'Mô tả'</span>, type: <span class="str">'textarea'</span> },
+  ];
+  f2.<span class="fn">detectChanges</span>();
+
+  <span class="fn">expect</span>(<span class="fn">Object</span>.<span class="fn">keys</span>(f2.componentInstance.form.controls)).<span class="fn">toEqual</span>([<span class="str">'price'</span>, <span class="str">'desc'</span>]);
+  <span class="fn">expect</span>(f2.nativeElement.<span class="fn">querySelector</span>(<span class="str">'textarea'</span>)).<span class="fn">toBeTruthy</span>();
+});
+
+<span class="fn">it</span>(<span class="str">'giá trị mặc định đúng theo type'</span>, () => {
+  <span class="fn">expect</span>(cmp.form.value.tags).<span class="fn">toEqual</span>([]);   <span class="cmt">// KHÔNG phải ''</span>
+  <span class="fn">expect</span>(cmp.form.value.rating).<span class="fn">toBe</span>(<span class="num">0</span>);
+  <span class="fn">expect</span>(cmp.form.value.title).<span class="fn">toBe</span>(<span class="str">''</span>);
+});</code></pre>
+    </div>
+    <p>
+      Test thứ hai bắt một bug thật: nếu mặc định của <code>tags</code> là <code>''</code> thay vì
+      <code>[]</code>, <code>TagInputComponent.writeValue</code> nhận chuỗi rỗng và
+      <code>this.tags = ''</code> — rồi <code>@for</code> lặp qua chuỗi, render từng ký tự thành chip.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Khi nào KHÔNG nên dùng dynamic form</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Dynamic form là đánh đổi, không phải nâng cấp</div>
+      <table class="data">
+        <thead><tr><th>Mất gì</th><th>Cụ thể</th></tr></thead>
+        <tbody>
+          <tr><td>Layout tự do</td><td>Mọi form thành một cột. Muốn 2 field cạnh nhau phải thêm khái niệm "row" vào schema — và schema bắt đầu phình thành một ngôn ngữ template thứ hai.</td></tr>
+          <tr><td>Logic liên field</td><td>"Hiện ô <em>Lý do</em> khi chọn <em>Khác</em>" cần điều kiện động — schema phải mang <code>showWhen</code>, rồi <code>disableWhen</code>…</td></tr>
+          <tr><td>Thông báo lỗi cụ thể</td><td>Template chung chỉ nói được "X không hợp lệ", mất hết payload lỗi bạn dựng công phu ở Bài 15.</td></tr>
+          <tr><td>Đọc code</td><td>Template hard-code đọc là hiểu. Schema phải chạy trong đầu mới biết ra form gì.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <table class="data">
+      <thead><tr><th>Tình huống</th><th>Nên</th></tr></thead>
+      <tbody>
+        <tr><td>Nhiều form CRUD giống nhau (admin)</td><td>✅ Dynamic form</td></tr>
+        <tr><td>Field do server/người dùng định nghĩa</td><td>✅ Bắt buộc dynamic</td></tr>
+        <tr><td>Form đăng ký/checkout, layout riêng, nhiều luật liên field</td><td>❌ Viết tay</td></tr>
+        <tr><td>App chỉ có 2 form</td><td>❌ Over-engineer</td></tr>
+      </tbody>
+    </table>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Bạn từng làm dynamic form chưa? Đánh đổi là gì?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Có — schema mô tả field, một component dựng
+        <code>FormGroup</code> qua vòng lặp và <code>@switch</code> theo type, custom control cắm vào
+        được nhờ <code>ControlValueAccessor</code>. Đánh đổi: mất layout tự do, logic liên field phải
+        nhét vào schema, và thông báo lỗi trở nên chung chung. Tôi dùng nó cho các form CRUD admin
+        giống nhau, còn form đăng ký hay checkout thì viết tay — ở đó UX quan trọng hơn tái sử dụng."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Vì sao <code>buildForm()</code> gọi trong <code>ngOnInit</code> chứ không phải constructor?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Không phải quy ước hình thức. Có lý do kỹ thuật cụ thể về THỜI ĐIỂM.">
+      A. Quy ước Angular — constructor chỉ để inject.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Angular chạy constructor TRƯỚC khi gán @Input. Dựng form trong constructor thì this.schema còn là mảng rỗng — form không có control nào, và không có lỗi nào báo. ngOnInit chạy sau lần gán @Input đầu tiên nên schema đã sẵn sàng.">
+      B. Vì <code>@Input</code> chưa được gán lúc constructor chạy — <code>schema</code> còn rỗng.
+    </button>
+    <button class="opt" data-correct="false" data-explain="FormBuilder inject được ở constructor bình thường. Vấn đề là @Input, không phải DI.">
+      C. Vì <code>FormBuilder</code> chưa inject được ở constructor.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Sếp muốn dùng <code>DynamicFormComponent</code> cho form checkout — có
+      "hiện ô Mã số thuế khi tick Xuất hoá đơn", layout 2 cột, và 3 luật liên field. Bạn nói gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Nhồi mọi thứ vào schema sẽ biến nó thành một ngôn ngữ template thứ hai — tự chế, không ai biết, không có IDE hỗ trợ. Bạn viết lại Angular template bằng JSON.">
+      A. Được — thêm <code>showWhen</code>, <code>colSpan</code>, <code>dependsOn</code> vào schema.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng, và đây là câu trả lời của người hiểu công cụ mình xây. Dynamic form tối ưu cho form ĐỒNG DẠNG, đơn giản. Checkout có layout riêng + logic liên field + UX quan trọng -> viết tay rẻ hơn và dễ bảo trì hơn nhiều. Nhưng vẫn TÁI SỬ DỤNG được phần custom control (rating, tag, card-number) vì chúng độc lập với dynamic form.">
+      B. Không nên — nhưng vẫn tái sử dụng được các <strong>custom control</strong>; phần layout và logic liên field thì viết tay.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Quá cực đoan. Custom control (Bài 17-18) hoàn toàn dùng lại được — chúng độc lập với dynamic form. Chỉ có phần render-từ-schema là không hợp.">
+      C. Không — và phải viết lại toàn bộ từ đầu, kể cả custom control.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>DynamicFormComponent</code></div>
+      <p>Chấm bằng <code>pnpm test</code> và <code>pnpm exec tsc --noEmit -p tsconfig.spec.json</code>.</p>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>FormFieldSchema&lt;TModel, K extends keyof TModel&gt;</code>; kèm <code>@ts-expect-error</code> khi gõ sai tên field.</li>
+        <li><strong>TC2</strong> — Tự dựng <code>FormGroup</code> đúng số control, đúng thứ tự.</li>
+        <li><strong>TC3</strong> — Giá trị mặc định đúng theo type: <code>tags</code> → <code>[]</code>, <code>rating</code>/<code>number</code> → <code>0</code>, còn lại → <code>''</code>.</li>
+        <li><strong>TC4</strong> — Validator từ schema có hiệu lực.</li>
+        <li><strong>TC5</strong> — Render đúng control cho <strong>cả 6</strong> type, gồm hai custom control Bài 17–18.</li>
+        <li><strong>TC6</strong> — <strong>Đổi schema</strong> → form đổi theo, không sửa dòng template nào.</li>
+        <li><strong>TC7</strong> — Dùng nó dựng lại <strong>Course info form</strong> của Bài 20 bằng schema.</li>
+      </ul>
+      <p>
+        <strong>Thử thách thêm:</strong> thêm <code>errorMessages?: Record&lt;string, string&gt;</code>
+        vào schema để mỗi field tự khai thông báo lỗi riêng — lấy lại thứ đã mất ở mục 5.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Làm 2 type trước (<code>text</code>, <code>number</code>) cho chạy hẳn, rồi mới thêm dần. Đừng viết cả 6 nhánh <code>@switch</code> rồi mới chạy lần đầu.</p>
+    <p><strong>Hint 2 · API:</strong> <code>@switch</code>/<code>@case</code>/<code>@default</code> · <code>[formControlName]="field.name"</code> (có ngoặc vuông vì là biến) · <code>@Input({required: true})</code> · <code>fb.group(controls)</code>.</p>
+    <p><strong>Hint 3 · TC1:</strong> <code>const s: FormFieldSchema&lt;Course&gt;[] = [...]</code> rồi đặt <code>@ts-expect-error</code> lên phần tử có <code>name</code> sai. Chạy <code>tsc</code> — im lặng nghĩa là ràng buộc có hiệu lực thật (Bài 05 mục 7).</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biến form thành <strong>dữ liệu có kiểu</strong>, không phải template chép đi chép lại.</li>
+      <li>Tôi dùng <code>keyof</code> để lỗi chính tả thành lỗi biên dịch.</li>
+      <li>Tôi hiểu <code>ControlValueAccessor</code> là thứ khiến custom control cắm được vào đây.</li>
+      <li>Tôi biết dynamic form <strong>mất gì</strong>, và dám nói "không nên" khi nó không hợp.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Form đăng ký cần kiểm <strong>email đã có ai dùng chưa</strong> — chỉ server biết.
+    </p>
+    <p>
+      Validator thường là hàm <em>đồng bộ</em>: nhận control, trả lỗi ngay. Nhưng gọi API thì kết quả
+      tới sau. Và nếu gọi mỗi phím gõ, nhập "nguyen@gmail.com" là <strong>17 request</strong>.
+    </p>
+    <p>
+      <strong>Angular xử lý validator bất đồng bộ thế nào?</strong> Và trong lúc chờ, form ở trạng thái
+      gì — <code>valid</code> hay <code>invalid</code>?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Câu thứ hai là chỗ nhiều người sai: nếu chờ mà form <code>valid</code> thì người dùng bấm
+        Submit kịp trước khi biết email trùng. Bài 23 — bài cuối Module 4 — trả lời cả hai.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 23 · Async Validator — check email, không spam API</div>
+    <p class="nd">RxJS quay lại: <code>timer</code> + <code>switchMap</code> ngay trong validator.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0021-cdk-drag-drop-formarray.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0023-async-validator.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 Gửi component + schema + spec + output cả hai lệnh. TC6 là bằng chứng của cả bài.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

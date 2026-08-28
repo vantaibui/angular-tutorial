@@ -75,12 +75,12 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–14** (hết Module 3). Người học đã HOÀN THÀNH Bài 00.
+- **Đã soạn: Bài 00–23** (hết Module 4 ⭐ — module trọng tâm). Người học đã HOÀN THÀNH Bài 00.
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
-- **App tham chiếu:** `<scratchpad>/ref/educommerce-ng-classic/` — **25/25 test xanh**, tsc sạch,
-  2 lazy chunk (`courses-module`, `dashboard-module`) tách thật, MSW worker phục vụ HTTP 200.
+- **App tham chiếu:** `<scratchpad>/ref/educommerce-ng-classic/` — **55/55 test xanh**, tsc sạch,
+  2 lazy chunk tách thật, MSW worker phục vụ HTTP 200, CDK 22.1.4.
 
 ### Phát hiện khi verify Module 2 (đã đưa vào bài)
 - **pnpm chặn postinstall** → `pnpm add -D msw@2` xong thì MỌI lệnh `pnpm exec` bị chặn tới khi
@@ -106,7 +106,29 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/rxjs-cheatsheet.html` — Bài 01–04.
 - `reference/generics-di-cheatsheet.html` — Bài 05–07.
 - `reference/kien-truc-routing-cheatsheet.html` — Bài 08–14.
-- Mốc kế tiếp: sau **Bài 19** HOẶC khi Module 4 xong (cái nào tới trước).
+- `reference/forms-cheatsheet.html` — Bài 15–23.
+- Mốc kế tiếp: sau **Bài 28** HOẶC khi Module 5 xong.
+
+### 🔴 PHÁT HIỆN LỚN khi verify Module 4 — ẢNH HƯỞNG CẢ KHOÁ
+**Angular 22 `ng new` mặc định ZONELESS.** `package.json` KHÔNG có `zone.js`,
+`angular.json` không có `polyfills`. Phát hiện khi test CVA: chiều component→form (bấm chuột)
+xanh, chiều form→component (`writeValue`, `setDisabledState`) ĐỎ — DOM không cập nhật.
+- **Lời giải đã verify:** `inject(ChangeDetectorRef)` + `markForCheck()` trong `writeValue`
+  và `setDisabledState`. Sau khi thêm: 39/39 xanh.
+- **Đã dạy ở Bài 16 mục 5 + Bài 17**, kèm cách nhận dạng triệu chứng.
+- ⚠️ **PHẢI CHỈNH LỘ TRÌNH:** file gốc xếp Zoneless ở **Phase 16 (Bài 59)** như thứ "sắp bật lên".
+  Thực tế project ĐÃ zoneless từ Bài 00. Khi tới Bài 59 phải đổi khung bài từ "bật zoneless"
+  sang "hiểu vì sao nó đã bật sẵn + chỗ nào code kiểu cũ sẽ gãy". Đã ghi vào Bài 16.
+
+### Phát hiện khác ở Module 4 (đã đưa vào bài)
+- **Component test PHẢI thuộc một `@NgModule` lúc BIÊN DỊCH.** Khai qua
+  `TestBed.configureTestingModule({declarations})` là quá muộn → trình biên dịch template báo
+  `'app-x' is not a known element`. Phải khai `@NgModule` ngay trong file spec.
+- **Mặc định sai kiểu trong dynamic form:** `tags` mặc định `''` thay vì `[]` khiến
+  `TagInputComponent` render từng ký tự thành chip.
+- **Async validator đặt nhầm mảng** (vị trí 2 thay vì 3) → không chạy, không lỗi, form luôn valid.
+- **`timer()` chứ không `debounceTime()`** trong async validator: Angular gọi lại validator từ đầu
+  mỗi lần giá trị đổi nên mỗi lần là một Observable mới, `debounceTime` không có gì để gộp.
 
 ### Phát hiện khi verify Module 3 (đã đưa vào bài)
 - **`router.navigate()` trả `true` khi guard redirect bằng `UrlTree`** — KHÔNG phải `false`.

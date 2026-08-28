@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 16 · ControlValueAccessor — 4 method và ai gọi chúng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 3 · Bài 16 · Forms ⭐⭐</span>
+    <h1><code>ControlValueAccessor</code> — 4 method và ai gọi chúng</h1>
+    <p class="subtitle">
+      Hợp đồng biến component tự viết thành một "ô input" thật sự.
+      Bài này <strong>chỉ học hợp đồng</strong> — code để Bài 17.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Nói đúng ai gọi method nào, lúc nào · 🏷️ Kỹ thuật lõi Module 4</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Kể đủ 4 method, <strong>chiều</strong> của mỗi cái, và <strong>ai</strong> gọi nó.</li>
+      <li>Giải thích <code>NG_VALUE_ACCESSOR</code> và vì sao cần <code>forwardRef</code>.</li>
+      <li>Biết bỏ sót method nào thì hỏng cái gì — cụ thể, không chung chung.</li>
+      <li>Biết Angular 22 zoneless đòi thêm một bước mà tài liệu cũ không nhắc.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 15: <code>&lt;input formControlName="email"&gt;</code> chạy được vì Angular có sẵn một
+      <em>bộ chuyển đổi</em> cho thẻ <code>input</code> — nó biết đọc <code>.value</code> và nghe
+      sự kiện <code>input</code>.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới:
+      <strong>bộ chuyển đổi đó là một interface công khai, và bạn tự viết được cho component của mình.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: form không nói chuyện được với component lạ</h2>
+    <p>
+      Form cần biết bốn thứ về mỗi ô: <em>giá trị hiện tại là gì</em>, <em>người dùng vừa đổi gì</em>,
+      <em>đã chạm vào chưa</em>, và <em>có đang bị khoá không</em>.
+    </p>
+    <p>
+      Với <code>&lt;input&gt;</code>, Angular biết cách hỏi. Với <code>&lt;app-rating-input&gt;</code> —
+      một component do bạn nghĩ ra — nó <strong>không biết gì cả</strong>. Đó không phải giới hạn,
+      mà là chỗ Angular chừa ra một hợp đồng để bạn điền vào.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Mental model: hợp đồng hai chiều</h2>
+    <div class="code-block">
+      <span class="code-label">Bốn method, hai chiều</span>
+<pre><code>        FORM  (FormControl)                COMPONENT của bạn
+              │                                    │
+   ───────────┼─── Angular GỌI component ──────────┤
+              │                                    │
+  setValue()  │──► writeValue(v) ─────────────────►│  cập nhật UI
+  disable()   │──► setDisabledState(bool) ────────►│  khoá UI
+              │                                    │
+   ───────────┼─── Component BÁO cho Angular ──────┤
+              │                                    │
+  nhận giá trị│◄── onChange(v) ────────────────────│  người dùng đổi
+  nhận touched│◄── onTouched() ────────────────────│  người dùng rời ô
+              │                                    │
+   registerOnChange(fn)  / registerOnTouched(fn)
+   = Angular ĐƯA callback xuống, component cất đi để gọi sau</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          <code>writeValue</code> và <code>setDisabledState</code> là Angular <em>ra lệnh</em>.
+          <code>onChange</code> và <code>onTouched</code> là component <em>báo cáo</em>.
+          Hai <code>register*</code> chỉ là lúc trao số điện thoại.
+        </strong>
+      </p>
+    </div>
+
+    <table class="data">
+      <thead><tr><th>Method</th><th>Chiều</th><th>Ai gọi</th><th>Khi nào</th></tr></thead>
+      <tbody>
+        <tr><td><code>writeValue(v)</code></td><td>Form → Component</td><td>Angular</td><td><code>setValue</code>, <code>patchValue</code>, <code>reset</code>, khởi tạo form</td></tr>
+        <tr><td><code>registerOnChange(fn)</code></td><td>Trao callback</td><td>Angular</td><td><strong>Một lần</strong> khi gắn control</td></tr>
+        <tr><td><code>registerOnTouched(fn)</code></td><td>Trao callback</td><td>Angular</td><td><strong>Một lần</strong> khi gắn control</td></tr>
+        <tr><td><code>setDisabledState(b)</code></td><td>Form → Component</td><td>Angular</td><td><code>disable()</code>/<code>enable()</code>, và lúc khởi tạo</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. Bỏ sót cái nào thì hỏng cái gì</h2>
+    <table class="data">
+      <thead><tr><th>Bỏ qua</th><th>Triệu chứng cụ thể</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>writeValue</code></td>
+          <td>Sửa bản ghi cũ → form nạp dữ liệu nhưng ô của bạn <strong>trống trơn</strong>. <code>reset()</code> cũng không xoá được.</td>
+        </tr>
+        <tr>
+          <td>gọi <code>onChange</code></td>
+          <td>Người dùng bấm, UI đổi, nhưng <code>form.value</code> <strong>không đổi</strong> — submit lên server thiếu field.</td>
+        </tr>
+        <tr>
+          <td>gọi <code>onTouched</code></td>
+          <td>Control mãi <code>untouched</code> → template hiện lỗi theo <code>touched</code> <strong>không bao giờ</strong> hiện.</td>
+        </tr>
+        <tr>
+          <td><code>setDisabledState</code></td>
+          <td><code>form.disable()</code> chạy nhưng ô của bạn <strong>vẫn bấm được</strong> — thủng phân quyền ở tầng UI.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <div class="ct">⚖️ Ba cái đầu hay được nhớ, cái thứ tư hay bị quên</div>
+      <p>
+        <code>setDisabledState</code> là method bị bỏ sót nhiều nhất, vì lúc dev bạn hiếm khi test
+        trạng thái disabled. Nó chỉ lộ ra ở production, khi form ở chế độ "chỉ xem" mà người dùng
+        vẫn sửa được.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Đăng ký với Angular</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · provider bắt buộc</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-rating-input'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`...`</span>,
+  providers: [
+    {
+      provide: NG_VALUE_ACCESSOR,
+      <span class="cmt">// forwardRef BẮT BUỘC: dòng này chạy TRONG lúc định nghĩa class,</span>
+      <span class="cmt">// lúc đó tên RatingInputComponent chưa tồn tại -> ReferenceError.</span>
+      <span class="cmt">// forwardRef hoãn việc tra tên lại tới lúc Angular thật sự cần.</span>
+      useExisting: <span class="fn">forwardRef</span>(() => RatingInputComponent),
+      <span class="cmt">// multi: true vì NG_VALUE_ACCESSOR là multi token (Bài 07).</span>
+      <span class="cmt">// Quên -> ghi đè accessor của control khác, im lặng.</span>
+      multi: <span class="kw">true</span>,
+    },
+  ],
+})</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 <code>useExisting</code> chứ không phải <code>useClass</code></div>
+      <p>
+        <code>useClass</code> sẽ tạo một instance <strong>thứ hai</strong> — Angular nói chuyện với
+        bản sao vô hình, còn component hiển thị trên màn hình thì không nhận được gì.
+        <code>useExisting</code> trỏ về <em>chính</em> instance đang render.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Angular 22 zoneless — bước mà tài liệu cũ không nhắc</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi tôi verify bài này</div>
+      <p>
+        Tôi viết <code>RatingInputComponent</code> đúng đủ 4 method, chạy test —
+        <code>registerOnChange</code> và <code>registerOnTouched</code> xanh,
+        nhưng <code>writeValue</code> và <code>setDisabledState</code> <strong>đỏ</strong>:
+        state trong component đổi, mà DOM không vẽ lại.
+      </p>
+      <p>Nguyên nhân: <strong>Angular 22 <code>ng new</code> mặc định ZONELESS.</strong> Kiểm nhanh:</p>
+      <div class="code-block">
+        <span class="code-label">bash · package.json của bạn</span>
+<pre><code>$ node -p <span class="str">"Object.keys(require('./package.json').dependencies)"</span>
+[ <span class="str">'@angular/common'</span>, <span class="str">'@angular/compiler'</span>, <span class="str">'@angular/core'</span>,
+  <span class="str">'@angular/forms'</span>, <span class="str">'@angular/platform-browser'</span>, <span class="str">'@angular/router'</span>,
+  <span class="str">'rxjs'</span>, <span class="str">'tslib'</span> ]
+<span class="cmt"># KHÔNG có zone.js!</span></code></pre>
+      </div>
+      <p>
+        Khi <em>người dùng bấm</em>, event handler chạy trong template nên Angular biết phải vẽ lại.
+        Nhưng khi <em>form đẩy xuống</em> (<code>setValue</code>, <code>disable</code>), không có
+        event nào cả — zoneless không có gì để bắt.
+      </p>
+    </div>
+
+    <div class="code-block">
+      <span class="code-label">TypeScript · lời giải</span>
+<pre><code><span class="kw">private readonly</span> cdr = <span class="fn">inject</span>(ChangeDetectorRef);
+
+<span class="fn">writeValue</span>(value: <span class="kw">number</span> | <span class="kw">null</span>): <span class="kw">void</span> {
+  <span class="kw">this</span>.value = value ?? <span class="num">0</span>;
+  <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();      <span class="cmt">// "state tôi đổi rồi, vẽ lại đi"</span>
+}
+
+<span class="fn">setDisabledState</span>(isDisabled: <span class="kw">boolean</span>): <span class="kw">void</span> {
+  <span class="kw">this</span>.isDisabled = isDisabled;
+  <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();
+}</code></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="ct">⚖️ Điểm lệch v22 ↔ v12–v16 — và vì sao vẫn nên viết như thế này</div>
+      <p>
+        Codebase Angular cũ có Zone.js nên <code>writeValue</code> thường chạy đúng mà
+        <strong>không cần</strong> <code>markForCheck()</code>. Bạn sẽ thấy nhiều CVA cũ không có dòng này.
+      </p>
+      <p>
+        Nhưng ngay cả ở v16, nếu component dùng <code>ChangeDetectionStrategy.OnPush</code> thì
+        <strong>vẫn cần</strong> nó. Nên <code>markForCheck()</code> trong <code>writeValue</code> là
+        thói quen đúng ở mọi phiên bản — chỉ là ở v22 nó chuyển từ "nên có" thành "bắt buộc".
+      </p>
+      <p>
+        Lộ trình của bạn xếp Zoneless ở tận Phase 16. Thực tế project của bạn <strong>đã zoneless
+        từ Bài 00</strong> — tôi sẽ chỉnh lại phần đó khi tới nơi thay vì dạy như thể bạn sắp bật nó lên.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">
+      Câu 1. Custom control của bạn hiển thị đúng khi người dùng bấm, nhưng khi mở form Sửa
+      (dữ liệu nạp bằng <code>patchValue</code>) thì ô đó trống. Thiếu gì?
+    </div>
+    <button class="opt" data-correct="false" data-explain="onChange là chiều NGƯỢC LẠI: component báo lên form. Ở đây form đang cố đẩy XUỐNG component.">
+      A. Chưa gọi <code>onChange</code> sau khi nhận giá trị.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng. patchValue -> Angular gọi writeValue để đẩy giá trị xuống. Thiếu nó (hoặc có mà quên markForCheck ở Angular 22 zoneless) thì component không bao giờ biết form có giá trị gì. Triệu chứng kinh điển: thêm mới thì ngon, sửa thì mất dữ liệu.">
+      B. <code>writeValue</code> chưa cập nhật state — hoặc có nhưng thiếu <code>markForCheck()</code> ở zoneless.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Nếu thiếu NG_VALUE_ACCESSOR thì Angular ném lỗi ngay: 'No value accessor for form control'. Ở đây form gắn được, chỉ là giá trị không hiện — nên provider đã đúng.">
+      C. Thiếu provider <code>NG_VALUE_ACCESSOR</code>.
+    </button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">
+      Câu 2. Vì sao phải <code>useExisting: forwardRef(() =&gt; MyComponent)</code> thay vì
+      <code>useClass: MyComponent</code>?
+    </div>
+    <button class="opt" data-correct="false" data-explain="Hiệu năng không phải lý do. Vấn đề là ĐÚNG/SAI: useClass nói chuyện với nhầm object.">
+      A. Vì <code>useExisting</code> nhanh hơn, đỡ tạo object thừa.
+    </button>
+    <button class="opt" data-correct="true" data-explain="Đúng cả hai vế. useClass tạo instance MỚI — Angular gọi writeValue lên bản sao vô hình, còn component đang hiển thị thì không nhận được gì, UI đứng im. useExisting trỏ về chính instance đang render. Còn forwardRef cần vì providers được đánh giá TRONG lúc định nghĩa class, lúc đó tên class chưa tồn tại.">
+      B. <code>useClass</code> tạo instance <strong>thứ hai</strong> (Angular nói chuyện với bản sao); <code>forwardRef</code> vì tên class chưa tồn tại lúc chạy dòng đó.
+    </button>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — chính vì có multi: true nên nhiều provider CÙNG token cộng dồn thành mảng (Bài 07). forwardRef giải quyết vấn đề khác hẳn: thứ tự khởi tạo.">
+      C. Vì <code>multi: true</code> không dùng được với <code>useClass</code>.
+    </button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn — bài này KHÔNG code</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — đọc hiểu trước khi viết</div>
+      <p>
+        Bài 17 bạn sẽ code. Bài này chỉ cần trả lời <strong>bằng lời của bạn</strong>, gửi vào chat:
+      </p>
+      <ul class="checklist">
+        <li><strong>Q1</strong> — Kể 4 method, mỗi cái ghi rõ <em>chiều</em> (form→component hay ngược lại) và <em>ai gọi</em>.</li>
+        <li><strong>Q2</strong> — Một form "chỉ xem" (mọi field <code>disable()</code>) nhưng ô rating của đồng nghiệp vẫn bấm được. Method nào bị thiếu?</li>
+        <li><strong>Q3</strong> — Vì sao <code>registerOnChange</code> chỉ được gọi <strong>một lần</strong>, còn <code>writeValue</code> gọi <strong>nhiều lần</strong>?</li>
+        <li><strong>Q4</strong> — Mở <code>package.json</code> của bạn, kiểm có <code>zone.js</code> không. Chép kết quả và nói xem điều đó ảnh hưởng gì tới CVA bạn sắp viết.</li>
+      </ul>
+      <p>
+        Trả lời sai không sao — tôi cần biết mental model của bạn <em>trước khi</em> bạn viết code,
+        vì sửa hiểu nhầm bây giờ rẻ hơn sửa sau khi đã viết 200 dòng.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi kể được 4 method kèm chiều và người gọi, không cần tra tài liệu.</li>
+      <li>Tôi biết bỏ sót method nào gây <strong>triệu chứng cụ thể</strong> nào.</li>
+      <li>Tôi giải thích được <code>forwardRef</code>, <code>useExisting</code>, <code>multi: true</code>.</li>
+      <li>Tôi biết project của mình <strong>đang zoneless</strong> và CVA phải <code>markForCheck()</code>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Bạn đã biết hợp đồng. Nhưng một chi tiết nhỏ dễ bỏ qua: <code>onTouched</code> nên gọi
+      <strong>lúc nào</strong>?
+    </p>
+    <p>
+      Với <code>&lt;input&gt;</code>, "touched" nghĩa là focus rồi blur. Nhưng component rating của bạn
+      là 5 cái <code>&lt;button&gt;</code>. Người dùng bấm sao thứ 3 rồi bấm sao thứ 5 — họ đã "rời ô" chưa?
+      Còn khi họ chỉ lướt qua mà không bấm gì?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>
+        Trả lời sai làm thông báo lỗi hiện quá sớm (khó chịu) hoặc không bao giờ hiện (vô dụng).
+        Bài 17 bạn sẽ tự quyết định và bảo vệ lựa chọn của mình.
+      </p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 17 · <code>&lt;app-rating-input&gt;</code> — custom control đầu tiên</div>
+    <p class="nd">Viết đủ 4 method và chứng minh bằng 5 test trên một <code>FormGroup</code> thật.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0015-reactive-forms-cross-field.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0017-rating-input-cva.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">
+    💬 <strong>Tôi là người dạy của bạn.</strong> Gửi câu trả lời Q1–Q4 bằng lời của bạn.
+    Đây là bài lý thuyết duy nhất của Module 4 — nắm chắc hợp đồng thì 7 bài sau chỉ là áp dụng.
+  </p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -47,6 +47,22 @@ thuộc Angular team hoặc là tên tuổi đã được kiểm chứng — và
 - [Angular GitHub Issues](https://github.com/angular/angular/issues)
   Nơi biết được API nào sắp đổi và **vì sao**. Dùng cho: kiểm chứng khi docs mập mờ.
 
+### Chủ đề mở rộng (thêm 2026-09-06)
+- [Angular — Animations guide](https://angular.dev/guide/animations)
+  Đã tra 2026-09-06: `animate.enter`/`animate.leave` là hướng khuyến nghị hiện tại; toàn bộ
+  `@angular/animations` (trigger/state/transition) nằm ở mục "Legacy Animations" của docs.
+- [Angular — Server-side rendering](https://angular.dev/guide/ssr)
+  Đã tra 2026-09-06: `ng add @angular/ssr` áp dụng được cho app đã tồn tại; hybrid rendering
+  qua `RenderMode`, `provideServerRendering()`, `provideClientHydration()`.
+- [Angular — Internationalization (i18n)](https://angular.dev/guide/i18n)
+  Đã tra 2026-09-06: chiến lược build-time qua `@angular/localize`, build riêng theo locale.
+- [RxJS — `webSocket` subject](https://rxjs.dev/api/webSocket/webSocket)
+  Dùng cho Phase 8.6 (Realtime). Cùng lưu ý như mục RxJS ở trên: trang là SPA, khi cần trích
+  chính xác hãy đọc JSDoc trong source thay vì fetch trực tiếp trang docs.
+- [web.dev — Core Web Vitals](https://web.dev/articles/vitals)
+  Dùng cho Phase 8.5 (Performance) — định nghĩa chính thức của LCP/INP/CLS, dùng làm mốc đo
+  trước/sau khi tối ưu.
+
 ## Gaps
 - Chưa tìm được nguồn tiếng Việt chất lượng cao đủ tin cậy để trích dẫn — hiện dịch/giảng
   lại từ nguồn tiếng Anh. Sẽ bổ sung nếu tìm thấy.

@@ -51,6 +51,49 @@
 | DI decorator | chỉ có `@Injectable` | **có thêm `@Service()`** (verify trong `@angular/core@22.1.2`: `declare const Service: ServiceDecorator`, có option `autoProvided`). `@Injectable` KHÔNG deprecated. Khoá dùng `@Injectable` có chủ đích. | Bài 07 |
 | Injector naming | `ModuleInjector` | docs gọi là `EnvironmentInjector` | Bài 07 |
 
+## 🆕 Mở rộng lộ trình theo yêu cầu 2026-09-06 — Performance, Design System, i18n, Realtime, Animation, SSR
+Người học hỏi "đã có performance/design system chưa" → tôi rà thấy CHƯA có (chỉ nhắc trước
+`OnPush` 3 lần mà chưa dạy Change Detection nền tảng — lỗ hổng thật, không phải người học bịa ra).
+Người học xác nhận muốn thêm cả hai, rồi ngay sau đó bổ sung thêm: i18n, realtime, animation,
+Angular SSR — tất cả trong cùng một lượt yêu cầu.
+
+**Đã tra docs chính thức (angular.dev) cho từng cái trước khi thêm — không tin trí nhớ (A6/A26):**
+- **Animations:** `@angular/animations` (trigger/state/transition, cần `BrowserAnimationsModule`)
+  giờ là **legacy**. API mới `animate.enter`/`animate.leave` là compiler feature native, KHÔNG
+  cần NgModule, và **không dùng chung được** với animation cũ trong cùng 1 component.
+- **SSR:** `ng add @angular/ssr` dùng được trên app **đã tồn tại**, không chỉ lúc `ng new`.
+  Hybrid rendering (`RenderMode`: Server/Client/Prerender theo route), `provideServerRendering()`,
+  `provideClientHydration()`.
+- **i18n:** build-time qua `@angular/localize` (build riêng theo từng locale), không phải runtime.
+- **Realtime:** không phải tính năng riêng của Angular — dùng `rxjs/webSocket`, tự viết
+  reconnect/backoff. Fit tốt vì tận dụng đúng nền RxJS đã dạy ở Phase 0.
+
+**Quyết định độ sâu (theo nguyên tắc A15 — không nhồi nhét, chủ đề ít liên quan thì gộp):**
+| Chủ đề | Độ sâu | Vì sao |
+|---|---|---|
+| Change Detection & Performance | ĐẦY ĐỦ, 5 bài | Fit mission mạnh nhất: phỏng vấn senior kinh điển + maintain codebase cũ |
+| Realtime | Vừa, 3 bài | Tận dụng RxJS đã vững, không cần kiến thức ngoài khoá |
+| Design System | Vừa, 3 bài | Tổng hợp lại component ĐÃ TỰ XÂY (không xây thư viện UI mới — vẫn giữ ranh giới MISSION.md) |
+| i18n | Khảo sát, 2 bài | Thật với maintain app cũ nhưng ít chiều sâu phỏng vấn |
+| Animation | Khảo sát, 2 bài | Khớp triết lý Classic→Modern của cả khoá, nhưng không phải trọng tâm mission |
+| SSR | Khảo sát, 2 bài | Độ phức tạp hydration đủ lớn để thành mảng riêng — giữ mức tình huống senior, không đào sâu |
+
+**Vị trí chèn** (không renumber Bài 00–37 đã viết/đã chấm; chỉ renumber phần "sắp tới" chưa
+viết lesson nào — an toàn tuyệt đối):
+- Phase 8.5 (Change Detection & Performance) + 8.6 (Realtime) — sau Dashboard Admin, trước NgRx.
+- Phase 10.5 (Design System) + 10.6 (i18n) — sau Testing, cuối Giai đoạn 1.
+- Phase 16.5 (Animation) + 16.6 (SSR) — sau Zoneless, trước Migration Guide tổng kết.
+
+**Kết quả:** 38 lesson gốc → ~62 bài (tách nhỏ) → **~79 bài** (thêm 17 bài mới, 6 module).
+Đã cập nhật đồng bộ: `lo-trinh-angular-classic-to-modern.md` (nguồn sự thật), `MISSION.md`
+(sửa Out of scope — SSR/i18n giờ TRONG scope ở mức khảo sát), `lessons/index.html` (renumber
+Module 9→22, badge 🆕 cho module mới, callout cuối trang nói thật là ĐÃ thêm ngoài lộ trình gốc
+thay vì tuyên bố "không thêm gì" như trước).
+
+**Việc CHƯA làm** (đúng nhịp module-theo-module đã thống nhất): chưa viết lesson HTML đầy đủ
+cho 6 module mới — chỉ mới cập nhật roadmap/index làm placeholder "sắp tới". Sẽ soạn khi tới
+lượt module đó, giống mọi module trước.
+
 ## Điều chỉnh lộ trình so với file gốc (đã báo người học)
 - **Thêm Bài 00 — Dựng môi trường**: `ng new` được kéo từ Lesson 1.1 lên Bài 00 để có sân
   tập chạy được trước khi học RxJS. Lesson 1.1 giữ nguyên phần kiến trúc Core/Shared/Feature.

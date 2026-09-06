@@ -176,6 +176,30 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ---
 
+> ## 🆕 PHASE 8.5 — Change Detection & Performance sâu (thêm 2026-09-06)
+> Phát hiện khi rà lộ trình: Change Detection chưa từng dạy như khái niệm độc lập dù đã dùng
+> `markForCheck()` từ Lesson 3.2 và nhắc `OnPush` ba lần trước đó. Câu hỏi phỏng vấn senior kinh điển.
+>
+> ### Lesson 8.5.1 — Change Detection cơ bản: Zone.js, dirty checking, `ApplicationRef.tick()`
+> ### Lesson 8.5.2 — `OnPush` thực chiến — điều kiện an toàn để bật
+> ### Lesson 8.5.3 — Phân tích bundle: `source-map-explorer`, lazy-load ảnh/font
+> ### Lesson 8.5.4 — Core Web Vitals cho Angular SPA (LCP/INP/CLS, Lighthouse)
+> ### Lesson 8.5.5 — RxJS + Performance: `shareReplay`, tránh subscribe thừa
+> - ✅ Đo trước/sau bằng Lighthouse; giải thích được Zone.js gây re-render thừa ở đâu.
+
+---
+
+> ## 🆕 PHASE 8.6 — Realtime với WebSocket/SSE (thêm 2026-09-06)
+> Tận dụng nền RxJS đã vững từ Phase 0 — `rxjs/webSocket` là một Observable khác, nhưng vòng đời
+> và cách xử lý lỗi khác hẳn HTTP.
+>
+> ### Lesson 8.6.1 — `rxjs/webSocket` — kết nối, nhận message dạng Observable
+> ### Lesson 8.6.2 — Reconnect & backoff khi mất kết nối
+> ### Lesson 8.6.3 — Đồng bộ realtime vào state ("có học viên mới enroll")
+> - ✅ Ngắt mạng giữa chừng, app tự kết nối lại, không mất event.
+
+---
+
 ## PHASE 9 — NgRx
 
 ### Lesson 9.1 — Khi nào cần NgRx thay vì Service + BehaviorSubject
@@ -192,6 +216,26 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ### Lesson 10.2 — Test Custom Form Control
 - ✅ Test pass cho `writeValue`, `registerOnChange`.
+
+---
+
+> ## 🆕 PHASE 10.5 — Design System cho EduCommerce (thêm 2026-09-06)
+> KHÔNG xây thư viện UI mới — tổng hợp component đã tự viết (SharedModule 1.1, RatingInput/TagInput
+> 3.2, DynamicForm 3.4) thành hệ thống nhất quán có token, có trang catalogue.
+>
+> ### Lesson 10.5.1 — Design tokens qua CSS custom properties (màu, spacing, typography)
+> ### Lesson 10.5.2 — Style guide page — catalogue mọi custom control đã xây
+> ### Lesson 10.5.3 — Theming sáng/tối — áp token, không sửa từng component
+> - ✅ Đổi theme không sửa component nào, chỉ đổi giá trị token.
+
+---
+
+> ## 🆕 PHASE 10.6 — i18n (thêm 2026-09-06, mức khảo sát)
+> Thật với việc maintain app cũ nhưng ít chiều sâu phỏng vấn hơn — gộp 2 bài thay vì một module lớn.
+>
+> ### Lesson 10.6.1 — `@angular/localize` — extract, dịch, build nhiều locale
+> ### Lesson 10.6.2 — `DatePipe`/`CurrencyPipe` theo locale — đổi `VndPipe` (Lesson 1.1) ra sao
+> - ✅ Build ra được 2 locale, giá tiền/ngày tháng hiển thị đúng theo từng locale.
 
 ---
 
@@ -218,6 +262,33 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ## PHASE 16 — Zoneless Change Detection
 - ✅ Giải thích rủi ro/lợi ích, chỗ nào code cũ có thể gãy.
+- ⚠️ Lưu ý (2026-09-06): project đã zoneless từ Lesson 0 (Angular 22 `ng new` mặc định vậy) —
+  phase này thành "hiểu vì sao nó đã bật sẵn" chứ không phải "thử bật lên". Xem Lesson 3.2.
+
+---
+
+> ## 🆕 PHASE 16.5 — Animation: Classic → Modern (thêm 2026-09-06)
+> Đã tra docs chính thức: `@angular/animations` (trigger/state/transition, cần
+> `BrowserAnimationsModule`) giờ là API **legacy**; Angular khuyến nghị `animate.enter`/
+> `animate.leave` — API biên dịch native, không cần NgModule, và KHÔNG tương thích chung
+> component với animation cũ. Ví dụ Classic→Modern rõ nhất của cả khoá.
+>
+> ### Lesson 16.5.1 — `@angular/animations` Classic: `trigger`/`state`/`transition`
+> ### Lesson 16.5.2 — Migrate sang `animate.enter`/`animate.leave`
+> - ✅ So sánh code trước/sau, giải thích vì sao hai cách không dùng chung được trong 1 component.
+
+---
+
+> ## 🆕 PHASE 16.6 — SSR: thêm Server-Side Rendering vào app đã có (thêm 2026-09-06, mức khảo sát)
+> Đã tra docs: `ng add @angular/ssr` dùng được trên app ĐÃ TỒN TẠI, không chỉ lúc `ng new` —
+> đúng tình huống senior thật ("sếp muốn SEO tốt hơn cho app cũ"). Giữ mức khảo sát vì độ phức
+> tạp hydration đủ lớn để thành mảng riêng nếu đào sâu.
+>
+> ### Lesson 16.6.1 — `ng add @angular/ssr` vào app Classic đã có — hybrid rendering, `RenderMode`
+> ### Lesson 16.6.2 — Hydration & bẫy thường gặp (`window`/`document`, `TransferState`)
+> - ✅ App chạy được cả 3 chế độ SSR/CSR/Prerender theo route, không lỗi hydration mismatch.
+
+---
 
 ## PHASE 17 — Tổng kết: Viết Migration Guide
 - ✅ Gửi document, AI phản biện như review kế hoạch migration thật.
@@ -236,8 +307,12 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 - [ ] Phase 6 (6.1-6.3) — Cart & Checkout
 - [ ] Phase 7 (7.1-7.2) — Học bài & Progress
 - [ ] Phase 8 (8.1-8.2) — Dashboard Admin
+- [ ] Phase 8.5 — Change Detection & Performance sâu 🆕
+- [ ] Phase 8.6 — Realtime WebSocket/SSE 🆕
 - [ ] Phase 9 (9.1) — NgRx
 - [ ] Phase 10 (10.1-10.2) — Testing
+- [ ] Phase 10.5 — Design System 🆕
+- [ ] Phase 10.6 — i18n 🆕
 
 **Giai đoạn 2 — Modern (Migration):**
 - [ ] Phase 11 (11.1-11.2) — Standalone Migration
@@ -246,4 +321,6 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 - [ ] Phase 14 — Functional Guard/Interceptor
 - [ ] Phase 15 — resource() API
 - [ ] Phase 16 — Zoneless (nâng cao)
+- [ ] Phase 16.5 — Animation Classic → Modern 🆕
+- [ ] Phase 16.6 — SSR trên app đã có 🆕
 - [ ] Phase 17 — Migration Guide tổng kết

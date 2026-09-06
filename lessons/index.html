@@ -97,11 +97,11 @@
 
   <section class="progress-wrap">
     <div class="progress-bar" role="progressbar" aria-label="Tiến độ lộ trình"
-         aria-valuemin="0" aria-valuemax="100" aria-valuenow="6">
-      <div class="progress-fill" style="width: 6%"></div>
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="5">
+      <div class="progress-fill" style="width: 5%"></div>
     </div>
     <div class="progress-label">
-      <strong>4</strong> / ~62 bài · <strong>6%</strong> · <strong>24 bài</strong> đã sẵn sàng (hết Module 4 ⭐) + 4 cheat-sheet
+      <strong>4</strong> / ~79 bài · <strong>5%</strong> · <strong>24 bài</strong> đã sẵn sàng (hết Module 4 ⭐) + 4 cheat-sheet
     </div>
   </section>
 
@@ -109,7 +109,10 @@
   <!-- ============================ GIAI ĐOẠN 1 ============================ -->
   <div class="stage-sep">
     <h2>🏛 Giai đoạn 1 — Angular Classic (NgModule)</h2>
-    <p>Phase 0–10 · ~44 bài · Xây toàn bộ EduCommerce bằng kiến trúc mà 80% codebase production đang chạy.</p>
+    <p>
+      Phase 0–10 + 4 phase bổ sung (Performance, Realtime, Design System, i18n) · 61 bài ·
+      Xây toàn bộ EduCommerce bằng kiến trúc mà 80% codebase production đang chạy.
+    </p>
   </div>
 
 
@@ -371,7 +374,7 @@
     <ul class="lessons-list">
       <li><span class="soon"><span class="badge soon">Bài 38</span><span>CRUD Course bằng Dynamic Form</span><span class="lcount">sắp tới</span></span></li>
       <li><span class="soon"><span class="badge soon">Bài 39</span><span>Material Table — sort / filter / paginate</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 40</span><span>500 dòng không lag · <code>trackBy</code> · <code>OnPush</code> · virtual scroll</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 40</span><span>500 dòng không lag · <code>trackBy</code> · <code>OnPush</code> · virtual scroll (giới thiệu)</span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
@@ -379,6 +382,48 @@
   <section class="module">
     <div class="module-head">
       <span class="module-num">Module 10</span>
+      <span class="lcount">5 bài 🆕</span>
+    </div>
+    <h2>Phase 8.5 — Change Detection &amp; Performance sâu</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Đây là lỗ hổng thật tôi phát hiện khi rà lại
+      lộ trình: Change Detection — cơ chế Angular quyết định KHI NÀO vẽ lại DOM — chưa từng được
+      dạy như một khái niệm độc lập, dù <code>markForCheck()</code> đã dùng từ Bài 16 và
+      <code>OnPush</code> đã bị nhắc trước ba lần (Bài 06, 18, 40). Đây cũng là câu hỏi phỏng vấn
+      senior Angular kinh điển nhất.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 41</span><span>Change Detection cơ bản — Zone.js, dirty checking, <code>ApplicationRef.tick()</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 42</span><span><code>OnPush</code> thực chiến — điều kiện an toàn, trả nợ forward-reference Bài 06/18</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 43</span><span>Phân tích bundle — <code>source-map-explorer</code>, lazy-load ảnh/font</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 44</span><span>Core Web Vitals cho Angular SPA — LCP/INP/CLS đo bằng Lighthouse</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 45</span><span>RxJS + Performance — <code>shareReplay</code>, tránh subscribe thừa (nối lại Bài 01–04)</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 11</span>
+      <span class="lcount">3 bài 🆕</span>
+    </div>
+    <h2>Phase 8.6 — Realtime với WebSocket/SSE</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Tận dụng nền RxJS đã vững từ Module 1 —
+      <code>rxjs/webSocket</code> chỉ là một Observable khác, nhưng có vòng đời và cách xử lý lỗi
+      riêng biệt mà switchMap/debounce không dạy hết.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 46</span><span><code>rxjs/webSocket</code> — kết nối, nhận message dạng Observable</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 47</span><span>Reconnect &amp; backoff — mất kết nối thì làm gì</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 48</span><span>Đồng bộ realtime vào state ("có học viên mới enroll")</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 12</span>
       <span class="lcount">4 bài</span>
     </div>
     <h2>Phase 9 — NgRx</h2>
@@ -387,52 +432,10 @@
       Ta migrate <code>CartService</code> đã chạy tốt sang NgRx để thấy rõ cái giá phải trả.
     </p>
     <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 41</span><span>Khi nào Service + BehaviorSubject là đủ (và khi nào không)</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 42</span><span>Action · Reducer · Selector</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 43</span><span>Effects — side-effect và RxJS quay lại</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 44</span><span>Redux DevTools &amp; time-travel debug</span><span class="lcount">sắp tới</span></span></li>
-    </ul>
-  </section>
-
-
-  <section class="module">
-    <div class="module-head">
-      <span class="module-num">Module 11</span>
-      <span class="lcount">3 bài</span>
-    </div>
-    <h2>Phase 10 — Testing Classic</h2>
-    <p class="module-why">
-      Test custom form control là dạng test khó và hay bị hỏi khi phỏng vấn — cần biết giả lập
-      <code>formControl</code> trong test.
-    </p>
-    <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 45</span><span>Test Service với <code>HttpTestingController</code></span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 46</span><span>Test Component &amp; form validation</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 47</span><span>Test <code>ControlValueAccessor</code> — <code>writeValue</code>, <code>registerOnChange</code></span><span class="lcount">sắp tới</span></span></li>
-    </ul>
-  </section>
-
-
-  <!-- ============================ GIAI ĐOẠN 2 ============================ -->
-  <div class="stage-sep">
-    <h2>🚀 Giai đoạn 2 — Angular Modern (Migration)</h2>
-    <p>
-      Phase 11–17 · ~15 bài · <strong>Không build lại từ đầu</strong> — migrate chính app vừa xong,
-      từng bước, mỗi bước so sánh code TRƯỚC/SAU và cân lợi ích ↔ rủi ro.
-    </p>
-  </div>
-
-
-  <section class="module">
-    <div class="module-head">
-      <span class="module-num">Module 12</span>
-      <span class="lcount">3 bài</span>
-    </div>
-    <h2>Phase 11 — Standalone Migration</h2>
-    <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 48</span><span>Schematic <code>ng g @angular/core:standalone</code> — chạy &amp; đọc diff</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 49</span><span>Migrate <code>CoursesModule</code> trước (module nhỏ, rủi ro thấp)</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 50</span><span><code>bootstrapApplication</code> · xoá <code>AppModule</code> · <code>app.config.ts</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 49</span><span>Khi nào Service + BehaviorSubject là đủ (và khi nào không)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 50</span><span>Action · Reducer · Selector</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 51</span><span>Effects — side-effect và RxJS quay lại</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 52</span><span>Redux DevTools &amp; time-travel debug</span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
@@ -442,11 +445,15 @@
       <span class="module-num">Module 13</span>
       <span class="lcount">3 bài</span>
     </div>
-    <h2>Phase 12 — Signals Migration</h2>
+    <h2>Phase 10 — Testing Classic</h2>
+    <p class="module-why">
+      Test custom form control là dạng test khó và hay bị hỏi khi phỏng vấn — cần biết giả lập
+      <code>formControl</code> trong test.
+    </p>
     <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 51</span><span><code>signal()</code> / <code>computed()</code> vs <code>BehaviorSubject</code></span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 52</span><span>Viết lại <code>AuthService</code> + <code>CartService</code> · <code>toSignal()</code></span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 53</span><span>Progress bằng <code>computed()</code> — so với Subject ở Bài 37</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 53</span><span>Test Service với <code>HttpTestingController</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 54</span><span>Test Component &amp; form validation</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 55</span><span>Test <code>ControlValueAccessor</code> — <code>writeValue</code>, <code>registerOnChange</code></span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
@@ -454,13 +461,19 @@
   <section class="module">
     <div class="module-head">
       <span class="module-num">Module 14</span>
-      <span class="lcount">3 bài</span>
+      <span class="lcount">3 bài 🆕</span>
     </div>
-    <h2>Phase 13–14 — Control flow mới &amp; Functional Guard/Interceptor</h2>
+    <h2>Phase 10.5 — Design System cho EduCommerce</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Không phải xây thư viện UI mới (vẫn ngoài
+      scope theo <code>MISSION.md</code>) — mà tổng hợp lại chính những gì bạn đã xây
+      (<code>SharedModule</code> Bài 08, <code>RatingInput</code>/<code>TagInput</code> Bài 17–18,
+      <code>DynamicForm</code> Bài 22) thành một hệ thống nhất quán có token, có trang catalogue.
+    </p>
     <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 54</span><span><code>@if</code>/<code>@for</code>/<code>@switch</code> — chạy schematic rồi review diff</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 55</span><span><code>AuthGuard</code> class → <code>CanActivateFn</code> + <code>inject()</code></span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 56</span><span><code>HttpInterceptor</code> class → <code>HttpInterceptorFn</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 56</span><span>Design tokens qua CSS custom properties — màu, spacing, typography</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 57</span><span>Style guide page — tổng hợp mọi custom control đã xây</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 58</span><span>Theming sáng/tối — áp token, không sửa từng component</span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
@@ -468,20 +481,130 @@
   <section class="module">
     <div class="module-head">
       <span class="module-num">Module 15</span>
+      <span class="lcount">2 bài 🆕 · khảo sát</span>
+    </div>
+    <h2>Phase 10.6 — i18n</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Thật với việc maintain codebase (mission của
+      bạn), nhưng ít chiều sâu phỏng vấn hơn Performance/Forms — nên gộp thành 2 bài khảo sát
+      thay vì một module lớn, đúng nguyên tắc "chủ đề ít liên quan thì gộp lại" của khoá.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 59</span><span><code>@angular/localize</code> — extract, dịch, build nhiều locale</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 60</span><span><code>DatePipe</code>/<code>CurrencyPipe</code> theo locale — đổi <code>VndPipe</code> Bài 08 ra sao</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <!-- ============================ GIAI ĐOẠN 2 ============================ -->
+  <div class="stage-sep">
+    <h2>🚀 Giai đoạn 2 — Angular Modern (Migration)</h2>
+    <p>
+      Phase 11–17 + 2 phase bổ sung (Animation, SSR) · 19 bài ·
+      <strong>Không build lại từ đầu</strong> — migrate chính app vừa xong,
+      từng bước, mỗi bước so sánh code TRƯỚC/SAU và cân lợi ích ↔ rủi ro.
+    </p>
+  </div>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 16</span>
       <span class="lcount">3 bài</span>
     </div>
-    <h2>Phase 15–16 — <code>resource()</code> &amp; Zoneless</h2>
+    <h2>Phase 11 — Standalone Migration</h2>
     <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 57</span><span><code>resource()</code> / <code>rxResource()</code> — triết lý kiểu TanStack Query</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 58</span><span>Migrate <code>CourseListComponent</code> · nhận xét ưu/nhược</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 59</span><span>Zoneless change detection — chỗ nào code cũ sẽ gãy</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 61</span><span>Schematic <code>ng g @angular/core:standalone</code> — chạy &amp; đọc diff</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 62</span><span>Migrate <code>CoursesModule</code> trước (module nhỏ, rủi ro thấp)</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 63</span><span><code>bootstrapApplication</code> · xoá <code>AppModule</code> · <code>app.config.ts</code></span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
 
   <section class="module">
     <div class="module-head">
-      <span class="module-num">Module 16</span>
+      <span class="module-num">Module 17</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 12 — Signals Migration</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 64</span><span><code>signal()</code> / <code>computed()</code> vs <code>BehaviorSubject</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 65</span><span>Viết lại <code>AuthService</code> + <code>CartService</code> · <code>toSignal()</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 66</span><span>Progress bằng <code>computed()</code> — so với Subject ở Bài 37</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 18</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 13–14 — Control flow mới &amp; Functional Guard/Interceptor</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 67</span><span><code>@if</code>/<code>@for</code>/<code>@switch</code> — chạy schematic rồi review diff</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 68</span><span><code>AuthGuard</code> class → <code>CanActivateFn</code> + <code>inject()</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 69</span><span><code>HttpInterceptor</code> class → <code>HttpInterceptorFn</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 19</span>
+      <span class="lcount">3 bài</span>
+    </div>
+    <h2>Phase 15–16 — <code>resource()</code> &amp; Zoneless</h2>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 70</span><span><code>resource()</code> / <code>rxResource()</code> — triết lý kiểu TanStack Query</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 71</span><span>Migrate <code>CourseListComponent</code> · nhận xét ưu/nhược</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 72</span><span>Zoneless change detection — chỗ nào code cũ sẽ gãy (project đã zoneless từ Bài 00, xem lại Bài 16)</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 20</span>
+      <span class="lcount">2 bài 🆕</span>
+    </div>
+    <h2>Phase 16.5 — Animation: Classic → Modern</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Đã tra docs chính thức: <code>@angular/animations</code>
+      (trigger/state/transition, cần <code>BrowserAnimationsModule</code>) giờ là API
+      <strong>legacy</strong>; Angular khuyến nghị <code>animate.enter</code>/<code>animate.leave</code>
+      — API biên dịch native, không cần NgModule, và <strong>không tương thích chung component</strong>
+      với animation cũ. Đây là ví dụ Classic→Modern rõ nhất của cả khoá.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 73</span><span><code>@angular/animations</code> Classic — <code>trigger</code>/<code>state</code>/<code>transition</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 74</span><span>Migrate sang <code>animate.enter</code>/<code>animate.leave</code> — API native, bỏ NgModule</span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 21</span>
+      <span class="lcount">2 bài 🆕 · khảo sát</span>
+    </div>
+    <h2>Phase 16.6 — SSR: thêm Server-Side Rendering vào app đã có</h2>
+    <p class="module-why">
+      <strong>Thêm theo yêu cầu 2026-09-06.</strong> Đã tra docs: <code>ng add @angular/ssr</code>
+      dùng được trên app đã tồn tại — đúng tình huống senior thật ("sếp muốn SEO tốt hơn cho app
+      cũ"), không phải chỉ có ở lúc <code>ng new</code>. Giữ mức khảo sát vì độ phức tạp
+      (hydration mismatch, <code>TransferState</code>) đủ để thành cả một mảng riêng nếu đào sâu.
+    </p>
+    <ul class="lessons-list">
+      <li><span class="soon"><span class="badge soon">Bài 75</span><span><code>ng add @angular/ssr</code> vào app Classic đã có — hybrid rendering, <code>RenderMode</code></span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 76</span><span>Hydration &amp; bẫy thường gặp — <code>window</code>/<code>document</code>, <code>TransferState</code></span><span class="lcount">sắp tới</span></span></li>
+    </ul>
+  </section>
+
+
+  <section class="module">
+    <div class="module-head">
+      <span class="module-num">Module 22</span>
       <span class="lcount">3 bài</span>
     </div>
     <h2>Phase 17 — Tổng kết &amp; phỏng vấn</h2>
@@ -490,9 +613,9 @@
       tôi hỏi và phản biện như người phỏng vấn.
     </p>
     <ul class="lessons-list">
-      <li><span class="soon"><span class="badge soon">Bài 60</span><span>Viết Migration Guide — tôi phản biện như review kế hoạch thật</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 61</span><span>Mock interview 1 — RxJS · Forms · DI</span><span class="lcount">sắp tới</span></span></li>
-      <li><span class="soon"><span class="badge soon">Bài 62</span><span>Mock interview 2 — kiến trúc · migration · đánh đổi</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 77</span><span>Viết Migration Guide — tôi phản biện như review kế hoạch thật</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 78</span><span>Mock interview 1 — RxJS · Forms · DI · Performance</span><span class="lcount">sắp tới</span></span></li>
+      <li><span class="soon"><span class="badge soon">Bài 79</span><span>Mock interview 2 — kiến trúc · migration · đánh đổi</span><span class="lcount">sắp tới</span></span></li>
     </ul>
   </section>
 
@@ -505,9 +628,15 @@
       Tiến độ đo bằng <strong>khả năng reasoning và áp dụng</strong>, không phải số bài đã mở.
     </p>
     <p>
-      Lộ trình gốc của bạn có 38 lesson; ở đây thành ~62 vì các lesson quá lớn được
+      Lộ trình gốc của bạn có 38 lesson; ban đầu thành ~62 vì lesson quá lớn được
       <strong>tách nhỏ</strong> (mỗi bài dạy đúng một thứ), cộng Bài 00 và 2 bài mock interview.
-      Không có chủ đề nào bị thêm ngoài lộ trình bạn đã soạn.
+    </p>
+    <p>
+      <strong>Cập nhật 2026-09-06:</strong> theo yêu cầu của bạn, đã thêm 6 chủ đề ngoài lộ trình
+      gốc — Change Detection &amp; Performance sâu, Realtime (WebSocket/SSE), Design System,
+      i18n, Animation (Classic→Modern), SSR — tổng 17 bài mới, nâng tổng số lên <strong>~79 bài</strong>.
+      Đã tra docs chính thức cho từng chủ đề trước khi thêm (xem <code>NOTES.md</code>).
+      Đây là thay đổi minh bạch, không phải lộ trình gốc — nói với tôi nếu muốn bớt hoặc đổi độ sâu.
     </p>
   </section>
 

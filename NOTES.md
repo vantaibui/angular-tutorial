@@ -10,8 +10,11 @@
 - **Dự án song song: BẬT** — EduCommerce. Mỗi bài phải thêm một mẩu chạy được.
 - Trình độ junior/mid → dạy đủ dẫn dắt ở Phase 0–2, **chuyển dần sang CHẾ ĐỘ THỬ THÁCH**
   (đề + tiêu chí → tự build → review 5 trục) từ Phase 3 trở đi.
-- Phase 3 (Custom Complex Forms) và mọi bài dính Generics: **giảng kỹ hơn bình thường**,
-  nhiều ví dụ nhỏ trước khi giao bài tập lớn (yêu cầu rõ ràng của người học).
+- Phase 3 (Custom Complex Forms), mọi bài dính Generics, và **Signals (Phase 12)**: **giảng kỹ
+  hơn bình thường**, nhiều ví dụ nhỏ trước khi giao bài tập lớn (yêu cầu rõ ràng của người học).
+  Signals thêm 2026-09-06: người học nói thẳng "từ NgModule qua Modern khá khó khăn để tiếp
+  Signal" — không dạy như "so sánh nhanh với BehaviorSubject rồi migrate", mà phải có nhịp
+  cơ bản → nâng cao → phỏng vấn riêng, đủ để dùng trong dự án MỚI (không chỉ để migrate app cũ).
 - Review code kiểu **PR thật**: kiến trúc → RxJS/Generics đúng chỗ chưa → interface
   implement đủ chưa → performance → best practice.
 
@@ -93,6 +96,125 @@ thay vì tuyên bố "không thêm gì" như trước).
 **Việc CHƯA làm** (đúng nhịp module-theo-module đã thống nhất): chưa viết lesson HTML đầy đủ
 cho 6 module mới — chỉ mới cập nhật roadmap/index làm placeholder "sắp tới". Sẽ soạn khi tới
 lượt module đó, giống mọi module trước.
+
+## 🆕 Mở rộng lộ trình LƯỢT 2 — 2026-09-06: CDK/Material sâu + đào sâu SSR/Performance/Forms
+Ngay sau lượt 1 (cùng ngày), người học phản hồi cụ thể: (1) muốn MỘT MODULE RIÊNG cho
+Material/CDK để "hiểu và viết thành thạo — cần cho Senior"; (2) đào sâu thêm SSR, Performance,
+Forms (không phải thêm chủ đề mới, mà MỞ RỘNG 3 module vừa thêm/đã có).
+
+**Đã tra docs thêm trước khi quyết định** (A6/A26):
+- **CDK primitives** (`material.angular.dev/cdk/*` — trang là SPA, WebFetch chỉ lấy được
+  title, phải dùng WebSearch snippet để lấy nội dung; **cần verify lại bằng tay khi viết lesson
+  thật**, ghi rõ ở đây để phiên sau không quên): Overlay (positioning engine sau dialog/menu/
+  tooltip), Portal (render nội dung động ở vị trí khác trong DOM), A11y (`FocusTrap`,
+  `FocusMonitor`, `LiveAnnouncer`), Layout (`BreakpointObserver`), Scrolling (virtual scroll).
+- **`@angular/forms/signals`**: xác nhận CÓ THẬT — hàm `form()`, experimental từ Angular 21,
+  các bản cập nhật (`FormRoot`, `submission options`, `debounce`, `getError()`) đã vào 22.0.0,
+  dự kiến ổn định trong 2026. Đây là phát hiện quan trọng: cho phép trả lời "đào sâu Forms
+  hướng Modern" bằng nội dung THẬT, không phải suy đoán.
+- **`@defer`**: xác nhận stable/production-ready ở v22 (không đánh dấu experimental trong docs),
+  hỗ trợ trigger `idle/viewport/interaction/hover/immediate/timer/when` + prefetch trigger.
+
+**Quyết định:**
+| Yêu cầu | Hành động | Vị trí |
+|---|---|---|
+| Module UI riêng cho Material/CDK | **Phase 10.7 mới**, 6 lesson | Sau Design System, trước i18n |
+| Đào sâu Forms | Phase 10.8 mới (File upload CVA, form quy mô lớn, 2 lesson) **+** Phase 12
+  mở rộng thêm Signal Forms (2 lesson) ở Giai đoạn 2 | Cuối Stage 1 + trong Signals Migration |
+| Đào sâu Performance | Phase 8.5 mở rộng 5→8 lesson (`@defer`, `NgOptimizedImage`, DevTools
+  profiling) | Giữ nguyên vị trí đã chèn ở lượt 1 |
+| Đào sâu SSR | Phase 16.6 mở rộng 2→5 lesson (SEO, debug hydration mismatch thật, đo
+  TTFB/LCP) | Giữ nguyên vị trí |
+
+**Kết quả:** ~79 bài (lượt 1) → **~96 bài** (lượt 2, +17 bài: 6 CDK/Material + 2 Advanced Forms
++ 2 Signal Forms + 3 Performance + 3 SSR + 1 do dồn dịch). Vẫn KHÔNG đụng Bài 00–37 đã
+viết/đã chấm — mọi thay đổi chỉ ở phần "sắp tới" (Bài 38+), an toàn tuyệt đối.
+
+Đã cập nhật đồng bộ: `lo-trinh-angular-classic-to-modern.md`, `MISSION.md`, `lessons/index.html`
+(dùng script Python sinh HTML tự động đánh số Bài/Module theo danh sách dữ liệu — tránh lỗi
+đếm tay như đã từng xảy ra ở lượt 1). Verify: 96 bài liên tục 0→95, không trùng không thiếu;
+25 module liên tục 0→24; cấu trúc HTML sạch (parser check); mọi link còn sống.
+
+**Ghi chú trung thực về quy mô:** 96 bài là con số lớn. Đã nói rõ với người học trong response
+rằng đây là lựa chọn có chủ đích (ưu tiên "học cho tới" theo A15 cho các chủ đề fit mission —
+Performance, Forms, CDK) chứ không phải nhồi nhét ngẫu nhiên, và roadmap vẫn co giãn được
+(gộp nếu nắm nhanh — nguyên tắc "roadmap không phải syllabus đóng" giữ nguyên).
+
+## 🆕 Mở rộng lộ trình LƯỢT 3 — 2026-09-06: NgRx đào sâu + Timezone
+Ngay sau lượt 2 (cùng ngày), người học yêu cầu thêm: (1) NgRx cần đào sâu — cách dùng cho bài
+toán lớn, setup generic, câu hỏi phỏng vấn; (2) các bài toán liên quan timezone.
+
+**Đã tra docs/nguồn thêm trước khi quyết định** (A6/A26):
+- **`@ngrx/entity`** (`ngrx.io/guide/entity/adapter`): `createEntityAdapter<T>()` là pattern
+  generic CHÍNH THỨC của NgRx cho collection — xác nhận đây đúng là "generic setup" người học
+  hỏi, và nó SONG SONG hoàn hảo với `GenericApiService<T>` đã dạy ở Bài 10 (cùng tư duy generic,
+  khác tầng: một cho HTTP, một cho state). Callback tự nhiên, không phải chủ đề rời rạc.
+- **`@ngrx/signals` (SignalStore)**: xác nhận qua WebSearch — bản mới nhất 22.0.0, và
+  **"NgRx Signals is now the recommended local state management library... for new applications,
+  start with NgRx SignalStore"**. Đây là phát hiện quan trọng: cho phép thêm một lesson Modern
+  đối xứng thật sự (không phải suy đoán) cho toàn bộ câu chuyện state management của khoá:
+  Service+BehaviorSubject (Bài 32) → NgRx Store Classic (Phase 9) → NgRx SignalStore (Phase 12).
+- **Timezone**: tra `angular.dev/api/common/DatePipe` — xác nhận `DatePipe` mặc định dùng
+  **LOCAL timezone của trình duyệt, KHÔNG PHẢI UTC**. Đây chính là hiểu nhầm phổ biến nhất gây
+  bug timezone, nên dùng làm trọng tâm của lesson đầu tiên trong cụm Timezone. Có
+  `DATE_PIPE_DEFAULT_OPTIONS` injection token để set timezone mặc định toàn app.
+
+**Quyết định:**
+| Yêu cầu | Hành động | Vị trí |
+|---|---|---|
+| NgRx đào sâu | Phase 9 mở rộng 4→9 lesson: `@ngrx/entity` generic, selector composition,
+  effects nâng cao, testing, góc phỏng vấn riêng | Giữ nguyên vị trí (sau Realtime, trước Testing) |
+| NgRx hướng Modern | **Phase 12 mở rộng thêm 2 lesson**: NgRx SignalStore + migrate CartService
+  lần 3 (BehaviorSubject → NgRx → SignalStore) | Trong Signals Migration, sau Signal Forms |
+| Timezone | **Phase 10.6 đổi tên "i18n" → "i18n & Timezone"**, thêm 2 lesson | Giữ nguyên vị trí,
+  gộp chung vì cùng nhóm "hiển thị đúng theo người dùng" |
+
+**Kết quả:** ~96 bài (lượt 2) → **~105 bài** (lượt 3, +9: 5 NgRx Classic + 2 NgRx SignalStore +
+2 Timezone). Vẫn KHÔNG đụng Bài 00–37 đã viết/đã chấm.
+
+Đã cập nhật đồng bộ: `lo-trinh-angular-classic-to-modern.md`, `MISSION.md`, `RESOURCES.md`,
+`lessons/index.html` (tiếp tục dùng script Python sinh HTML tự động đánh số — đã 3 lần liên tiếp
+không có lỗi đếm tay nhờ cách này, nên giữ làm quy trình chuẩn cho lần mở rộng sau nếu có).
+Verify: 105 bài liên tục 0→104, không trùng không thiếu; 25 module liên tục 0→24; cấu trúc HTML sạch.
+
+**Mẫu hình đáng chú ý:** đây là LƯỢT MỞ RỘNG THỨ BA trong cùng một ngày (2026-08-14 lần đầu hỏi
+"đã có performance/design system chưa" → lượt 1; "thêm i18n/realtime/animation/SSR" → vẫn lượt 1;
+"thêm CDK/Material + đào sâu SSR/Performance/Forms" → lượt 2; "NgRx đào sâu + timezone" → lượt 3).
+Mỗi lượt đều được tra docs trước khi thêm và ghi lại minh bạch trong `lessons/index.html` +
+`NOTES.md`. Nếu có lượt 4, tiếp tục đúng quy trình này: tra docs → tính lại số bài bằng script →
+verify liên tục/không trùng → cập nhật đồng bộ 4 file (roadmap, MISSION, NOTES, index) → commit.
+
+## 🆕 Mở rộng lộ trình LƯỢT 4 — 2026-09-06: Tách Signals thành module riêng (cơ bản→nâng cao→phỏng vấn)
+Người học phản hồi trực tiếp về CÁCH DẠY (không phải nội dung mới): "với 1 dev từ NgModule qua
+Modern thì tôi cũng khá khó khăn để tiếp Signal — cần học cơ bản đến nâng cao cũng như khả năng
+qua new prj + interview". Đây là tín hiệu quan trọng: Phase 12 cũ (7 lesson, toàn bộ đóng khung
+kiểu "so sánh với BehaviorSubject rồi migrate") không đủ — cần một module Signals ĐỘC LẬP trước.
+
+**Hành động:** tách Phase 12 làm hai:
+- **Phase 12 mới (4 lesson)** — Signals cơ bản đến nâng cao, KHÔNG nhắc tới migrate:
+  `signal()`/`computed()` (mental model), `effect()` sâu, nâng cao (`untracked`, `linkedSignal`,
+  bẫy), và một lesson góc phỏng vấn Signals riêng — mirror đúng cấu trúc `Lesson 9.9` (góc phỏng
+  vấn NgRx) vừa thêm ở lượt 3.
+- **Phase 12.5 (7 lesson, giữ nguyên nội dung cũ)** — Signals & NgRx Migration thực chiến: mọi
+  lesson migrate BehaviorSubject/NgRx/Forms sang Signals dồn hết vào đây, chạy SAU khi nền tảng
+  đã vững.
+
+**Ghi vào "Chế độ dạy" (mục đầu NOTES.md):** thêm Signals vào danh sách chủ đề cần "giảng kỹ hơn
+bình thường, nhiều ví dụ nhỏ trước bài tập lớn" — cùng nhóm với Forms/Generics đã có từ đầu khoá.
+Đây LÀ preference lâu dài, sẽ áp dụng khi thật sự soạn Phase 12, không chỉ ảnh hưởng cấu trúc.
+
+**Kết quả:** ~105 bài (lượt 3) → **~109 bài** (lượt 4, +4 lesson do tách — nội dung không đổi,
+chỉ thêm 4 lesson nền tảng mới). Vẫn không đụng Bài 00–37 đã viết/đã chấm.
+
+Đã cập nhật đồng bộ: `lo-trinh-angular-classic-to-modern.md`, `MISSION.md`, `lessons/index.html`
+(lần thứ 4 dùng script sinh HTML tự động — 4/4 lần không lỗi đếm tay). Verify: 109 bài liên tục
+0→108, không trùng không thiếu; 26 module liên tục 0→25.
+
+**Tổng kết 4 lượt mở rộng trong 1 ngày (2026-09-06):** 38 lesson gốc → 109 bài. Đã nói rõ với
+người học đây là con số lớn nhưng roadmap co giãn (gộp nếu nắm nhanh). Nếu có lượt 5+, giữ đúng
+quy trình đã ổn định: tra docs trước → dùng script Python tính lại số bài (không đếm tay) →
+verify liên tục/không trùng bằng script → cập nhật đồng bộ 4 file → nói rõ với người học đây là
+thay đổi ngoài lộ trình gốc, không âm thầm.
 
 ## Điều chỉnh lộ trình so với file gốc (đã báo người học)
 - **Thêm Bài 00 — Dựng môi trường**: `ng new` được kéo từ Lesson 1.1 lên Bài 00 để có sân

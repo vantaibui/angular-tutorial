@@ -7,20 +7,38 @@ Angular cũ. Học Classic (NgModule + RxJS + class Guard/Interceptor) trước 
 thứ 80% codebase production ngoài kia đang chạy, rồi mới migrate lên Modern —
 đúng thứ tự một senior thật phải đối mặt.
 
-## Performance & Modern mở rộng (thêm 2026-09-06)
-Theo yêu cầu trực tiếp, đã bổ sung 6 chủ đề ngoài 38 lesson gốc — đã tra docs chính thức
+## Performance & Modern mở rộng (thêm 2026-09-06, qua 2 lượt yêu cầu)
+Theo yêu cầu trực tiếp, đã bổ sung 8 chủ đề ngoài 38 lesson gốc — đã tra docs chính thức
 (angular.dev) cho từng cái trước khi thêm, xem chi tiết & nguồn trong `NOTES.md`:
-- **Change Detection & Performance sâu** (Giai đoạn 1, sau Dashboard Admin) — fit mission mạnh
-  nhất: câu hỏi phỏng vấn senior kinh điển + trực tiếp phục vụ việc maintain codebase cũ.
+- **Change Detection & Performance sâu** (8 bài) — fit mission mạnh nhất: câu hỏi phỏng vấn
+  senior kinh điển + trực tiếp phục vụ việc maintain codebase cũ. Có `@defer`, `NgOptimizedImage`,
+  Chrome DevTools profiling.
 - **Realtime (WebSocket/SSE)** — tận dụng nền RxJS đã có, không cần kiến thức mới ngoài khoá.
 - **Design System** — tổng hợp component đã tự xây, không phải xây thư viện UI mới.
+- **CDK & Material sâu** (6 bài, lượt 2 — "cần cho Senior") — Overlay/Portal/A11y/Layout, tự xây
+  Modal và Dropdown accessible từ CDK primitive, không chỉ dùng component Material dựng sẵn.
+- **Advanced Forms** (2 bài, lượt 2 — đào sâu Forms) — file upload CVA có progress, form quy mô lớn.
+- **Signal Forms** (2 bài, lượt 2 — đào sâu Forms hướng Modern) — API `@angular/forms/signals`
+  (`form()`), experimental từ v21; đối xứng Reactive Forms (Classic) ↔ Signal Forms (Modern).
 - **i18n** — thật với việc maintain app cũ, giữ ở mức khảo sát (2 bài) vì ít chiều sâu phỏng vấn.
 - **Animation Classic → Modern** — khớp đúng triết lý cả khoá: `@angular/animations` (NgModule,
   giờ là legacy) → `animate.enter`/`animate.leave` (API native, Angular khuyến nghị).
-- **SSR** — `ng add @angular/ssr` dùng được trên app ĐÃ CÓ (không chỉ lúc `ng new`), tình huống
-  senior thật; giữ mức khảo sát (2 bài) vì độ phức tạp hydration đủ lớn để thành mảng riêng.
+- **SSR sâu** (5 bài, lượt 2 — đào sâu SSR) — `ng add @angular/ssr` trên app ĐÃ CÓ, hydration
+  mismatch thật, SEO, đo TTFB/LCP qua Lighthouse.
 
-Tổng lộ trình: **~79 bài** (từ ~62). Xem toàn cảnh mới nhất ở `lessons/index.html`.
+- **NgRx đào sâu** (Phase 9 → 9 bài, thêm 2026-09-06 lượt 3) — `@ngrx/entity` generic đúng tư
+  duy `GenericApiService<T>`, effects nâng cao, testing, góc phỏng vấn NgRx riêng.
+- **NgRx SignalStore** (2 bài, lượt 3) — đã xác nhận là hướng KHUYẾN NGHỊ chính thức cho app mới;
+  đối xứng Modern cho câu chuyện state management: BehaviorSubject → NgRx Store → SignalStore.
+- **Timezone** (2 bài, lượt 3, gộp với i18n) — bug âm thầm, hay hỏi phỏng vấn; đã verify
+  `DatePipe` mặc định dùng LOCAL timezone chứ không phải UTC.
+
+- **Signals tách thành module riêng** (4 bài, lượt 4 — phản hồi trực tiếp "khó tiếp thu Signals
+  khi chuyển từ NgModule sang Modern"). Dạy cơ bản → nâng cao → phỏng vấn ĐỘC LẬP với việc migrate,
+  cùng nguyên tắc Phase 3/Generics đã có: nhiều ví dụ nhỏ trước khi vào bài tập lớn.
+
+Tổng lộ trình: **~109 bài** (38 gốc → ~62 tách nhỏ → ~79 lượt 1 → ~96 lượt 2 → ~105 lượt 3 → ~109 lượt 4).
+Con số lớn nhưng roadmap co giãn được — xem toàn cảnh mới nhất ở `lessons/index.html`.
 
 ## Success looks like
 - Đọc hiểu & sửa được một codebase Angular NgModule-based lạ mà không hoảng.
@@ -57,7 +75,8 @@ Mỗi bài phải đóng góp một mẩu **chạy được** vào app này.
 ## Out of scope
 - Backend thật (mọi thứ qua MSW mock).
 - PWA.
-- Thư viện UI ngoài Angular Material/CDK — "Design System" (đã thêm 2026-09-06) là tổng hợp
-  lại component TỰ VIẾT của khoá (Bài 08/17/18/22), không phải xây/dùng thư viện UI mới.
+- Thư viện UI ngoài Angular Material/CDK. CDK giờ được đào SÂU (module riêng, thêm 2026-09-06
+  lượt 2) để tự xây component như Material xây — "Design System" là tổng hợp component TỰ VIẾT
+  của khoá (Bài 08/17/18/22), không phải xây/dùng thư viện UI ngoài Material/CDK.
 - React/Vue so sánh — chỉ nhắc khi giúp hiểu nhanh một khái niệm.
 - SSR/i18n sâu (chỉ ở mức khảo sát — xem mục Performance & Modern mở rộng bên dưới).

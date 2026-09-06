@@ -176,15 +176,19 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ---
 
-> ## 🆕 PHASE 8.5 — Change Detection & Performance sâu (thêm 2026-09-06)
+> ## 🆕 PHASE 8.5 — Change Detection & Performance sâu (thêm 2026-09-06, mở rộng 2026-09-06)
 > Phát hiện khi rà lộ trình: Change Detection chưa từng dạy như khái niệm độc lập dù đã dùng
 > `markForCheck()` từ Lesson 3.2 và nhắc `OnPush` ba lần trước đó. Câu hỏi phỏng vấn senior kinh điển.
+> Mở rộng thêm 3 lesson theo yêu cầu "đào sâu Performance".
 >
 > ### Lesson 8.5.1 — Change Detection cơ bản: Zone.js, dirty checking, `ApplicationRef.tick()`
 > ### Lesson 8.5.2 — `OnPush` thực chiến — điều kiện an toàn để bật
 > ### Lesson 8.5.3 — Phân tích bundle: `source-map-explorer`, lazy-load ảnh/font
 > ### Lesson 8.5.4 — Core Web Vitals cho Angular SPA (LCP/INP/CLS, Lighthouse)
 > ### Lesson 8.5.5 — RxJS + Performance: `shareReplay`, tránh subscribe thừa
+> ### Lesson 8.5.6 — `@defer` — deferred loading views (đã verify: stable ở v22, giảm bundle ban đầu)
+> ### Lesson 8.5.7 — `NgOptimizedImage` — tối ưu LCP cho ảnh khoá học/avatar
+> ### Lesson 8.5.8 — Chrome DevTools Performance — đọc flame graph, tìm bottleneck thật
 > - ✅ Đo trước/sau bằng Lighthouse; giải thích được Zone.js gây re-render thừa ở đâu.
 
 ---
@@ -200,12 +204,30 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ---
 
-## PHASE 9 — NgRx
+## PHASE 9 — NgRx sâu
 
 ### Lesson 9.1 — Khi nào cần NgRx thay vì Service + BehaviorSubject
 - 📚 Redux pattern (Action/Reducer/Selector/Effect) và khi nào đáng đánh đổi.
 - 🛠 Migrate `CartService` sang NgRx: `cart.actions|reducer|selectors|effects.ts`.
 - ✅ Hoạt động y hệt, xem state qua Redux DevTools.
+
+> 🆕 Mở rộng 2026-09-06 theo yêu cầu: "nhiều bài toán lớn dùng NgRx cần đào sâu cả cách dùng,
+> generic setup, lẫn câu hỏi phỏng vấn". Đã tra docs `ngrx.io/guide/entity`: `createEntityAdapter<T>()`
+> là pattern generic CHÍNH THỨC của NgRx — cùng tư duy `GenericApiService<T>` đã học ở Lesson 1.3,
+> lần này áp cho state thay vì HTTP.
+>
+> ### Lesson 9.5 — `@ngrx/entity`: `createEntityAdapter<T>()`, setup generic cho MỌI collection
+> - 📚 So sánh trực tiếp với `GenericApiService<T>` (Lesson 1.3) — cùng một tư duy, khác tầng.
+> ### Lesson 9.6 — Selector composition & memoization sâu
+> - 📚 `createSelector`, vì sao selector không tính lại khi state không đổi.
+> ### Lesson 9.7 — Effects nâng cao
+> - 📚 debounce/switchMap trong effect (nối Lesson 0.1), cancellation, `catchError` đúng chỗ.
+> ### Lesson 9.8 — Testing NgRx
+> - 🛠 Test reducer/selector thuần; marble testing effect với `provideMockActions`.
+> ### Lesson 9.9 — Góc phỏng vấn NgRx
+> - 🛠 Bộ câu hỏi tình huống: khi nào NgRx là lựa chọn SAI, debug store không cập nhật, vì sao
+>   selector chạy lại, Effect vs Component gọi service trực tiếp.
+> - ✅ Trả lời được cả 5 câu tình huống không cần tra lại tài liệu.
 
 ---
 
@@ -236,6 +258,45 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 > ### Lesson 10.6.1 — `@angular/localize` — extract, dịch, build nhiều locale
 > ### Lesson 10.6.2 — `DatePipe`/`CurrencyPipe` theo locale — đổi `VndPipe` (Lesson 1.1) ra sao
 > - ✅ Build ra được 2 locale, giá tiền/ngày tháng hiển thị đúng theo từng locale.
+>
+> 🆕 Mở rộng 2026-09-06 — Timezone. Bug timezone âm thầm, khó tái hiện, hay hỏi phỏng vấn thực
+> chiến. Đã tra docs `angular.dev/api/common/DatePipe`: mặc định dùng LOCAL timezone của trình
+> duyệt (KHÔNG phải UTC) — hiểu nhầm phổ biến nhất.
+>
+> ### Lesson 10.6.3 — Timezone cơ bản: lưu UTC ở server, hiển thị theo timezone người dùng
+> - 📚 `DatePipe` mặc định LOCAL, không phải UTC — bẫy hay gặp nhất khi maintain codebase cũ.
+> ### Lesson 10.6.4 — `DATE_PIPE_DEFAULT_OPTIONS` & lịch live-class nhiều timezone
+> - 🛠 EduCommerce: "lớp học live bắt đầu lúc X" hiển thị đúng giờ cho học viên toàn cầu.
+> - ✅ Học viên ở 2 timezone khác nhau thấy đúng giờ local của họ cho CÙNG một buổi học.
+
+---
+
+> ## 🆕 PHASE 10.7 — CDK & Material sâu (thêm 2026-09-06 theo yêu cầu)
+> "Hiểu và viết thành thạo, cần cho Senior" — Material chỉ là bộ component dựng sẵn TRÊN CDK.
+> Hiểu CDK là hiểu cách tự xây component như Material xây, không chỉ dùng lại. Kỹ năng phân biệt
+> senior với người chỉ biết import `MatButtonModule`.
+>
+> ### Lesson 10.7.1 — CDK Overlay + Portal — xây Custom Modal/Dialog từ đầu
+> - 📚 Positioning engine đứng sau dialog/menu/tooltip của Material; backdrop, scroll strategy.
+> ### Lesson 10.7.2 — CDK A11y — `FocusTrap`/`LiveAnnouncer`/`FocusMonitor`
+> - 🛠 Áp vào Modal vừa xây ở Lesson trước — đóng vòng lặp a11y đã rải rác từ Lesson 3.2.
+> ### Lesson 10.7.3 — CDK Overlay nâng cao — Custom Dropdown/Autocomplete (connected positioning)
+> ### Lesson 10.7.4 — CDK Virtual Scrolling sâu — custom scroll strategy, quay lại Lesson 8.2
+> ### Lesson 10.7.5 — CDK Layout — `BreakpointObserver`, responsive logic trong TS
+> ### Lesson 10.7.6 — Material theming — áp design token (Phase 10.5) vào theme Material
+> - ✅ Tự xây được Modal + Dropdown accessible từ CDK primitive, không phụ thuộc component Material dựng sẵn.
+
+---
+
+> ## 🆕 PHASE 10.8 — Advanced Forms (thêm 2026-09-06, đào sâu Forms theo yêu cầu)
+> Lesson 3.1–3.5 đã rất sâu về cơ chế Forms/CVA; hai lesson này thêm hai tình huống thực chiến
+> chưa chạm tới: upload file, và form ở QUY MÔ LỚN.
+>
+> ### Lesson 10.8.1 — File upload CVA — custom control với progress bar
+> - 📚 RxJS + `HttpClient` progress events (`reportProgress: true`, `HttpEventType.UploadProgress`).
+> ### Lesson 10.8.2 — Form performance ở quy mô lớn
+> - 📚 `OnPush` cho form phức tạp, tối ưu `FormArray` dài (nối Phase 8.5).
+> - ✅ Upload thật qua MSW, progress bar chạy đúng; form 50+ field không giật khi gõ.
 
 ---
 
@@ -247,9 +308,45 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 ### Lesson 11.1 — Chuyển từng Feature Module sang Standalone (`ng generate @angular/core:standalone`)
 ### Lesson 11.2 — `bootstrapApplication` & xóa `AppModule` → `app.config.ts`
 
-## PHASE 12 — Signals Migration
-### Lesson 12.1 — `BehaviorSubject` → `signal()`/`computed()`, `toSignal()`
-### Lesson 12.2 — `computed()` cho Progress Tracking (so với Subject ở 7.2)
+## PHASE 12 — Signals cơ bản đến nâng cao
+
+> 🔄 **TÁCH RIÊNG 2026-09-06** theo phản hồi trực tiếp: "từ NgModule qua Modern khá khó khăn để
+> tiếp Signal — cần học cơ bản đến nâng cao, đủ khả năng cho dự án MỚI + phỏng vấn". KHÔNG dạy
+> Signals như "so sánh nhanh với `BehaviorSubject` rồi migrate" — bốn lesson này đứng ĐỘC LẬP với
+> việc migrate, giống cách Phase 0 dạy RxJS trước khi chạm NgModule. Việc migrate app Classic
+> sang Signals chuyển hết sang Phase 12.5 bên dưới.
+
+### Lesson 12.1 — Signals cơ bản: `signal()`, `computed()` — mental model reactive
+- 📚 Khác Observable ở đâu: pull vs push, không cần subscribe, đọc trực tiếp trong template.
+### Lesson 12.2 — `effect()` sâu
+- 📚 Injection context, cleanup function, khi nào effect chạy lại, vòng lặp vô hạn hay gặp.
+### Lesson 12.3 — Signals nâng cao
+- 📚 `untracked()`, `linkedSignal`, bẫy đọc signal sai chỗ (constructor vs field initializer).
+### Lesson 12.4 — Góc phỏng vấn Signals
+- 🛠 Bộ câu hỏi tình huống: signal vs observable dùng khi nào, `computed` có cache không,
+  `effect` vs `computed` khác nhau ở đâu, Signals có thay được RxJS hoàn toàn không.
+- ✅ Trả lời được cả bộ câu hỏi không cần tra lại tài liệu; viết được signal/computed/effect
+  đúng mà không copy từ ví dụ.
+
+---
+
+## PHASE 12.5 — Signals & NgRx Migration thực chiến
+
+> Sau khi vững nền tảng ở Phase 12, giờ mới áp dụng vào việc MIGRATE app Classic đã xây. Đã tra
+> docs: `@angular/forms/signals` (hàm `form()`, experimental v21+) và `@ngrx/signals`
+> (SignalStore, đã xác nhận là hướng khuyến nghị cho app mới) — đối xứng hoàn chỉnh: Reactive
+> Forms/NgRx Store (Classic) ↔ Signal Forms/SignalStore (Modern).
+
+### Lesson 12.5.1 — `BehaviorSubject` → `signal()`/`computed()`, `toSignal()` — so sánh code cũ
+### Lesson 12.5.2 — Viết lại `AuthService` + `CartService`
+### Lesson 12.5.3 — `computed()` cho Progress Tracking (so với Subject ở 7.2)
+### Lesson 12.5.4 — Angular Signal Forms — hàm `form()`, so với Reactive Forms
+### Lesson 12.5.5 — Migrate một phần Course Builder (Lesson 3.3) sang Signal Forms
+- ✅ So sánh boilerplate trước/sau; giải thích API còn experimental, rủi ro dùng ở production.
+### Lesson 12.5.6 — NgRx SignalStore — `withState`/`withComputed`/`withMethods`
+- 📚 So với `@ngrx/store` Classic: bớt boilerplate action/reducer, viết native trên signal.
+### Lesson 12.5.7 — Migrate `CartService` (đã qua 2 lần: BehaviorSubject → NgRx) sang SignalStore
+- ✅ Khép vòng lặp state management: cùng một tính năng, 3 cách viết, hiểu rõ đánh đổi mỗi cách.
 
 ## PHASE 13 — Control Flow mới (`@if`/`@for`/`@switch`)
 - ✅ Chạy `ng generate @angular/core:control-flow` rồi review diff.
@@ -279,14 +376,19 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 
 ---
 
-> ## 🆕 PHASE 16.6 — SSR: thêm Server-Side Rendering vào app đã có (thêm 2026-09-06, mức khảo sát)
+> ## 🆕 PHASE 16.6 — SSR sâu: thêm Server-Side Rendering vào app đã có (thêm 2026-09-06, mở rộng 2026-09-06)
 > Đã tra docs: `ng add @angular/ssr` dùng được trên app ĐÃ TỒN TẠI, không chỉ lúc `ng new` —
-> đúng tình huống senior thật ("sếp muốn SEO tốt hơn cho app cũ"). Giữ mức khảo sát vì độ phức
-> tạp hydration đủ lớn để thành mảng riêng nếu đào sâu.
+> đúng tình huống senior thật ("sếp muốn SEO tốt hơn cho app cũ"). Mở rộng từ 2 lesson khảo sát
+> thành 5 lesson theo yêu cầu "đào sâu SSR" — chạm cả SEO, debug hydration thật, đo hiệu năng.
 >
 > ### Lesson 16.6.1 — `ng add @angular/ssr` vào app Classic đã có — hybrid rendering, `RenderMode`
 > ### Lesson 16.6.2 — Hydration & bẫy thường gặp (`window`/`document`, `TransferState`)
-> - ✅ App chạy được cả 3 chế độ SSR/CSR/Prerender theo route, không lỗi hydration mismatch.
+> ### Lesson 16.6.3 — SEO thực chiến — meta tags động, `Title`/`Meta` service cho SSR/Prerender
+> ### Lesson 16.6.4 — Debug hydration mismatch thật — tái hiện & sửa lỗi kinh điển
+> - 📚 `Date.now()`/`Math.random()` trong template, truy cập `window` lúc constructor.
+> ### Lesson 16.6.5 — Performance SSR — TTFB, so sánh CSR/SSR/Prerender bằng Lighthouse
+> - ✅ App chạy được cả 3 chế độ SSR/CSR/Prerender theo route, không lỗi hydration mismatch,
+>   và đo được TTFB/LCP khác nhau giữa 3 chế độ.
 
 ---
 
@@ -307,20 +409,23 @@ Mỗi lesson: 🎯 Mục tiêu · 📚 Kiến thức cốt lõi · 🛠 Bài t�
 - [ ] Phase 6 (6.1-6.3) — Cart & Checkout
 - [ ] Phase 7 (7.1-7.2) — Học bài & Progress
 - [ ] Phase 8 (8.1-8.2) — Dashboard Admin
-- [ ] Phase 8.5 — Change Detection & Performance sâu 🆕
+- [ ] Phase 8.5 — Change Detection & Performance sâu 🆕 (8 lesson)
 - [ ] Phase 8.6 — Realtime WebSocket/SSE 🆕
-- [ ] Phase 9 (9.1) — NgRx
+- [ ] Phase 9 (9.1-9.9) — NgRx sâu 🆕 mở rộng (entity generic, effects nâng cao, testing, phỏng vấn)
 - [ ] Phase 10 (10.1-10.2) — Testing
 - [ ] Phase 10.5 — Design System 🆕
-- [ ] Phase 10.6 — i18n 🆕
+- [ ] Phase 10.7 — CDK & Material sâu 🆕 (6 lesson — senior UI skill)
+- [ ] Phase 10.8 — Advanced Forms 🆕 (file upload, form quy mô lớn)
+- [ ] Phase 10.6 — i18n & Timezone 🆕 (4 lesson)
 
 **Giai đoạn 2 — Modern (Migration):**
 - [ ] Phase 11 (11.1-11.2) — Standalone Migration
-- [ ] Phase 12 (12.1-12.2) — Signals Migration
+- [ ] Phase 12 (12.1-12.4) — Signals cơ bản đến nâng cao 🔄 tách riêng (đứng độc lập, có góc phỏng vấn)
+- [ ] Phase 12.5 (12.5.1-12.5.7) — Signals & NgRx Migration thực chiến + Signal Forms + SignalStore 🆕
 - [ ] Phase 13 — Control Flow mới
 - [ ] Phase 14 — Functional Guard/Interceptor
 - [ ] Phase 15 — resource() API
 - [ ] Phase 16 — Zoneless (nâng cao)
 - [ ] Phase 16.5 — Animation Classic → Modern 🆕
-- [ ] Phase 16.6 — SSR trên app đã có 🆕
+- [ ] Phase 16.6 — SSR sâu trên app đã có 🆕 (5 lesson)
 - [ ] Phase 17 — Migration Guide tổng kết

@@ -62,6 +62,25 @@ thuộc Angular team hoặc là tên tuổi đã được kiểm chứng — và
 - [web.dev — Core Web Vitals](https://web.dev/articles/vitals)
   Dùng cho Phase 8.5 (Performance) — định nghĩa chính thức của LCP/INP/CLS, dùng làm mốc đo
   trước/sau khi tối ưu.
+- [Angular — Deferrable Views (`@defer`)](https://angular.dev/guide/templates/defer)
+  Đã tra 2026-09-06: stable ở v22 (không đánh dấu experimental), hỗ trợ trigger
+  `idle/viewport/interaction/hover/immediate/timer/when`. Dùng cho Phase 8.5.
+- [Angular CDK — Categories](https://material.angular.dev/cdk/categories)
+  ⚠️ Trang là SPA (giống rxjs.dev) — WebFetch chỉ lấy được `<title>`, phải dùng WebSearch snippet
+  để nắm nội dung (Overlay/Portal/A11y/Layout/Scrolling). **Cần verify lại kỹ hơn khi thật sự
+  viết lesson Phase 10.7** — đừng dùng lại mô tả snippet này làm nguồn trích dẫn cuối cùng.
+- [NgRx — Entity Adapter](https://ngrx.io/guide/entity/adapter)
+  Đã tra 2026-09-06: `createEntityAdapter<T>()` là pattern generic CHÍNH THỨC — cùng tư duy
+  `GenericApiService<T>` (Bài 10), áp cho state. Dùng cho Phase 9 (NgRx sâu).
+- [NgRx — Signals (SignalStore)](https://ngrx.io/guide/signals)
+  Đã xác nhận 2026-09-06 qua WebSearch: `@ngrx/signals` (bản 22.0.0) là hướng KHUYẾN NGHỊ chính
+  thức cho app mới hiện nay — native trên Signals, entity management sẵn có. Dùng cho Phase 12.
+- [Angular — `@angular/forms/signals` (Signal Forms)](https://angular.dev)
+  Đã xác nhận qua WebSearch 2026-09-06: hàm `form()`, experimental từ v21, các cập nhật
+  (`FormRoot`, debounce, `getError()`) đã vào 22.0.0, dự kiến ổn định trong 2026. **Chưa tìm
+  được URL docs chính thức ổn định** (API còn experimental, cấu trúc docs có thể đổi) — khi
+  viết Lesson 12.3 phải tự fetch lại `angular.dev/guide/signals` hoặc tương đương để tìm trang
+  đúng, đừng tin URL cũ.
 
 ## Gaps
 - Chưa tìm được nguồn tiếng Việt chất lượng cao đủ tin cậy để trích dẫn — hiện dịch/giảng

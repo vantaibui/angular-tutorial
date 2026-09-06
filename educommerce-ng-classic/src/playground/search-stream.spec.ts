@@ -1,4 +1,12 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+
 import {
   Subject,
   Observable,
@@ -24,18 +32,21 @@ describe('search stream', () => {
     return new Observable<string>((subscriber) => {
       log.push(`START ${term}`);
 
+      let done = false;
+
       const timeout = setTimeout(() => {
         subscriber.next(`RESULT ${term}`);
+
+        done = true;
         subscriber.complete();
       }, 1000);
 
       return () => {
         clearTimeout(timeout);
 
-        // Chỉ log CANCEL nếu request chưa complete.
-        // Nếu không có check này thì teardown sau complete
-        // cũng có thể bị hiểu nhầm là cancel.
-        log.push(`CANCEL ${term}`);
+        if (!done) {
+          log.push(`CANCEL ${term}`);
+        }
       };
     });
   }
@@ -45,8 +56,12 @@ describe('search stream', () => {
     const results: string[] = [];
 
     const subscription = search$
-      .pipe(switchMap((term) => fakeSearch(term)))
-      .subscribe((result) => results.push(result));
+      .pipe(
+        switchMap((term) => fakeSearch(term)),
+      )
+      .subscribe((result) => {
+        results.push(result);
+      });
 
     search$.next('an');
 
@@ -62,9 +77,27 @@ describe('search stream', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(results).toEqual(['RESULT ang']);
+    expect(results).toEqual([
+      'RESULT ang',
+    ]);
+
+    // Request "ang" hoàn thành tự nhiên,
+    // không được bị ghi nhầm thành CANCEL.
+    expect(log).toEqual([
+      'START an',
+      'CANCEL an',
+      'START ang',
+    ]);
 
     subscription.unsubscribe();
+
+    // Unsubscribe outer sau khi inner đã complete
+    // cũng không được tạo thêm CANCEL giả.
+    expect(log).toEqual([
+      'START an',
+      'CANCEL an',
+      'START ang',
+    ]);
   });
 
   it('TC2 - debounceTime emits only latest value', async () => {
@@ -76,7 +109,9 @@ describe('search stream', () => {
         debounceTime(300),
         switchMap((term) => fakeSearch(term)),
       )
-      .subscribe((result) => results.push(result));
+      .subscribe((result) => {
+        results.push(result);
+      });
 
     search$.next('a');
 
@@ -88,12 +123,12 @@ describe('search stream', () => {
 
     search$.next('ang');
 
-    // Chưa đủ debounce
+    // Mới 299ms kể từ lần emit cuối.
     await vi.advanceTimersByTimeAsync(299);
 
     expect(log).toEqual([]);
 
-    // Đủ 300ms kể từ "ang"
+    // Đủ đúng 300ms.
     await vi.advanceTimersByTimeAsync(1);
 
     expect(log).toEqual([
@@ -102,7 +137,13 @@ describe('search stream', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(results).toEqual(['RESULT ang']);
+    expect(results).toEqual([
+      'RESULT ang',
+    ]);
+
+    expect(log).toEqual([
+      'START ang',
+    ]);
 
     subscription.unsubscribe();
   });
@@ -117,28 +158,63 @@ describe('search stream', () => {
         distinctUntilChanged(),
         switchMap((term) => fakeSearch(term)),
       )
-      .subscribe((result) => results.push(result));
+      .subscribe((result) => {
+        results.push(result);
+      });
 
     search$.next('angular');
+
     await vi.advanceTimersByTimeAsync(300);
+
+    expect(log).toEqual([
+      'START angular',
+    ]);
+
     await vi.advanceTimersByTimeAsync(1000);
 
+    expect(results).toEqual([
+      'RESULT angular',
+    ]);
+
+    // Emit lại cùng một query.
     search$.next('angular');
+
     await vi.advanceTimersByTimeAsync(300);
+
+    // distinctUntilChanged phải chặn hoàn toàn.
+    expect(log).toEqual([
+      'START angular',
+    ]);
 
     search$.next('vue');
+
     await vi.advanceTimersByTimeAsync(300);
 
-    const startLogs = log.filter((x) => x.startsWith('START'));
-
-    expect(startLogs).toEqual([
+    expect(log).toEqual([
       'START angular',
       'START vue',
     ]);
 
     await vi.advanceTimersByTimeAsync(1000);
 
+    expect(results).toEqual([
+      'RESULT angular',
+      'RESULT vue',
+    ]);
+
+    // Assert nguyên log, không filter,
+    // để bắt được CANCEL giả nếu helper bị phá.
+    expect(log).toEqual([
+      'START angular',
+      'START vue',
+    ]);
+
     subscription.unsubscribe();
+
+    expect(log).toEqual([
+      'START angular',
+      'START vue',
+    ]);
   });
 
   it('TC4 - mergeMap does not cancel previous request', async () => {
@@ -146,8 +222,12 @@ describe('search stream', () => {
     const results: string[] = [];
 
     const subscription = search$
-      .pipe(mergeMap((term) => fakeSearch(term)))
-      .subscribe((result) => results.push(result));
+      .pipe(
+        mergeMap((term) => fakeSearch(term)),
+      )
+      .subscribe((result) => {
+        results.push(result);
+      });
 
     search$.next('an');
 
@@ -165,9 +245,20 @@ describe('search stream', () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(results).toHaveLength(2);
+
     expect(results).toContain('RESULT an');
     expect(results).toContain('RESULT ang');
 
+    expect(log).toEqual([
+      'START an',
+      'START ang',
+    ]);
+
     subscription.unsubscribe();
+
+    expect(log).toEqual([
+      'START an',
+      'START ang',
+    ]);
   });
 });

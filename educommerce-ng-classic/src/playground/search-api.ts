@@ -4,28 +4,39 @@ import { Observable } from 'rxjs';
 export type ApiLog = string[];
 
 /**
- * API tìm kiếm GIẢ LẬP.
- * Điểm mấu chốt: hàm teardown (phần `return () => {...}`) chạy khi có người
- * unsubscribe — nhờ vậy ta CHỨNG MINH được request đã bị huỷ, thay vì chỉ tin.
+ * API tìm kiếm giả lập.
+ *
+ * Observable là lazy:
+ * chỉ khi có subscriber thì request giả lập mới bắt đầu.
+ *
+ * Teardown chạy khi unsubscribe hoặc khi Observable complete.
+ * Cờ `xong` dùng để phân biệt:
+ * - complete bình thường
+ * - bị cancel giữa chừng
  */
-export function fakeSearchApi(term: string, delayMs: number, log: ApiLog): Observable<string[]> {
+export function fakeSearchApi(
+  term: string,
+  delayMs: number,
+  log: ApiLog,
+): Observable<string[]> {
   return new Observable<string[]>((subscriber) => {
-    // Chạy khi CÓ NGƯỜI subscribe — không phải khi hàm được gọi.
-    // Đây là tính "lazy" của Observable: không ai nghe thì không có gì xảy ra.
     log.push(`START ${term}`);
+
     let xong = false;
 
     const id = setTimeout(() => {
       xong = true;
+
       subscriber.next([`${term} result`]);
       subscriber.complete();
     }, delayMs);
 
-    // TEARDOWN: chạy khi unsubscribe HOẶC khi complete.
-    // Cờ `xong` để phân biệt hai trường hợp — chỉ ghi CANCEL khi bị cắt giữa chừng.
     return () => {
       clearTimeout(id);
-      if (!xong) log.push(`CANCEL ${term}`);
+
+      if (!xong) {
+        log.push(`CANCEL ${term}`);
+      }
     };
   });
 }

@@ -34,3 +34,13 @@ _Avoid_: observable cha/con
 **Race condition (trong RxJS)**:
 Nhiều request bay đi song song và về không đúng thứ tự phát, khiến kết quả cũ ghi đè kết quả mới.
 _Avoid_: bug bất đồng bộ
+
+**`destroy$` pattern**:
+Một `Subject<void>` private trong component, `next()` rồi `complete()` trong `ngOnDestroy`,
+dùng với `takeUntil` đặt ở **cuối** pipe để cắt mọi subscription khi component bị huỷ.
+_Avoid_: cleanup subject, huỷ subscription
+
+**Test canh gác (guarding test)**:
+Test mà khi ta cố tình phá code thì nó chuyển sang đỏ. Test xanh nhưng không đỏ khi phá code
+thì chưa chứng minh được điều nó tuyên bố.
+_Avoid_: test tốt, test đầy đủ

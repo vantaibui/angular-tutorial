@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Auth Flow Classic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 24–27</span>
+    <h1>Auth Flow Classic — cheat-sheet</h1>
+    <p class="subtitle">Interceptor, refresh token, BehaviorSubject state, forgot password — bài toán RxJS khó nhất của khoá.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.1.4 · 16 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. Interceptor — pipeline, không phải điểm chặn</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · khuôn chuẩn</span>
+<pre><code><span class="fn">@Injectable</span>()   <span class="cmt">// KHÔNG providedIn:'root' — phải khai tường minh qua HTTP_INTERCEPTORS</span>
+<span class="kw">export class</span> AuthInterceptor <span class="kw">implements</span> HttpInterceptor {
+  <span class="fn">intercept</span>(req, next) {
+    <span class="kw">const</span> authReq = token ? req.<span class="fn">clone</span>({ setHeaders: { Authorization: <span class="str">`Bearer ${token}`</span> } }) : req;
+    <span class="kw">return</span> next.<span class="fn">handle</span>(authReq);
+  }
+}
+<span class="cmt">// Đăng ký:</span>
+{ provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: <span class="kw">true</span> }  <span class="cmt">// multi:true — thiếu là GHI ĐÈ, im lặng</span>
+<span class="fn">provideHttpClient</span>(<span class="fn">withInterceptorsFromDi</span>())  <span class="cmt">// bắt buộc để class interceptor chạy ở v22</span></code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Sự thật</th><th>Vì sao quan trọng</th></tr></thead>
+      <tbody>
+        <tr><td><code>HttpRequest</code> bất biến</td><td>Không có <code>.headers.set()</code> — phải <code>.clone()</code> ra bản mới</td></tr>
+        <tr><td>Nhiều interceptor chạy <strong>theo thứ tự khai báo</strong></td><td>Request đi xuôi, response đi ngược đúng thứ tự đó</td></tr>
+        <tr><td>Quên <code>multi: true</code></td><td>Interceptor sau ghi đè interceptor trước — không lỗi, không cảnh báo</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Refresh token — N request 401, 1 lần refresh</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · cờ chặn + cổng chờ</span>
+<pre><code><span class="kw">private</span> isRefreshing = <span class="kw">false</span>;                                    <span class="cmt">// chặn gọi refresh() lần 2</span>
+<span class="kw">private</span> refreshTokenSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>|<span class="kw">null</span>&gt;(<span class="kw">null</span>);  <span class="cmt">// cổng chờ</span>
+
+<span class="cmt">// NGƯỜI ĐẦU TIÊN 401:</span>
+<span class="kw">if</span> (!isRefreshing) {
+  isRefreshing = <span class="kw">true</span>; refreshTokenSubject.<span class="fn">next</span>(<span class="kw">null</span>);   <span class="cmt">// báo "đang refresh"</span>
+  <span class="kw">return</span> auth.<span class="fn">refreshAccessToken</span>().<span class="fn">pipe</span>(
+    <span class="fn">switchMap</span>((newToken) => {
+      isRefreshing = <span class="kw">false</span>;
+      refreshTokenSubject.<span class="fn">next</span>(newToken);         <span class="cmt">// đánh thức MỌI người chờ</span>
+      <span class="kw">return</span> next.<span class="fn">handle</span>(<span class="fn">addToken</span>(req, newToken));
+    }),
+    <span class="fn">catchError</span>((err) => { isRefreshing=<span class="kw">false</span>; auth.<span class="fn">logout</span>(); router.<span class="fn">navigate</span>([<span class="str">'/login'</span>]); <span class="kw">return</span> <span class="fn">throwError</span>(() => err); }),
+  );
+}
+<span class="cmt">// NGƯỜI TỚI SAU (isRefreshing đã true):</span>
+<span class="kw">return</span> refreshTokenSubject.<span class="fn">pipe</span>(
+  <span class="fn">filter</span>((t): t <span class="kw">is string</span> => t !== <span class="kw">null</span>),
+  <span class="fn">take</span>(<span class="num">1</span>),                                       <span class="cmt">// tự huỷ sau 1 lần — không leak (Bài 02)</span>
+  <span class="fn">switchMap</span>((t) => next.<span class="fn">handle</span>(<span class="fn">addToken</span>(req, t))),
+);</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Bốn điều dễ sai</div>
+      <ol>
+        <li>Loại trừ <code>/api/auth/*</code> khỏi logic bắt 401 → thiếu thì refresh thất bại tự gọi lại refresh, vòng lặp vô hạn.</li>
+        <li><code>catchError</code> lồng TRONG nhánh refresh (bắt lỗi refresh thất bại), khác với <code>catchError</code> ngoài cùng (bắt 401 ban đầu) — hai tầng lỗi khác nhau.</li>
+        <li>Thiếu <code>take(1)</code> ở nhánh chờ → subscription không tự đóng, lần refresh SAU vô tình kích hoạt lại request đã xong từ lâu.</li>
+        <li>Test có <code>router.navigate(['/login'])</code> → route <code>'login'</code> phải <strong>tồn tại thật</strong> trong <code>provideRouter</code> của test, nếu không <code>NG04002</code> gây unhandled rejection âm thầm.</li>
+      </ol>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test bằng chứng: expectOne ném lỗi nếu refresh gọi &gt;1 lần</span>
+<pre><code><span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(<span class="fn">forkJoin</span>([http.<span class="fn">get</span>(<span class="str">'/api/a'</span>), ..., http.<span class="fn">get</span>(<span class="str">'/api/e'</span>)]));
+<span class="cmt">// cả 5 request gốc 401 ...</span>
+<span class="kw">const</span> refreshReq = httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/auth/refresh'</span>);  <span class="cmt">// ĐÚNG 1 — nếu >1 thì expectOne tự đỏ</span>
+refreshReq.<span class="fn">flush</span>({ accessToken: <span class="str">'token-moi'</span> });
+<span class="cmt">// cả 5 request được retry ...</span>
+httpMock.<span class="fn">verify</span>();  <span class="cmt">// không còn request thừa</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Auth state — một BehaviorSubject, hai cách đọc</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">private readonly</span> currentUserSubject = <span class="kw">new</span> BehaviorSubject&lt;User|<span class="kw">null</span>&gt;(<span class="kw">null</span>);
+<span class="kw">readonly</span> currentUser$ = <span class="kw">this</span>.currentUserSubject.<span class="fn">asObservable</span>();       <span class="cmt">// subscribe liên tục (template)</span>
+<span class="kw">readonly</span> isAuthenticated$ = <span class="kw">this</span>.currentUser$.<span class="fn">pipe</span>(<span class="fn">map</span>((u) => u !== <span class="kw">null</span>));  <span class="cmt">// DẪN XUẤT, không Subject riêng</span>
+<span class="kw">get</span> <span class="fn">currentUser</span>() { <span class="kw">return this</span>.currentUserSubject.value; }         <span class="cmt">// đọc snapshot (Guard, Interceptor)</span></code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Nơi dùng</th><th>Cách đọc</th><th>Vì sao</th></tr></thead>
+      <tbody>
+        <tr><td>Guard, Interceptor</td><td><code>.currentUser</code> / <code>.accessToken</code> (getter)</td><td>Cần trả lời <strong>đồng bộ</strong>, không subscribe được giữa <code>canActivate()</code></td></tr>
+        <tr><td>Template (Header)</td><td><code>currentUser$ | async</code></td><td>Tự unsubscribe theo vòng đời component (Bài 03)</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Đừng tạo <code>BehaviorSubject&lt;boolean&gt;</code> riêng cho <code>isAuthenticated</code></div>
+      <p>Phải nhớ gọi <code>.next()</code> ở MỌI chỗ <code>currentUser</code> đổi — quên một chỗ là hai luồng lệch nhau. Dẫn xuất bằng <code>map</code> thì không thể lệch, vì nó được TÍNH chứ không được GÁN.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Path param vs Query param</h2>
+    <table class="data">
+      <thead><tr><th></th><th>Path — <code>/courses/:id</code></th><th>Query — <code>?token=...</code></th></tr></thead>
+      <tbody>
+        <tr><td>Trả lời</td><td>"Tài nguyên nào?"</td><td>"Ngữ cảnh gì đi kèm?"</td></tr>
+        <tr><td>Route phụ thuộc nó?</td><td>Có — thiếu thì 404</td><td>Không — route vẫn khớp</td></tr>
+        <tr><td>Đọc bằng</td><td><code>route.snapshot.paramMap.get('id')</code></td><td><code>route.snapshot.queryParamMap.get('token')</code></td></tr>
+        <tr><td>Ví dụ khác</td><td><code>/courses/:slug</code></td><td><code>?returnUrl=...</code> (Bài 13), <code>?page=2&amp;search=...</code> (Bài 04)</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Gõ nhầm <code>paramMap</code> ↔ <code>queryParamMap</code></div>
+      <p>Cả hai đều có <code>.get()</code>, TypeScript không báo lỗi khi nhầm — chỉ nhận <code>null</code> bí ẩn dù URL có đúng tham số.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Bảo mật cơ bản</h2>
+    <ul>
+      <li><strong>Không tiết lộ email tồn tại hay không</strong> — API forgot-password luôn trả cùng một thông báo (chống user enumeration).</li>
+      <li><strong>401 vs 403</strong> (nhắc lại Bài 14): chưa đăng nhập → 401 → <code>/login</code>; sai quyền → 403 → <code>/forbidden</code>. Refresh token chỉ liên quan tới 401.</li>
+      <li><strong>Guard là UX, không phải bảo mật</strong> (Bài 14) — interceptor cũng vậy; server luôn phải verify token thật.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Trạng thái tường minh &gt; nhiều boolean rời rạc</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ✅ Union type — không có tổ hợp vô nghĩa</span>
+trangThai: <span class="str">'nhap'</span> | <span class="str">'thieu-token'</span> | <span class="str">'thanh-cong'</span> | <span class="str">'het-han'</span> = <span class="str">'nhap'</span>;
+
+<span class="cmt">// ❌ nhiều boolean — loading=true VÀ error=true cùng lúc thì hiện gì trước?</span>
+loading: <span class="kw">boolean</span>; error: <span class="kw">boolean</span>; success: <span class="kw">boolean</span>;</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Interceptor hoạt động thế nào?</td><td>Pipeline mà mọi request/response đi qua theo thứ tự khai báo (multi-provider). <code>HttpRequest</code> bất biến nên sửa phải <code>.clone()</code>.</td></tr>
+        <tr><td>Tránh gọi refresh nhiều lần khi N request cùng 401?</td><td>Cờ <code>isRefreshing</code> chặn gọi lại; <code>BehaviorSubject&lt;string|null&gt;</code> làm cổng chờ, request sau <code>filter</code> bỏ <code>null</code> + <code>take(1)</code> rồi tự retry.</td></tr>
+        <tr><td>Thiết kế state service an toàn?</td><td><code>private Subject</code> + <code>public asObservable()</code>; luồng dẫn xuất bằng <code>map</code>, không Subject riêng; đọc đồng bộ qua getter cho Guard/Interceptor.</td></tr>
+        <tr><td>Path param vs query param, chọn thế nào?</td><td>Định danh tài nguyên bắt buộc → path. Ngữ cảnh tuỳ chọn, không ảnh hưởng route có khớp hay không → query.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="forms-cheatsheet.html">← Forms</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng 16 test chạy xanh trên Angular 22.1.4 / RxJS 7.8.2.</p>
+</div>
+</body>
+</html>

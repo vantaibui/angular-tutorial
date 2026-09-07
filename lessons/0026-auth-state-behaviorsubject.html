@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 26 · Auth state bằng BehaviorSubject</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 4 · Bài 26 · Auth Classic</span>
+    <h1>Auth state bằng <code>BehaviorSubject</code></h1>
+    <p class="subtitle">
+      <code>private Subject</code> + <code>public asObservable()</code> — pattern một-chiều-ghi
+      từ Bài 03, lần này cho chính <code>AuthService</code>.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Header/Guard/Profile đọc cùng một nguồn sự thật · 🏷️ EduCommerce · Auth</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Thiết kế <code>AuthService</code> phục vụ cả đọc <strong>snapshot</strong> lẫn <strong>subscribe liên tục</strong>.</li>
+      <li>Đảm bảo không ai bên ngoài tự ý ghi đè trạng thái đăng nhập.</li>
+      <li>Dẫn xuất <code>isAuthenticated$</code> từ <code>currentUser$</code> mà không giữ state riêng.</li>
+      <li>Không leak subscription khi dùng <code>| async</code> lẫn <code>subscribe()</code> thủ công.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 03 bạn tự trả lời: giỏ hàng là <em>trạng thái</em> nên dùng
+      <code>BehaviorSubject</code>, và <code>private Subject</code> + <code>public
+      asObservable()</code> đóng cửa ghi ở tầng kiểu. Bài 25 vừa cho thấy
+      <code>AuthInterceptor</code> cần đọc/ghi token — nhưng <code>AuthService</code> hiện tại quá sơ sài.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới: <strong>áp đúng pattern đó cho auth, và phục vụ hai kiểu tiêu
+      thụ khác nhau — đọc một lần và theo dõi liên tục.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: ba nơi đọc, ba cách khác nhau</h2>
+    <table class="data">
+      <thead><tr><th>Nơi</th><th>Cần gì</th><th>Kiểu đọc</th></tr></thead>
+      <tbody>
+        <tr><td>Header (hiển thị tên)</td><td>Tên người dùng, cập nhật ngay khi login/logout</td><td>Subscribe liên tục</td></tr>
+        <tr><td><code>AuthGuard</code> (Bài 13)</td><td>Đã đăng nhập chưa, ngay tại thời điểm route được kích hoạt</td><td>Đọc snapshot đồng bộ</td></tr>
+        <tr><td><code>AuthInterceptor</code> (Bài 25)</td><td>Access token hiện tại để đính header</td><td>Đọc snapshot đồng bộ</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Guard và Interceptor <strong>không thể</strong> <code>await</code> một Observable giữa
+        chừng vòng đời của chúng — chúng cần câu trả lời <em>ngay</em>. Header thì ngược lại, cần
+        biết <em>mọi</em> lần thay đổi trong tương lai. Một cấu trúc dữ liệu nào cho cả hai?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: một nguồn, hai cách lấy ra</h2>
+    <div class="code-block">
+      <span class="code-label">BehaviorSubject cho cả hai kiểu đọc — đúng vì nó LUÔN có giá trị hiện tại (Bài 03)</span>
+<pre><code><span class="kw">private readonly</span> currentUserSubject = <span class="kw">new</span> BehaviorSubject&lt;User | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+
+<span class="cmt">// Kiểu 1: SUBSCRIBE LIÊN TỤC — cho Header, template dùng | async</span>
+<span class="kw">readonly</span> currentUser$ = <span class="kw">this</span>.currentUserSubject.<span class="fn">asObservable</span>();
+
+<span class="cmt">// Kiểu 2: ĐỌC SNAPSHOT ĐỒNG BỘ — cho Guard, Interceptor</span>
+<span class="kw">get</span> <span class="fn">currentUser</span>(): User | <span class="kw">null</span> { <span class="kw">return this</span>.currentUserSubject.value; }</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Một <code>BehaviorSubject</code> phục vụ được cả hai kiểu đọc, vì <code>.value</code> và
+          <code>.asObservable()</code> chỉ là hai CỬA SỔ khác nhau nhìn vào CÙNG một trạng thái.
+        </strong>
+      </p>
+      <p>
+        Không cần hai biến riêng để đồng bộ thủ công — chỉ cần một nguồn sự thật.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/auth.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> AuthService {
+  <span class="kw">private readonly</span> http = <span class="fn">inject</span>(HttpClient);
+
+  <span class="cmt">// private: CHỈ AuthService được quyền next(). Không ai bên ngoài ghi đè trạng thái.</span>
+  <span class="kw">private readonly</span> currentUserSubject = <span class="kw">new</span> BehaviorSubject&lt;User | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+  <span class="kw">readonly</span> currentUser$ = <span class="kw">this</span>.currentUserSubject.<span class="fn">asObservable</span>();
+
+  <span class="cmt">// Dẫn xuất — KHÔNG giữ state riêng, luôn tự động đồng bộ với currentUser$.</span>
+  <span class="kw">readonly</span> isAuthenticated$ = <span class="kw">this</span>.currentUser$.<span class="fn">pipe</span>(<span class="fn">map</span>((u) => u !== <span class="kw">null</span>));
+
+  <span class="fn">login</span>(email: <span class="kw">string</span>, password: <span class="kw">string</span>): Observable&lt;LoginResponse&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">post</span>&lt;LoginResponse&gt;(<span class="str">'/api/auth/login'</span>, { email, password }).<span class="fn">pipe</span>(
+      <span class="fn">tap</span>((res) => {
+        localStorage.<span class="fn">setItem</span>(ACCESS_TOKEN_KEY, res.accessToken);
+        localStorage.<span class="fn">setItem</span>(REFRESH_TOKEN_KEY, res.refreshToken);
+        <span class="kw">this</span>.currentUserSubject.<span class="fn">next</span>(res.user);  <span class="cmt">// MỘT nơi duy nhất gọi next()</span>
+      }),
+    );
+  }
+
+  <span class="fn">logout</span>(): <span class="kw">void</span> {
+    localStorage.<span class="fn">removeItem</span>(ACCESS_TOKEN_KEY);
+    localStorage.<span class="fn">removeItem</span>(REFRESH_TOKEN_KEY);
+    <span class="kw">this</span>.currentUserSubject.<span class="fn">next</span>(<span class="kw">null</span>);
+  }
+
+  <span class="kw">get</span> <span class="fn">accessToken</span>(): <span class="kw">string</span> | <span class="kw">null</span> { <span class="kw">return</span> localStorage.<span class="fn">getItem</span>(ACCESS_TOKEN_KEY); }
+  <span class="kw">get</span> <span class="fn">isLoggedIn</span>(): <span class="kw">boolean</span> { <span class="kw">return this</span>.currentUserSubject.value !== <span class="kw">null</span>; }
+  <span class="kw">get</span> <span class="fn">currentUser</span>(): User | <span class="kw">null</span> { <span class="kw">return this</span>.currentUserSubject.value; }
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>isAuthenticated$</code> không phải một <code>BehaviorSubject</code> khác</div>
+      <p>
+        Nếu bạn tạo <code>isAuthenticatedSubject</code> riêng, bạn phải nhớ gọi
+        <code>.next()</code> ở <strong>cả hai chỗ</strong> — <code>login()</code> và
+        <code>logout()</code> — và chúng có thể lệch nhau nếu quên một chỗ. Dẫn xuất bằng
+        <code>.pipe(map(...))</code> nghĩa là chỉ có <strong>một</strong> nguồn sự thật
+        (<code>currentUserSubject</code>); mọi luồng khác tự động đúng theo nó, không thể lệch.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Component subscribe đúng cách</h2>
+    <div class="code-block">
+      <span class="code-label">HTML · header.component.html</span>
+<pre><code><span class="cmt">&lt;!-- | async: Angular tự subscribe/unsubscribe theo vòng đời component (Bài 03) --&gt;</span>
+@if (auth.currentUser$ | async; as user) {
+  &lt;span&gt;Xin chào, {{ user.name }}&lt;/span&gt;
+  &lt;button (click)="auth.logout()"&gt;Đăng xuất&lt;/button&gt;
+} @else {
+  &lt;a routerLink="/login"&gt;Đăng nhập&lt;/a&gt;
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Nếu bạn <code>subscribe()</code> thủ công thay vì <code>| async</code></div>
+      <p>
+        Đúng bài học Bài 02: <code>this.auth.currentUser$.subscribe(...)</code> trong
+        <code>ngOnInit</code> mà quên <code>takeUntil(this.destroy$)</code> thì mỗi lần component
+        header bị tạo lại (hiếm, nhưng có thể xảy ra khi route thay đổi layout) sẽ để lại một
+        subscription sống mãi, giữ tham chiếu tới component cũ. <code>| async</code> tránh được
+        toàn bộ vấn đề này — <strong>đây là lý do nó là lựa chọn mặc định</strong>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Test — chứng minh cả hai kiểu đọc đều đúng</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify xanh</span>
+<pre><code><span class="fn">it</span>(<span class="str">'login thành công: lưu token, currentUser$ phát user mới'</span>, <span class="kw">async</span> () => {
+  <span class="kw">const</span> emitted: (User | <span class="kw">null</span>)[] = [];
+  <span class="kw">const</span> sub = service.currentUser$.<span class="fn">subscribe</span>((u) => emitted.<span class="fn">push</span>(u));
+
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(service.<span class="fn">login</span>(<span class="str">'t@x.vn'</span>, <span class="str">'123'</span>));
+  httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/auth/login'</span>).<span class="fn">flush</span>({
+    user: fakeUser, accessToken: <span class="str">'acc-1'</span>, refreshToken: <span class="str">'ref-1'</span>,
+  });
+  <span class="kw">await</span> p;
+
+  <span class="fn">expect</span>(emitted).<span class="fn">toEqual</span>([<span class="kw">null</span>, fakeUser]);  <span class="cmt">// null lúc đầu (BehaviorSubject), rồi user sau login</span>
+  <span class="fn">expect</span>(service.isLoggedIn).<span class="fn">toBe</span>(<span class="kw">true</span>);
+  sub.<span class="fn">unsubscribe</span>();
+});
+
+<span class="fn">it</span>(<span class="str">'người subscribe MUỘN vẫn nhận đúng trạng thái hiện tại'</span>, <span class="kw">async</span> () => {
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(service.<span class="fn">login</span>(<span class="str">'t@x.vn'</span>, <span class="str">'123'</span>));
+  httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/auth/login'</span>).<span class="fn">flush</span>({ user: fakeUser, accessToken: <span class="str">'acc-1'</span>, refreshToken: <span class="str">'ref-1'</span> });
+  <span class="kw">await</span> p;
+
+  <span class="cmt">// Subscribe SAU khi login xong -> vẫn thấy user NGAY, đúng tính chất BehaviorSubject (Bài 03)</span>
+  <span class="kw">const</span> late = <span class="kw">await</span> <span class="fn">firstValueFrom</span>(service.currentUser$.<span class="fn">pipe</span>(<span class="fn">take</span>(<span class="num">1</span>)));
+  <span class="fn">expect</span>(late).<span class="fn">toEqual</span>(fakeUser);
+});</code></pre>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Thiết kế state service cho auth thế nào để an toàn?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Một <code>BehaviorSubject</code> private giữ trạng thái,
+        expose <code>asObservable()</code> công khai để chặn ghi từ ngoài ở tầng kiểu. Mọi luồng
+        dẫn xuất (<code>isAuthenticated$</code>) dùng <code>pipe(map(...))</code> thay vì subject
+        riêng, để không có hai nguồn sự thật lệch nhau. Nơi cần đọc đồng bộ (guard, interceptor)
+        dùng getter đọc <code>.value</code>; nơi cần theo dõi liên tục (template) dùng
+        <code>| async</code> trên chính Observable đó — cùng một nguồn, hai cách lấy."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao <code>isAuthenticated$</code> nên là <code>currentUser$.pipe(map(...))</code> thay vì một <code>BehaviorSubject&lt;boolean&gt;</code> riêng?</div>
+    <button class="opt" data-correct="false" data-explain="Không phải lý do chính — cả hai cách đều tạo object mới khi build. Vấn đề nằm ở tính ĐÚNG ĐẮN lâu dài, không phải hiệu năng khởi tạo.">A. Vì tạo thêm một BehaviorSubject sẽ tốn bộ nhớ hơn đáng kể.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Với BehaviorSubject riêng, bạn phải nhớ gọi .next() ở MỌI nơi currentUser đổi (login, logout, và bất kỳ chỗ nào thêm sau này) — quên một chỗ là hai luồng lệch nhau, một nói true một nói false. Dẫn xuất bằng map giữ đúng MỘT nguồn sự thật; isAuthenticated$ không thể sai vì nó được TÍNH ra, không được GÁN.">B. Vì dẫn xuất bằng <code>map</code> đảm bảo chỉ có MỘT nguồn sự thật — không thể lệch nhau.</button>
+    <button class="opt" data-correct="false" data-explain="Không đúng — BehaviorSubject<boolean> hoàn toàn hợp lệ về mặt kỹ thuật, vẫn phát được true/false bình thường. Vấn đề là THIẾT KẾ, không phải khả năng biên dịch.">C. Vì TypeScript không cho phép có hai <code>BehaviorSubject</code> trong cùng một service.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. <code>AuthGuard</code> đọc <code>this.auth.currentUser</code> (getter, không phải <code>$</code>). Vì sao không dùng <code>currentUser$.subscribe()</code> ở đây?</div>
+    <button class="opt" data-correct="false" data-explain="currentUser$ hoàn toàn subscribe được ở bất cứ đâu về mặt kỹ thuật — vấn đề không phải khả năng, mà là nó không PHÙHỢP với cách canActivate() hoạt động.">A. Vì Guard không được phép subscribe Observable.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. canActivate() (kiểu boolean/UrlTree, không phải Observable) cần trả lời NGAY trong một lần gọi hàm đồng bộ — nó không đợi được một callback bất đồng bộ nào cả trong dạng này. Getter đọc .value là cách lấy 'ảnh chụp' tức thời của BehaviorSubject mà không cần subscribe/unsubscribe gì — đúng nhu cầu của Guard.">B. Vì Guard cần câu trả lời NGAY, đồng bộ — getter đọc <code>.value</code> cho ảnh chụp tức thời, không cần subscribe/unsubscribe.</button>
+    <button class="opt" data-correct="false" data-explain="isAuthenticated$ vẫn dùng được ở Guard nếu bạn muốn — nhưng bạn vẫn phải giải quyết bài toán 'đọc đồng bộ', và đó chính là lý do có getter .currentUser riêng thay vì luôn phải subscribe.">C. Vì <code>isAuthenticated$</code> mới là luồng đúng để Guard dùng, không phải <code>currentUser$</code>.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>AuthService</code> đầy đủ</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Khởi tạo: <code>currentUser$</code> phát <code>null</code> ngay, <code>isLoggedIn === false</code>.</li>
+        <li><strong>TC2</strong> — <code>login()</code> thành công → lưu token vào localStorage, <code>currentUser$</code> phát user mới (subscribe TRƯỚC khi gọi login để bắt được cả hai giá trị: <code>null</code> rồi user).</li>
+        <li><strong>TC3</strong> — <code>logout()</code> → xoá token, <code>currentUser$</code> phát lại <code>null</code>.</li>
+        <li><strong>TC4</strong> — Subscribe <strong>sau</strong> khi đã login xong vẫn nhận đúng user hiện tại ngay lập tức (chứng minh tính chất BehaviorSubject).</li>
+        <li><strong>TC5</strong> — <code>isAuthenticated$</code> phát đúng <code>true</code>/<code>false</code> theo <code>currentUser$</code>, không cần gọi <code>.next()</code> thủ công ở đâu cả.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> viết test chứng minh <code>(service.currentUser$ as any).next</code> là <code>undefined</code> — khoá ghi ở tầng kiểu, đúng kỹ thuật Bài 03 TC7.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Sao chép gần như nguyên cấu trúc <code>CartService</code> bạn hình dung ở Bài 03 — chỉ đổi kiểu dữ liệu từ <code>CartItem[]</code> sang <code>User | null</code>.</p>
+    <p><strong>Hint 2 · API:</strong> <code>BehaviorSubject&lt;User|null&gt;(null)</code> · <code>.asObservable()</code> · <code>.pipe(map(u =&gt; u !== null))</code> · getter <code>get currentUser()</code>.</p>
+    <p><strong>Hint 3 · TC2:</strong> Mảng <code>emitted</code> phải subscribe <strong>trước</strong> <code>service.login(...)</code> — subscribe sau thì bỏ lỡ giá trị <code>null</code> ban đầu, và test sẽ sai mà tưởng đúng.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi thiết kế được một service phục vụ cả đọc snapshot lẫn subscribe liên tục từ CÙNG một nguồn.</li>
+      <li>Tôi dẫn xuất luồng phụ bằng <code>map</code>, không tạo Subject riêng dễ lệch.</li>
+      <li>Tôi biết khi nào dùng getter đồng bộ (Guard/Interceptor) và khi nào dùng <code>| async</code> (template).</li>
+      <li>Tôi đóng cửa ghi bằng <code>asObservable()</code>, không chỉ bằng quy ước "đừng gọi next() từ ngoài".</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      <code>AuthService</code> giờ đã đầy đủ. Nhưng có một tình huống chưa xử lý: người dùng
+      <strong>quên mật khẩu</strong>. Họ chưa đăng nhập được — không có access token, không có
+      <code>currentUser</code> — nên toàn bộ luồng bạn vừa xây <strong>không áp dụng được</strong>
+      ở đây.
+    </p>
+    <p>
+      Thay vào đó, họ nhận một email chứa link kiểu
+      <code>/reset-password?token=xyz</code>. Component đọc token đó từ đâu — nó không nằm trong
+      path, không phải path param như <code>/:id</code> bạn đã quen ở Bài 12–14?
+    </p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: Angular Router phân biệt rõ hai loại tham số trên URL. Loại thứ hai xuất hiện sau dấu <code>?</code>.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 27 · Quên/Đổi mật khẩu (mock flow)</div>
+    <p class="nd">Query params thay vì path params, và hai trạng thái lỗi hoàn toàn khác nhau: token thiếu vs token hết hạn.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0025-refresh-token-flow.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0027-forgot-reset-password.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi <code>auth.service.ts</code> + spec + output. TC2 và TC4 cùng nhau chứng minh service phục vụ đúng cả hai kiểu tiêu thụ.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

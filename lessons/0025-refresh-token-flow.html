@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 25 · Refresh token — bài toán RxJS khó nhất của app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 4 · Bài 25 · Auth Classic ⭐</span>
+    <h1>Refresh token — bài toán RxJS khó nhất của app</h1>
+    <p class="subtitle">
+      5 request cùng nhận 401, chỉ đúng <strong>một</strong> lần gọi refresh, cả 5 tự retry —
+      dùng lại chính <code>BehaviorSubject</code> bạn học ở Bài 03, lần này làm "hàng đợi".
+    </p>
+    <p class="meta-line">⏱ ~50 phút · 🎯 Chứng minh bằng test: 5 request → 1 refresh · 🏷️ Câu hỏi senior kinh điển</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích vì sao 5 request 401 song song có thể gây 5 lần gọi refresh nếu code ngây thơ.</li>
+      <li>Dùng <code>BehaviorSubject&lt;string|null&gt;</code> làm "cổng chờ" cho request đến sau.</li>
+      <li>Biết vì sao <code>catchError</code> phải đặt lồng trong nhánh refresh, không đặt ở ngoài.</li>
+      <li>Test được cả nhánh thành công lẫn thất bại của refresh, và trường hợp không kích hoạt vòng lặp.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 24: interceptor là pipeline, thấy mọi response kể cả lỗi. Bài 03:
+      <code>BehaviorSubject</code> luôn có "giá trị hiện tại", người tới muộn nhận được ngay —
+      và nếu giá trị là <code>null</code>, người tới muộn biết là "chưa có gì, phải chờ".
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới: <strong>dùng đúng tính chất "chờ rồi nhận" đó để biến
+      5 lời gọi refresh trùng lặp thành 1.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: mở trang, bắn 5 request, 5 lần refresh</h2>
+    <p>
+      Trang Dashboard load xong gọi song song: <code>getCourses()</code>, <code>getUsers()</code>,
+      <code>getEnrollments()</code>, <code>getReviews()</code>, <code>getStats()</code>. Access
+      token vừa hết hạn — cả 5 đều nhận <strong>401</strong> gần như cùng lúc.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ cách ngây thơ — mỗi 401 tự gọi refresh</span>
+<pre><code><span class="fn">handle401</span>(req, next) {
+  <span class="kw">return this</span>.auth.<span class="fn">refreshAccessToken</span>().<span class="fn">pipe</span>(
+    <span class="fn">switchMap</span>((newToken) => next.<span class="fn">handle</span>(<span class="fn">addToken</span>(req, newToken))),
+  );
+}</code></pre>
+    </div>
+    <p>
+      Nhìn hợp lý — nhưng cả 5 request đều đi qua đúng dòng này <strong>độc lập</strong>, không
+      biết về nhau. Kết quả: <strong>5 request refresh</strong> bay lên server. Nếu server tự thu
+      hồi refresh token cũ sau mỗi lần dùng (bảo mật tốt), 4 trong 5 lần refresh sẽ
+      <strong>thất bại</strong> vì refresh token đã bị request đầu tiên "dùng hết" — người dùng bị
+      đăng xuất giữa chừng dù đang dùng app bình thường.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        4 request tới sau không cần <em>tự</em> refresh — chúng chỉ cần <em>biết</em> khi nào có
+        token mới rồi dùng lại. Có cấu trúc nào phát ra đúng một giá trị cho nhiều người đang chờ
+        cùng lúc?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: cờ chặn + cổng chờ</h2>
+    <div class="code-block">
+      <span class="code-label">Hai biến, hai vai trò khác nhau</span>
+<pre><code><span class="kw">private</span> isRefreshing = <span class="kw">false</span>;
+<span class="cmt">// Cờ: "có ai đang refresh KHÔNG?" — chặn không cho gọi refresh() lần hai.</span>
+
+<span class="kw">private</span> refreshTokenSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span> | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+<span class="cmt">// Cổng chờ: null = "chưa xong". Request tới sau LẮNG NGHE cổng này,</span>
+<span class="cmt">// tự retry khi cổng phát ra token khác null. Đây chính là Bài 03 áp dụng ngược lại:</span>
+<span class="cmt">// "người tới MUỘN nhận được giá trị mới" — nhưng ở đây ta CỐ Ý coi null là 'chưa sẵn sàng'.</span></code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Request đầu tiên 401 thì TỰ LÀM (gọi refresh). Mọi request 401 SAU ĐÓ, trong lúc đang
+          refresh, chỉ ĐỨNG CHỜ ở cổng — không tự làm gì cả.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/auth-interceptor.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>()
+<span class="kw">export class</span> AuthInterceptor <span class="kw">implements</span> HttpInterceptor {
+  <span class="kw">private readonly</span> auth = <span class="fn">inject</span>(AuthService);
+  <span class="kw">private readonly</span> router = <span class="fn">inject</span>(Router);
+
+  <span class="kw">private</span> isRefreshing = <span class="kw">false</span>;
+  <span class="kw">private readonly</span> refreshTokenSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span> | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+
+  <span class="fn">intercept</span>(req: HttpRequest&lt;<span class="kw">unknown</span>&gt;, next: HttpHandler): Observable&lt;HttpEvent&lt;<span class="kw">unknown</span>&gt;&gt; {
+    <span class="kw">const</span> token = <span class="kw">this</span>.auth.accessToken;
+    <span class="kw">const</span> authReq = token ? <span class="kw">this</span>.<span class="fn">addToken</span>(req, token) : req;
+
+    <span class="kw">return</span> next.<span class="fn">handle</span>(authReq).<span class="fn">pipe</span>(
+      <span class="fn">catchError</span>((error: HttpErrorResponse) => {
+        <span class="cmt">// Đừng bắt 401 của CHÍNH endpoint login/refresh -> tránh vòng lặp vô hạn.</span>
+        <span class="kw">if</span> (error.status === <span class="num">401</span> &amp;&amp; !req.url.<span class="fn">includes</span>(<span class="str">'/api/auth/'</span>)) {
+          <span class="kw">return this</span>.<span class="fn">handle401</span>(req, next);
+        }
+        <span class="kw">return</span> <span class="fn">throwError</span>(() => error);
+      }),
+    );
+  }
+
+  <span class="kw">private</span> <span class="fn">handle401</span>(req: HttpRequest&lt;<span class="kw">unknown</span>&gt;, next: HttpHandler): Observable&lt;HttpEvent&lt;<span class="kw">unknown</span>&gt;&gt; {
+    <span class="kw">if</span> (!<span class="kw">this</span>.isRefreshing) {
+      <span class="cmt">// ── NGƯỜI ĐẦU TIÊN: tự làm việc ──</span>
+      <span class="kw">this</span>.isRefreshing = <span class="kw">true</span>;
+      <span class="kw">this</span>.refreshTokenSubject.<span class="fn">next</span>(<span class="kw">null</span>); <span class="cmt">// báo: "đang refresh, ai tới sau thì chờ"</span>
+
+      <span class="kw">return this</span>.auth.<span class="fn">refreshAccessToken</span>().<span class="fn">pipe</span>(
+        <span class="fn">switchMap</span>((newToken) => {
+          <span class="kw">this</span>.isRefreshing = <span class="kw">false</span>;
+          <span class="kw">this</span>.auth.<span class="fn">setAccessToken</span>(newToken);
+          <span class="kw">this</span>.refreshTokenSubject.<span class="fn">next</span>(newToken); <span class="cmt">// đánh thức MỌI người đang chờ</span>
+          <span class="kw">return</span> next.<span class="fn">handle</span>(<span class="kw">this</span>.<span class="fn">addToken</span>(req, newToken));
+        }),
+        <span class="fn">catchError</span>((err) => {
+          <span class="kw">this</span>.isRefreshing = <span class="kw">false</span>;
+          <span class="kw">this</span>.auth.<span class="fn">logout</span>();
+          <span class="kw">this</span>.router.<span class="fn">navigate</span>([<span class="str">'/login'</span>]);
+          <span class="kw">return</span> <span class="fn">throwError</span>(() => err);
+        }),
+      );
+    }
+
+    <span class="cmt">// ── NGƯỜI TỚI SAU: đứng chờ ở cổng, không tự refresh ──</span>
+    <span class="kw">return this</span>.refreshTokenSubject.<span class="fn">pipe</span>(
+      <span class="fn">filter</span>((t): t <span class="kw">is string</span> => t !== <span class="kw">null</span>),  <span class="cmt">// bỏ qua giá trị null (đang chờ)</span>
+      <span class="fn">take</span>(<span class="num">1</span>),                                <span class="cmt">// lấy đúng 1 lần rồi TỰ HUỶ -> không leak (Bài 02)</span>
+      <span class="fn">switchMap</span>((newToken) => next.<span class="fn">handle</span>(<span class="kw">this</span>.<span class="fn">addToken</span>(req, newToken))),
+    );
+  }
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>take(1)</code> ở đây quan trọng như ở Bài 02</div>
+      <p>
+        Không có <code>take(1)</code>, mỗi request-chờ sẽ subscribe <strong>vĩnh viễn</strong> vào
+        <code>refreshTokenSubject</code> — lần refresh tiếp theo (sau này, khi token lại hết hạn)
+        sẽ vô tình kích hoạt lại logic <code>switchMap</code> của những request đã xong từ lâu.
+        <code>take(1)</code> đảm bảo subscription tự đóng ngay sau khi nhận đúng một giá trị.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test — 5 request, 1 refresh</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify xanh</span>
+<pre><code><span class="fn">it</span>(<span class="str">'5 request cùng 401 -> CHỈ 1 lần refresh, cả 5 retry thành công'</span>, <span class="kw">async</span> () => {
+  localStorage.<span class="fn">setItem</span>(<span class="str">'edu_access_token'</span>, <span class="str">'token-cu-het-han'</span>);
+  localStorage.<span class="fn">setItem</span>(<span class="str">'edu_refresh_token'</span>, <span class="str">'refresh-hop-le'</span>);
+
+  <span class="kw">const</span> results$ = <span class="fn">forkJoin</span>([
+    http.<span class="fn">get</span>(<span class="str">'/api/a'</span>), http.<span class="fn">get</span>(<span class="str">'/api/b'</span>), http.<span class="fn">get</span>(<span class="str">'/api/c'</span>), http.<span class="fn">get</span>(<span class="str">'/api/d'</span>), http.<span class="fn">get</span>(<span class="str">'/api/e'</span>),
+  ]);
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(results$);
+
+  <span class="cmt">// Cả 5 request gốc đều bay ra và đều nhận 401</span>
+  <span class="kw">for</span> (<span class="kw">const</span> url <span class="kw">of</span> [<span class="str">'/api/a'</span>, <span class="str">'/api/b'</span>, <span class="str">'/api/c'</span>, <span class="str">'/api/d'</span>, <span class="str">'/api/e'</span>]) {
+    httpMock.<span class="fn">expectOne</span>(url).<span class="fn">flush</span>({ message: <span class="str">'expired'</span> }, { status: <span class="num">401</span>, statusText: <span class="str">'Unauthorized'</span> });
+  }
+
+  <span class="cmt">// MẤU CHỐT: dù 5 request cùng 401, chỉ ĐÚNG MỘT request refresh được gửi.</span>
+  <span class="kw">const</span> refreshReq = httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/auth/refresh'</span>);
+  refreshReq.<span class="fn">flush</span>({ accessToken: <span class="str">'token-moi'</span> });
+
+  <span class="kw">for</span> (<span class="kw">const</span> url <span class="kw">of</span> [<span class="str">'/api/a'</span>, <span class="str">'/api/b'</span>, <span class="str">'/api/c'</span>, <span class="str">'/api/d'</span>, <span class="str">'/api/e'</span>]) {
+    <span class="kw">const</span> retried = httpMock.<span class="fn">expectOne</span>(url);
+    <span class="fn">expect</span>(retried.request.headers.<span class="fn">get</span>(<span class="str">'Authorization'</span>)).<span class="fn">toBe</span>(<span class="str">'Bearer token-moi'</span>);
+    retried.<span class="fn">flush</span>({ url });
+  }
+
+  <span class="fn">expect</span>(<span class="kw">await</span> p).<span class="fn">toHaveLength</span>(<span class="num">5</span>);
+  httpMock.<span class="fn">verify</span>();  <span class="cmt">// KHÔNG còn request nào chưa xử lý -> không có refresh thừa</span>
+});</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>httpMock.expectOne('/api/auth/refresh')</code> là trái tim của test</div>
+      <p>
+        <code>expectOne</code> ném lỗi nếu có <strong>nhiều hơn một</strong> request khớp URL đó.
+        Nếu logic của bạn vô tình gọi refresh 5 lần, dòng này sẽ đỏ ngay — test tự nó là bằng
+        chứng, không cần đếm request bằng mắt.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>catchError</code> đặt SAI CHỖ — bẫy giống hệt Bài 01</div>
+      <div class="code-block">
+        <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ SAI: catchError ở NGOÀI toàn bộ pipe của intercept()</span>
+<span class="fn">intercept</span>(req, next) {
+  <span class="kw">return</span> next.<span class="fn">handle</span>(req).<span class="fn">pipe</span>(
+    <span class="fn">switchMap</span>(...), <span class="cmt">// xử lý 401</span>
+  );
+}
+<span class="fn">catchError</span>(() => ...)  <span class="cmt">// đặt rời, không thuộc pipe nào cả -> vô nghĩa/lỗi cú pháp thật</span>
+
+<span class="cmt">// ✅ ĐÚNG (như code mục 3): catchError bọc next.handle() ở TẦNG NGOÀI CÙNG,</span>
+<span class="cmt">// và catchError THỨ HAI nằm bên trong nhánh refresh để bắt lỗi refresh thất bại.</span></code></pre>
+      </div>
+      <p>
+        Đây là bài học Bài 01 (đặt <code>catchError</code> trong hay ngoài <code>switchMap</code>)
+        quay lại ở quy mô lớn hơn: interceptor có <strong>hai tầng</strong> lỗi cần bắt riêng —
+        lỗi của request gốc (401) và lỗi của chính việc refresh (refresh token cũng hết hạn).
+        Trộn chung một <code>catchError</code> sẽ không phân biệt được hai tình huống cần xử lý khác nhau.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Bug thật tôi gặp khi soạn bài này</div>
+      <p>
+        Test "refresh thất bại" gọi <code>this.router.navigate(['/login'])</code>. Nếu router test
+        không có route <code>'login'</code> nào, Angular ném <code>NG04002: Cannot match any
+        routes</code> — một <strong>unhandled rejection</strong> âm thầm làm ô nhiễm cả lượt chạy
+        test, dù các <code>expect()</code> vẫn xanh. Bài học: khi test có nhánh gọi
+        <code>router.navigate()</code>, route đích phải <strong>tồn tại thật</strong> trong
+        <code>provideRouter([...])</code> của test, dù chỉ là component rỗng.
+      </p>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Làm sao tránh gọi refresh token nhiều lần khi nhiều request cùng 401?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Dùng một cờ <code>isRefreshing</code> để chỉ request đầu tiên
+        thực sự gọi refresh, và một <code>BehaviorSubject&lt;string|null&gt;</code> làm cổng chờ —
+        request tới sau lọc bỏ giá trị <code>null</code> bằng <code>filter</code>, lấy đúng một lần
+        bằng <code>take(1)</code>, rồi tự retry với token mới khi cổng phát ra. Quan trọng không
+        kém: loại trừ chính endpoint <code>/api/auth/*</code> khỏi logic bắt 401, nếu không sẽ có
+        vòng lặp vô hạn khi refresh cũng trả 401."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Request thứ 3 trong 5 request 401 đồng thời sẽ chạy nhánh nào trong <code>handle401()</code>?</div>
+    <button class="opt" data-correct="false" data-explain="Chỉ request ĐẦU TIÊN chạm 401 mới thấy isRefreshing === false và tự gọi refresh. Request thứ 3 tới sau khi cờ đã bật.">A. Nhánh tự gọi <code>refreshAccessToken()</code>, giống request đầu tiên.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Khi request thứ 3 chạm 401, isRefreshing đã là true (do request đầu tiên đặt). Nó rơi vào nhánh else: lắng nghe refreshTokenSubject, filter bỏ null, và tự retry khi có token thật — không hề gọi refreshAccessToken() lần nữa.">B. Nhánh chờ ở <code>refreshTokenSubject</code>, không tự gọi refresh.</button>
+    <button class="opt" data-correct="false" data-explain="Không phải lỗi. Cả 5 request đều được xử lý đúng, chỉ khác NHÁNH nào chúng đi vào.">C. Bị bỏ qua vì interceptor chỉ xử lý được 1 request 401 cùng lúc.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Bỏ <code>take(1)</code> ở nhánh chờ. Hậu quả xa nhất là gì?</div>
+    <button class="opt" data-correct="false" data-explain="Ở LẦN refresh này thì hành vi vẫn đúng — BehaviorSubject phát 1 lần, subscriber vẫn nhận được. Vấn đề nằm ở việc subscription không tự đóng.">A. Request đó sẽ không bao giờ nhận được token mới.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Không take(1), subscription của request-chờ KHÔNG tự đóng sau khi nhận token lần đầu. Nó tiếp tục lắng nghe refreshTokenSubject mãi mãi. Lần refresh SAU (khi token lại hết hạn ở một thời điểm khác), request đã-xong-từ-lâu này bất ngờ bị kích hoạt lại switchMap — một dạng memory leak/hành vi ma đúng tinh thần Bài 02.">B. Subscription không tự đóng — lần refresh SAU sẽ vô tình kích hoạt lại logic của request đã xong từ lâu (leak kiểu Bài 02).</button>
+    <button class="opt" data-correct="false" data-explain="BehaviorSubject không tự complete khi thiếu take(1). Vấn đề là ngược lại: subscription sống DAI hơn cần thiết, không phải chết sớm.">C. <code>refreshTokenSubject</code> sẽ tự động complete và không phát được nữa.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — hoàn thiện <code>AuthInterceptor</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — 401 với token hợp lệ để refresh → tự gọi refresh → retry request gốc với token MỚI.</li>
+        <li><strong>TC2</strong> — <strong>5 request đồng thời</strong> đều 401 → <code>httpMock.expectOne('/api/auth/refresh')</code> chỉ khớp <strong>đúng 1 lần</strong> → cả 5 đều retry thành công.</li>
+        <li><strong>TC3</strong> — Refresh <strong>thất bại</strong> (refresh token cũng hết hạn) → gọi <code>logout()</code>, điều hướng <code>/login</code>, lỗi được ném ra ngoài cho nơi gọi biết.</li>
+        <li><strong>TC4</strong> — 401 của chính <code>/api/auth/login</code> hoặc <code>/api/auth/refresh</code> → <strong>không</strong> kích hoạt <code>handle401</code> (dùng <code>httpMock.verify()</code> để chứng minh không có request refresh thừa).</li>
+        <li><strong>TC5</strong> — Route <code>'login'</code> có thật trong <code>provideRouter</code> của test (tránh <code>NG04002</code>).</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> viết thêm test cho trường hợp request thứ 2 và thứ 3 401 <em>trong lúc</em> request đầu đang chờ refresh (không phải cùng lúc tuyệt đối) — chứng minh chúng vẫn chỉ chờ, không tự gọi refresh.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Vẽ lại sơ đồ mục 2 ra giấy trước khi viết code. Xác định rõ: điều kiện nào để vào nhánh "tự làm", điều kiện nào để vào nhánh "chờ".</p>
+    <p><strong>Hint 2 · API:</strong> <code>BehaviorSubject&lt;string|null&gt;</code> · <code>filter((t): t is string =&gt; t !== null)</code> · <code>take(1)</code> · <code>switchMap</code> · <code>forkJoin</code> để bắn nhiều request song song trong test.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 báo "found more than one matching request", in log thứ tự request thật ra để xem có phải nhánh "tự làm" bị vào nhiều lần không — thường là do đặt <code>isRefreshing = true</code> sau bước bất đồng bộ thay vì ngay lập tức.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải quyết được race condition kinh điển: N request 401 → 1 refresh, không phải N.</li>
+      <li>Tôi dùng đúng vai trò của cờ boolean (chặn) và <code>BehaviorSubject</code> (cổng chờ) — không lẫn lộn hai việc.</li>
+      <li>Tôi loại trừ endpoint auth khỏi vòng lặp bắt 401, tránh đệ quy vô hạn.</li>
+      <li>Tôi biết test có <code>router.navigate()</code> cần route đích tồn tại thật.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      <code>AuthInterceptor</code> gọi <code>this.auth.accessToken</code> và
+      <code>this.auth.logout()</code> — nhưng <code>AuthService</code> hiện tại của bạn (từ Bài 13)
+      chỉ có <code>isLoggedIn</code>/<code>login()</code>/<code>logout()</code> tối thiểu, không có
+      khái niệm access token hay <code>currentUser$</code> để component khác subscribe.
+    </p>
+    <p>
+      Header hiển thị tên người dùng, trang Profile hiển thị thông tin đầy đủ, Guard kiểm role —
+      tất cả cần <strong>đọc</strong> trạng thái đăng nhập hiện tại, nhưng theo những cách khác
+      nhau (một lần đọc snapshot, một luồng subscribe liên tục).
+    </p>
+    <p><strong>Thiết kế <code>AuthService</code> đầy đủ cần những gì để phục vụ cả hai kiểu đọc đó — mà không để bất kỳ ai bên ngoài tự ý ghi đè trạng thái?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã trả lời chính xác câu hỏi này ở Bài 03, cho một service khác. Chỉ là chưa áp dụng vào Auth.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 26 · Auth state bằng <code>BehaviorSubject</code></div>
+    <p class="nd"><code>private Subject</code> + <code>public asObservable()</code> — pattern một-chiều-ghi từ Bài 03, lần này cho chính <code>AuthService</code>.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0024-http-interceptor-class.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0026-auth-state-behaviorsubject.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi interceptor + spec + output. TC2 (5 request → 1 refresh) là bằng chứng quan trọng nhất — không có nó, mọi thứ khác chỉ là "trông có vẻ đúng".</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -240,7 +240,8 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–23** (hết Module 4 ⭐ — module trọng tâm). Người học đã HOÀN THÀNH Bài 00.
+- **Đã soạn: Bài 00–27** (hết Module 5 — Auth Flow Classic). Người học đã HOÀN THÀNH Bài 00-03,
+  đang làm Bài 04. Module 5 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài" (2026-09-07).
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
@@ -272,7 +273,26 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/generics-di-cheatsheet.html` — Bài 05–07.
 - `reference/kien-truc-routing-cheatsheet.html` — Bài 08–14.
 - `reference/forms-cheatsheet.html` — Bài 15–23.
-- Mốc kế tiếp: sau **Bài 28** HOẶC khi Module 5 xong.
+- `reference/auth-classic-cheatsheet.html` — Bài 24–27.
+- Mốc kế tiếp: sau **Bài 31** HOẶC khi Module 6 xong.
+
+### Phát hiện khi verify Module 5 (2026-09-07, đã đưa vào bài)
+Sandbox dựng lại từ đầu tại `<scratchpad>/ref/educommerce-ng-classic/` (sandbox Module 2–4 đã dọn
+trước đó trong session). Kết quả cuối: **16/16 test xanh** (4 file: auth-interceptor, auth-service,
+reset-password, app.component mặc định), `tsc --noEmit -p tsconfig.spec.json` sạch.
+- **`NG04002` khi test nhánh refresh thất bại → điều hướng `/login`:** interceptor gọi
+  `router.navigate(['/login'])`, nhưng test dùng `provideRouter([])` (0 route) → unhandled
+  rejection "Cannot match any routes", làm bẩn kết quả chạy dù mọi `expect()` vẫn xanh. Sửa bằng
+  cách thêm route `login` thật (`LoginStubComponent` rỗng) vào `provideRouter`. Đã đưa thành quy
+  tắc chung ở Bài 25: **bất kỳ test nào chạm code gọi `router.navigate()` phải đăng ký route đó
+  thật trong cấu hình router của test.**
+- **Khai trùng `ResetPasswordComponent` ở 2 NgModule** (test tự khai lại trong `TestHostModule`
+  trong khi `AuthFeatureModule` đã khai): lỗi biên dịch AOT — đúng quy tắc "CoreModule chỉ import
+  1 lần" ở Bài 08 nhưng áp cho component thay vì module. Sửa bằng thêm
+  `exports: [ResetPasswordComponent]` vào `AuthFeatureModule` và cho `TestHostModule` **import**
+  module đó thay vì khai lại component.
+- Cả hai lỗi trên đều là lỗi thật gặp khi verify, không phải dựng sẵn — đã đưa vào Bài 25/27 dưới
+  dạng callout "🔥 Bug thật tôi gặp khi soạn bài này".
 
 ### 🔴 PHÁT HIỆN LỚN khi verify Module 4 — ẢNH HƯỞNG CẢ KHOÁ
 **Angular 22 `ng new` mặc định ZONELESS.** `package.json` KHÔNG có `zone.js`,

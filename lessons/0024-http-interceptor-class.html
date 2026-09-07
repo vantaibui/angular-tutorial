@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 24 · Class HttpInterceptor + HTTP_INTERCEPTORS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 4 · Bài 24 · Auth Classic</span>
+    <h1>Class <code>HttpInterceptor</code> + <code>HTTP_INTERCEPTORS</code></h1>
+    <p class="subtitle">
+      Đính token vào mọi request mà không sửa một dòng nào ở nơi gọi —
+      nơi <code>multi: true</code> (Bài 07) được dùng thật lần đầu tiên.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Mọi request tự có Authorization header · 🏷️ Mở màn Module 5</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết class implement <code>HttpInterceptor</code>, đăng ký qua <code>HTTP_INTERCEPTORS</code>.</li>
+      <li>Giải thích interceptor là một <strong>pipeline</strong>, không phải một điểm chặn đơn lẻ.</li>
+      <li>Biết thứ tự khai báo quyết định thứ tự chạy — và hậu quả khi đảo ngược.</li>
+      <li>Test interceptor bằng <code>HttpTestingController</code>, không cần server thật.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 07: <code>multi: true</code> gom nhiều provider cùng token thành một mảng, và tôi nói
+      trước "đây chính là cơ chế của <code>HTTP_INTERCEPTORS</code>". Bài 10:
+      <code>GenericApiService&lt;T&gt;</code> gọi <code>this.http.get(...)</code> — không hề biết
+      gì về token hay header.
+    </p>
+    <p>
+      Bài này chỉ thêm một mảnh mới: <strong>một lớp đứng giữa mọi lời gọi <code>HttpClient</code>
+      và mạng thật, có quyền đọc và sửa request/response đi qua.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: 40 chỗ gọi API, 40 chỗ phải nhớ đính token</h2>
+    <p>
+      EduCommerce có hàng chục service (<code>CourseService</code>, <code>UserService</code>,
+      <code>CartService</code>...). Sau khi đăng nhập, <strong>mọi</strong> request cần header
+      <code>Authorization: Bearer &lt;token&gt;</code>. Cách ngây thơ:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ nhớ đính token ở TỪNG service</span>
+<pre><code><span class="fn">getAll</span>() {
+  <span class="kw">const</span> token = localStorage.<span class="fn">getItem</span>(<span class="str">'token'</span>);
+  <span class="kw">return this</span>.http.<span class="fn">get</span>(<span class="str">'/api/courses'</span>, {
+    headers: { Authorization: <span class="str">`Bearer ${token}`</span> },
+  });
+}</code></pre>
+    </div>
+    <p>
+      Lặp lại ở 40 chỗ. Đổi cách lưu token (localStorage → cookie) là sửa 40 chỗ. Quên một chỗ —
+      request đó âm thầm thiếu token, và bug chỉ lộ ra khi người dùng report "sao trang này lúc
+      được lúc không".
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        <code>GenericApiService</code> không nên biết gì về token — đó không phải việc của nó.
+        Cần một chỗ <strong>duy nhất</strong>, nằm ngoài mọi service, có thể thấy được
+        <em>mọi</em> request đi qua. Angular có chừa sẵn chỗ đó chưa?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: pipeline, không phải một cái bẫy</h2>
+    <div class="code-block">
+      <span class="code-label">Request đi qua chuỗi interceptor trước khi ra mạng</span>
+<pre><code>Service gọi http.get('/api/courses')
+        │
+        ▼
+  Interceptor 1 ──► next.handle(req) ──► Interceptor 2 ──► ... ──► Mạng thật
+        ▲                                                              │
+        └──────────────── response đi NGƯỢC LẠI qua từng interceptor ──┘
+
+<span class="cmt">// Mỗi interceptor CÓ THỂ: đọc/sửa request trước khi next.handle(),</span>
+<span class="cmt">// và đọc/sửa response sau khi nó quay về (qua .pipe() trên kết quả next.handle()).</span></code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Hãy giữ câu này trong đầu</div>
+      <p>
+        <strong>
+          Interceptor không "bắt" request — nó đứng trên đường đi của MỌI request, và tự quyết
+          định có sửa gì hay không trước khi gọi <code>next.handle()</code> để request đi tiếp.
+        </strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Viết interceptor</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/auth-interceptor.service.ts (rút gọn)</span>
+<pre><code><span class="fn">@Injectable</span>()   <span class="cmt">// KHÔNG providedIn:'root' — interceptor không tự đăng ký, phải khai tường minh (mục 4)</span>
+<span class="kw">export class</span> AuthInterceptor <span class="kw">implements</span> HttpInterceptor {
+  <span class="kw">private readonly</span> auth = <span class="fn">inject</span>(AuthService);
+
+  <span class="fn">intercept</span>(req: HttpRequest&lt;<span class="kw">unknown</span>&gt;, next: HttpHandler): Observable&lt;HttpEvent&lt;<span class="kw">unknown</span>&gt;&gt; {
+    <span class="kw">const</span> token = <span class="kw">this</span>.auth.accessToken;
+    <span class="kw">const</span> authReq = token ? <span class="kw">this</span>.<span class="fn">addToken</span>(req, token) : req;
+    <span class="kw">return</span> next.<span class="fn">handle</span>(authReq);
+  }
+
+  <span class="kw">private</span> <span class="fn">addToken</span>(req: HttpRequest&lt;<span class="kw">unknown</span>&gt;, token: <span class="kw">string</span>): HttpRequest&lt;<span class="kw">unknown</span>&gt; {
+    <span class="cmt">// HttpRequest BẤT BIẾN — không có req.headers.set(). Phải .clone() ra bản MỚI.</span>
+    <span class="kw">return</span> req.<span class="fn">clone</span>({ setHeaders: { Authorization: <span class="str">`Bearer ${token}`</span> } });
+  }
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>HttpRequest</code> bất biến — <code>req.headers.set()</code> không tồn tại</div>
+      <p>
+        Cùng triết lý bất biến với <code>HttpParams</code> (Bài 10) và mảng trong CVA (Bài 18).
+        Muốn "sửa" request, bạn phải <code>.clone()</code> ra bản mới với phần thay đổi.
+        Quên điều này và cố sửa tại chỗ sẽ không biên dịch được — TypeScript chặn ngay vì
+        <code>HttpRequest</code> không có setter công khai.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Đăng ký — nơi <code>multi: true</code> của Bài 07 dùng thật</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/core.module.ts</span>
+<pre><code><span class="fn">@NgModule</span>({
+  providers: [
+    <span class="cmt">// Angular 22: HttpClientModule đã deprecated -> dùng provideHttpClient.</span>
+    <span class="cmt">// withInterceptorsFromDi() giữ cho class-based interceptor (HTTP_INTERCEPTORS) vẫn chạy.</span>
+    <span class="fn">provideHttpClient</span>(<span class="fn">withInterceptorsFromDi</span>()),
+    <span class="cmt">// multi: true -> nhiều interceptor CỘNG DỒN thành mảng, không ghi đè nhau (Bài 07).</span>
+    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: <span class="kw">true</span> },
+  ],
+})
+<span class="kw">export class</span> CoreModule { ... }</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Quên <code>multi: true</code> — bug im lặng bạn đã học từ Bài 07</div>
+      <p>
+        Thiếu nó, interceptor thứ hai bạn thêm sau này sẽ <strong>ghi đè</strong> interceptor này,
+        không lỗi không cảnh báo. Đây không phải nhắc lại lý thuyết suông — Module 5 là nơi đầu
+        tiên bạn thực sự thấy hậu quả nếu quên.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Thứ tự chạy — đảo ngược thì hỏng gì</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · nhiều interceptor CHẠY THEO ĐÚNG THỨ TỰ KHAI BÁO</span>
+<pre><code>providers: [
+  { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: <span class="kw">true</span> },     <span class="cmt">// chạy TRƯỚC</span>
+  { provide: HTTP_INTERCEPTORS, useClass: LoggingInterceptor, multi: <span class="kw">true</span> },  <span class="cmt">// chạy SAU</span>
+]
+<span class="cmt">// Request: Auth -> Logging -> mạng.  Response: mạng -> Logging -> Auth.</span></code></pre>
+    </div>
+    <div class="callout warn">
+      <div class="ct">⚖️ Nếu <code>LoggingInterceptor</code> log <code>Authorization</code> header</div>
+      <p>
+        Đảo thứ tự (Logging trước Auth) thì log sẽ <strong>thiếu token</strong> — vì Auth chưa kịp
+        đính vào lúc Logging đọc request. Thứ tự không phải chi tiết trang trí; nó quyết định
+        interceptor sau có "thấy" được thay đổi của interceptor trước hay không.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Test bằng <code>HttpTestingController</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify xanh</span>
+<pre><code><span class="fn">it</span>(<span class="str">'đính Authorization header từ access token hiện có'</span>, <span class="kw">async</span> () => {
+  localStorage.<span class="fn">setItem</span>(<span class="str">'edu_access_token'</span>, <span class="str">'abc123'</span>);
+
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(http.<span class="fn">get</span>(<span class="str">'/api/x'</span>));
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/x'</span>);
+  <span class="fn">expect</span>(req.request.headers.<span class="fn">get</span>(<span class="str">'Authorization'</span>)).<span class="fn">toBe</span>(<span class="str">'Bearer abc123'</span>);
+  req.<span class="fn">flush</span>({});
+  <span class="kw">await</span> p;
+});
+
+<span class="fn">it</span>(<span class="str">'không có token thì KHÔNG có header Authorization'</span>, <span class="kw">async</span> () => {
+  <span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(http.<span class="fn">get</span>(<span class="str">'/api/x'</span>));
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/x'</span>);
+  <span class="fn">expect</span>(req.request.headers.<span class="fn">has</span>(<span class="str">'Authorization'</span>)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  req.<span class="fn">flush</span>({});
+  <span class="kw">await</span> p;
+});</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Đăng ký interceptor trong TestBed y hệt <code>core.module.ts</code></div>
+      <p>
+        <code>providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting(),
+        { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true }]</code> —
+        thiếu <code>withInterceptorsFromDi()</code> thì interceptor class âm thầm không chạy,
+        và test sẽ sai mà không rõ vì sao.
+      </p>
+    </div>
+    <div class="callout tip">
+      <div class="ct">🎤 Góc phỏng vấn</div>
+      <p><strong>Hỏi:</strong> "Interceptor hoạt động như thế nào? Sao phải <code>.clone()</code>?"</p>
+      <p>
+        <strong>Trả lời gọn:</strong> "Interceptor là một mắt xích trong pipeline mà mọi request đi
+        qua trước khi ra mạng, và response đi ngược lại qua đúng các mắt xích đó. Nó đăng ký qua
+        <code>HTTP_INTERCEPTORS</code> — một multi-provider, nên nhiều interceptor cộng dồn thành
+        mảng chạy theo thứ tự khai báo. <code>HttpRequest</code> bất biến để đảm bảo interceptor
+        sau không vô tình đọc phải state đã bị sửa nửa chừng — muốn đổi phải <code>.clone()</code>
+        ra bản mới."
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Bạn thêm interceptor thứ hai nhưng <strong>quên</strong> <code>multi: true</code>. Chuyện gì xảy ra?</div>
+    <button class="opt" data-correct="false" data-explain="Không lỗi biên dịch. Đây chính là điều nguy hiểm — code chạy êm mà hành vi sai.">A. Lỗi biên dịch vì <code>HTTP_INTERCEPTORS</code> yêu cầu <code>multi</code>.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng, đúng bài học Bài 07. Không multi:true thì provider SAU ghi đè provider TRƯỚC cho cùng token — interceptor đầu biến mất, không lỗi không cảnh báo. Request sẽ thiếu token mà bạn không hiểu vì sao, vì code interceptor 'trông vẫn đúng'.">B. Interceptor đầu tiên bị <strong>ghi đè</strong>, biến mất — request thiếu token, im lặng.</button>
+    <button class="opt" data-correct="false" data-explain="Cả hai vẫn 'tồn tại' về mặt khai báo, nhưng chỉ MỘT được Angular thực sự dùng do cơ chế ghi đè của DI khi không multi.">C. Cả hai interceptor vẫn chạy, chỉ là không theo thứ tự.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>addToken()</code> phải <code>return req.clone(...)</code> thay vì sửa <code>req</code> tại chỗ?</div>
+    <button class="opt" data-correct="false" data-explain="Không phải lý do chính. TypeScript thực sự chặn được vì HttpRequest không expose setter — nhưng lý do SÂU HƠN là thiết kế bất biến, không chỉ để né lỗi type.">A. Chỉ để tránh lỗi TypeScript, không có ý nghĩa gì khác.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. HttpRequest bất biến — cùng triết lý với HttpParams (Bài 10) và mảng trong CVA (Bài 18). Sửa tại chỗ sẽ khiến các interceptor SAU (hoặc chính request gốc bị retry, như Bài 25) không biết chắc request nào là bản 'thật'. Immutable object khiến việc reasoning về pipeline nhiều bước an toàn hơn nhiều.">B. <code>HttpRequest</code> bất biến — đảm bảo mỗi bước trong pipeline làm việc với một bản ghi rõ ràng, không sợ bị sửa ngầm.</button>
+    <button class="opt" data-correct="false" data-explain="Không liên quan tới hiệu năng. clone() rẻ, và đây không phải lý do người ta thiết kế HttpRequest bất biến.">C. Vì <code>.clone()</code> nhanh hơn sửa tại chỗ.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>AuthInterceptor</code> (phần đính token)</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Có token → mọi request có header <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+        <li><strong>TC2</strong> — Không có token → request đi ra <strong>không</strong> có header đó (không phải header rỗng).</li>
+        <li><strong>TC3</strong> — Đăng ký đúng qua <code>HTTP_INTERCEPTORS</code> + <code>multi: true</code> trong <code>CoreModule</code>.</li>
+        <li><strong>TC4</strong> — Test dùng <code>HttpTestingController</code>, không mock <code>HttpClient</code> thủ công.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> thêm interceptor thứ hai chỉ log method + URL, chứng minh bằng test rằng nó chạy <strong>sau</strong> <code>AuthInterceptor</code> (đọc được header đã đính).</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Interceptor chỉ là một class có đúng một method <code>intercept()</code>. Bản đơn giản nhất: đọc token, clone nếu có, gọi <code>next.handle()</code>.</p>
+    <p><strong>Hint 2 · API:</strong> <code>implements HttpInterceptor</code> · <code>req.clone({ setHeaders: {...} })</code> · <code>HTTP_INTERCEPTORS</code> + <code>withInterceptorsFromDi()</code> · <code>HttpTestingController.expectOne(url)</code>.</p>
+    <p><strong>Hint 3:</strong> Đừng quên <code>provideHttpClientTesting()</code> song song với <code>provideHttpClient(withInterceptorsFromDi())</code> trong <code>TestBed.configureTestingModule</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi hiểu interceptor là <strong>pipeline</strong>, không phải một điểm chặn đơn lẻ.</li>
+      <li>Tôi biết <code>HttpRequest</code> bất biến, và luôn <code>.clone()</code> để sửa.</li>
+      <li>Tôi biết thứ tự khai báo interceptor quyết định thứ tự chạy thật.</li>
+      <li>Tôi test interceptor bằng <code>HttpTestingController</code>, không mock thủ công.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Token của bạn hết hạn sau 15 phút. Server trả <strong>401</strong> cho request dùng token
+      hết hạn. Bạn có thể bắt lỗi này ở <em>từng</em> service rồi tự gọi refresh — nhưng đó lại
+      quay về đúng vấn đề mục 1: lặp lại ở 40 chỗ.
+    </p>
+    <p>
+      Interceptor bạn vừa viết đã đứng đúng chỗ để thấy <em>mọi</em> response, kể cả lỗi 401.
+      Nhưng có một cái bẫy nguy hiểm hơn nhiều: nếu 5 request cùng hết hạn <strong>cùng lúc</strong>
+      (trang vừa mở, bắn 5 request song song), bạn sẽ gọi refresh <strong>5 lần</strong> — và có
+      thể nhận về 5 access token khác nhau, ghi đè lẫn nhau.
+    </p>
+    <p><strong>Làm sao đảm bảo dù 5 request cùng 401, chỉ đúng MỘT lần gọi refresh?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn cần một cách để 4 request kia biết "đã có người đang refresh rồi, đừng làm nữa — chỉ cần chờ". Cấu trúc dữ liệu nào ở Bài 03 làm được đúng việc "chờ rồi nhận" đó?</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 25 · Refresh token — bài toán RxJS khó nhất của app</div>
+    <p class="nd">5 request cùng 401, chỉ 1 lần refresh, cả 5 tự retry — dùng lại chính <code>BehaviorSubject</code> bạn học ở Bài 03.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0023-async-validator.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0025-refresh-token-flow.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi interceptor + spec + output. TC2 hay bị bỏ sót nhất — kiểm cả trường hợp "không có gì" chứ không chỉ "có đúng".</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

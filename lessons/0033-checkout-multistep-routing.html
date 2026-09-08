@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 33 · Checkout nhiều bước qua route con</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 6 · Bài 33 · Cart &amp; Checkout</span>
+    <h1>Checkout nhiều bước qua route con</h1>
+    <p class="subtitle">
+      3 bước — giỏ hàng, mã giảm giá, thanh toán — là 3 route CON của cùng một route cha. Chọn
+      đúng cấp để đặt state quyết định "quay lại" có mất dữ liệu hay không.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Route con + DI theo cấp module (nối lại Bài 07, Bài 12)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Cấu hình route CON (<code>children</code>) dùng chung một component "khung" (shell) với <code>&lt;router-outlet&gt;</code> lồng bên trong.</li>
+      <li>Đặt một service ở <code>providers</code> của FEATURE MODULE để nó sống qua nhiều bước con, không phải per-component.</li>
+      <li>Giải thích chính xác VÒNG ĐỜI của service đó: sống bao lâu, khi nào bị huỷ và dựng lại.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 07 mục 3: provider đặt ở COMPONENT sống chết theo vòng đời component đó. Bài 12: lazy
+      module chỉ dựng MỘT LẦN — service của nó "sống" suốt phiên, không reset mỗi lần chuyển route
+      con bên trong. Bài này ghép hai điều đó lại để giải bài toán "state phải sống sót qua các
+      bước checkout, nhưng phải MẤT nếu người dùng rời hẳn khỏi /checkout".
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: quay lại bước trước không được mất lựa chọn</h2>
+    <p>
+      Người dùng ở bước "Mã giảm giá", chọn mã <code>WELCOME10</code>, bấm "Tiếp tục" sang bước
+      "Thanh toán". Xem lại tổng tiền, thấy sai, bấm quay lại "Mã giảm giá" để đổi mã khác. Mã
+      <code>WELCOME10</code> vẫn phải hiển thị "đang áp dụng" — không được về trạng thái trống trơn
+      như mới vào lần đầu.
+    </p>
+    <p>
+      Nếu mỗi <code>&lt;app-coupon-step&gt;</code> tự giữ state riêng (property trong chính nó),
+      component đó bị HUỶ khi rời route (sang payment) và TẠO LẠI khi quay về — state biến mất.
+      Bạn cần state đó sống ở một nơi <strong>cao hơn</strong> vòng đời của từng bước.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Bài 12 đã chứng minh: <code>CoursesModule</code> (lazy) chỉ dựng injector MỘT LẦN khi vào
+        <code>/courses</code> lần đầu — rời đi rồi quay lại KHÔNG dựng lại. Nếu 3 bước checkout đều
+        là con của route thuộc CÙNG một feature module, và service đặt ở
+        <code>providers</code> của module đó (không phải từng component con) — điều gì xảy ra với
+        service đó khi chuyển giữa 3 bước?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Cấu trúc route: 1 shell, nhiều route con</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/checkout/checkout-routing.module.ts</span>
+<pre><code><span class="kw">const</span> routes: Routes = [
+  {
+    path: <span class="str">''</span>,
+    component: CheckoutShellComponent,   <span class="cmt">// "khung" — có &lt;router-outlet&gt; RIÊNG bên trong nó</span>
+    children: [
+      { path: <span class="str">''</span>, redirectTo: <span class="str">'cart'</span>, pathMatch: <span class="str">'full'</span> },
+      { path: <span class="str">'cart'</span>, component: CartStepComponent },
+      { path: <span class="str">'coupon'</span>, component: CouponStepComponent, resolve: { coupons: CouponResolver } },
+      { path: <span class="str">'payment'</span>, component: PaymentStepComponent },
+      { path: <span class="str">'success'</span>, component: SuccessStepComponent },
+    ],
+  },
+];
+
+<span class="fn">@NgModule</span>({ imports: [RouterModule.<span class="fn">forChild</span>(routes)], exports: [RouterModule] })
+<span class="kw">export class</span> CheckoutRoutingModule {}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · checkout-shell.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-checkout-shell'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;nav class="checkout-steps"&gt;
+      &lt;a routerLink="cart" routerLinkActive="active"&gt;1. Giỏ hàng&lt;/a&gt;
+      &lt;a routerLink="coupon" routerLinkActive="active"&gt;2. Mã giảm giá&lt;/a&gt;
+      &lt;a routerLink="payment" routerLinkActive="active"&gt;3. Thanh toán&lt;/a&gt;
+    &lt;/nav&gt;
+    &lt;router-outlet&gt;&lt;/router-outlet&gt;  &lt;!-- outlet THỨ HAI, lồng bên trong outlet gốc của app --&gt;
+  `</span>,
+})
+<span class="kw">export class</span> CheckoutShellComponent {}</code></pre>
+    </div>
+    <p>
+      Đây là điểm dễ nhầm với ai mới học route con: <code>&lt;router-outlet&gt;</code> không phải
+      thứ chỉ có DUY NHẤT ở <code>AppComponent</code>. Route con render vào outlet của CHÍNH
+      component cha của chúng — <code>CheckoutShellComponent</code> có outlet riêng, độc lập với
+      outlet gốc ở <code>AppComponent</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Đặt state ở ĐÚNG CẤP: <code>providers</code> của <code>CheckoutModule</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · checkout-state.service.ts</span>
+<pre><code><span class="cmt">// KHÔNG providedIn: 'root' — cố ý. Khai trong providers của CheckoutModule.</span>
+<span class="fn">@Injectable</span>()
+<span class="kw">export class</span> CheckoutStateService {
+  <span class="kw">private readonly</span> selectedCouponSubject = <span class="kw">new</span> BehaviorSubject&lt;Coupon | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+  <span class="kw">readonly</span> selectedCoupon$ = <span class="kw">this</span>.selectedCouponSubject.<span class="fn">asObservable</span>();
+  <span class="kw">get</span> <span class="fn">selectedCoupon</span>() { <span class="kw">return this</span>.selectedCouponSubject.value; }
+  <span class="fn">selectCoupon</span>(coupon: Coupon | <span class="kw">null</span>): <span class="kw">void</span> { <span class="kw">this</span>.selectedCouponSubject.<span class="fn">next</span>(coupon); }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · checkout.module.ts</span>
+<pre><code><span class="fn">@NgModule</span>({
+  declarations: [CheckoutShellComponent, CartStepComponent, CouponStepComponent, PaymentStepComponent, SuccessStepComponent],
+  imports: [SharedModule, ReactiveFormsModule, CheckoutRoutingModule],
+  <span class="cmt">// Ở ĐÂY, không phải providers riêng của từng *StepComponent — đó là mấu chốt cả bài.</span>
+  providers: [CheckoutStateService],
+})
+<span class="kw">export class</span> CheckoutModule {}</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Đặt <code>providers</code> ở</th><th>Vòng đời instance</th><th>Kết quả</th></tr></thead>
+      <tbody>
+        <tr><td><code>CouponStepComponent</code></td><td>Huỷ mỗi lần rời route <code>coupon</code></td><td>❌ Mất lựa chọn khi sang payment</td></tr>
+        <tr><td><code>CheckoutModule</code> (đúng)</td><td>Sống suốt phiên checkout — qua mọi bước con</td><td>✅ Giữ lựa chọn khi đi tới đi lui</td></tr>
+        <tr><td><code>providedIn: 'root'</code></td><td>Sống suốt VÒNG ĐỜI APP</td><td>⚠️ Vẫn còn coupon cũ nếu người dùng checkout LẦN THỨ HAI trong cùng phiên duyệt web — sai ý muốn "mỗi phiên checkout là mới"</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao không dùng <code>providedIn: 'root'</code> cho tiện</div>
+      <p>
+        <code>root</code> nghe có vẻ an toàn nhất, nhưng nó SAI ở đây: người dùng checkout xong,
+        rời trang, quay lại mua khoá học khác và vào <code>/checkout</code> lần nữa — mã giảm giá
+        của LẦN TRƯỚC vẫn còn đó nếu service là root singleton. Đặt ở <code>providers</code> của
+        lazy module đảm bảo mỗi lần <code>loadChildren</code> tải LẠI module (rời hẳn rồi quay lại)
+        sẽ dựng instance MỚI — đúng nghĩa "phiên checkout mới, sạch sẽ".
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Đọc dữ liệu từ nhiều bước</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · cart-step.component.ts — tái dùng GenericListComponent (Bài 30)</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-cart-step'</span>, standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;app-generic-list [items]="(cart.items$ | async) ?? []" [itemTemplate]="itemTpl" emptyText="Giỏ hàng trống."&gt;&lt;/app-generic-list&gt;
+    &lt;ng-template #itemTpl let-item&gt;&lt;div&gt;{{ item.courseId }}&lt;/div&gt;&lt;/ng-template&gt;
+    &lt;a routerLink="../coupon"&gt;Tiếp tục →&lt;/a&gt;
+  `</span>,
+})
+<span class="kw">export class</span> CartStepComponent {
+  <span class="fn">constructor</span>(<span class="kw">readonly</span> cart: CartService) {}  <span class="cmt">// CartService (Bài 32) là root — khác CheckoutStateService</span>
+}</code></pre>
+    </div>
+    <p>
+      Chú ý <code>routerLink="../coupon"</code> — đường dẫn TƯƠNG ĐỐI, đi lên 1 cấp (khỏi
+      <code>cart</code>) rồi vào <code>coupon</code>, cả hai đều là con của cùng route cha. Dùng
+      đường dẫn tuyệt đối (<code>/checkout/coupon</code>) cũng đúng, nhưng tương đối gọn hơn và
+      không phụ thuộc vào việc <code>/checkout</code> có bị đổi tên trong tương lai hay không.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Chứng minh bằng test — dùng <code>RouterTestingHarness</code></h2>
+    <p>
+      Đây là công cụ MỚI: <code>RouterTestingHarness</code> (từ <code>@angular/router/testing</code>)
+      cho phép điều hướng THẬT qua Router thật, kiểm tra component thật được activate — mạnh hơn
+      hẳn việc tự tạo <code>ActivatedRoute</code> giả như các bài trước.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ spec đã verify</span>
+<pre><code><span class="kw">const</span> harness = <span class="kw">await</span> RouterTestingHarness.<span class="fn">create</span>(<span class="str">'/checkout/coupon'</span>);
+<span class="kw">const</span> couponStep = harness.fixture.debugElement.<span class="fn">query</span>(By.<span class="fn">directive</span>(CouponStepComponent)).componentInstance;
+couponStep.<span class="fn">apply</span>(coupon);
+<span class="fn">expect</span>(couponStep.checkoutState.selectedCoupon?.code).<span class="fn">toBe</span>(<span class="str">'WELCOME10'</span>);
+
+<span class="kw">await</span> harness.<span class="fn">navigateByUrl</span>(<span class="str">'/checkout/payment'</span>);
+<span class="kw">const</span> paymentStep = harness.fixture.debugElement.<span class="fn">query</span>(By.<span class="fn">directive</span>(PaymentStepComponent)).componentInstance;
+
+<span class="cmt">// MẤU CHỐT: coupon chọn ở bước TRƯỚC vẫn còn nguyên ở bước SAU.</span>
+<span class="fn">expect</span>(paymentStep.checkoutState.selectedCoupon?.code).<span class="fn">toBe</span>(<span class="str">'WELCOME10'</span>);</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>CouponStepComponent</code> không phải DI token của chính nó</div>
+      <p>
+        Thử đầu tiên tôi viết <code>harness.routeDebugElement!.injector.get(CouponStepComponent)</code>
+        — lỗi <code>NG0201: No provider found</code>. Nguyên nhân: <code>routeDebugElement</code>
+        trỏ vào component ở OUTLET GỐC của harness (<code>CheckoutShellComponent</code>), còn
+        <code>CouponStepComponent</code> nằm ở outlet LỒNG BÊN TRONG nó. Với component khai qua
+        NgModule (không phải standalone), bạn không <code>injector.get(ComponentClass)</code>
+        được — phải <code>query(By.directive(ComponentClass)).componentInstance</code> để tìm đúng
+        node trong cây.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ Checkout routing — module-scoped state sống qua các bước (Bài 33)
+  ✓ TC1 — áp coupon ở bước coupon, sang bước payment rồi quay lại coupon: coupon VẪN còn được chọn
+  ✓ TC2 — CartStepComponent và PaymentStepComponent inject CÙNG MỘT instance CheckoutStateService
+
+Test Files  1 passed (1)
+     Tests  2 passed (2)</code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Nếu <code>CheckoutStateService</code> được khai trong <code>providers</code> của <code>CouponStepComponent</code> thay vì <code>CheckoutModule</code>, chuyện gì xảy ra khi chuyển sang bước payment rồi quay lại coupon?</div>
+    <button class="opt" data-correct="false" data-explain="Angular Router hoàn toàn hỗ trợ nhiều outlet lồng nhau — đây không phải lỗi kỹ thuật, mà là hệ quả của vòng đời DI."><code>router-outlet</code> lồng sẽ báo lỗi vì không tìm thấy component.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Provider ở component sống/chết theo vòng đời CHÍNH component đó (Bài 07 mục 3). Rời route coupon -> CouponStepComponent bị huỷ -> instance CheckoutStateService (nếu khai ở đây) bị huỷ theo -> quay lại coupon dựng component MỚI, kéo theo CheckoutStateService MỚI, mã giảm giá đã chọn biến mất.">Mã giảm giá đã chọn biến mất — <code>CouponStepComponent</code> bị huỷ khi rời route, kéo theo instance service của riêng nó cũng bị huỷ.</button>
+    <button class="opt" data-correct="false" data-explain="PaymentStepComponent hoàn toàn không inject được instance đó vì nó không nằm trong injector tree của PaymentStepComponent — provider ở component con chỉ 'thấy được' bởi chính node đó và các con CỦA NÓ, không phải anh em (sibling) route.">Không ảnh hưởng gì — <code>PaymentStepComponent</code> vẫn đọc được state từ instance cũ.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao KHÔNG dùng <code>providedIn: 'root'</code> cho <code>CheckoutStateService</code> dù nó "tiện" và luôn hoạt động đúng TRONG một phiên checkout?</div>
+    <button class="opt" data-correct="false" data-explain="root và module-provided đều hoạt động ĐÚNG trong phạm vi MỘT phiên checkout liên tục — sự khác biệt chỉ lộ ra khi người dùng RỜI HẲN rồi quay lại."><code>root</code> sẽ gây lỗi biên dịch vì <code>CheckoutStateService</code> phụ thuộc <code>Coupon</code>.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. root là singleton sống suốt đời app. Nếu người dùng checkout xong, rời đi, rồi bắt đầu MỘT phiên checkout MỚI (mua khoá khác), root-provided service vẫn giữ coupon của lần trước — rò rỉ trạng thái giữa hai phiên không liên quan. Module-provided dựng lại mỗi lần lazy module được tải lại (rời hẳn rồi quay lại).">Người dùng checkout xong, rời đi, rồi bắt đầu phiên checkout MỚI — <code>root</code> vẫn giữ coupon của lần trước, rò rỉ trạng thái giữa 2 phiên không liên quan.</button>
+    <button class="opt" data-correct="false" data-explain="Cú pháp @Injectable() không có ràng buộc gì với việc dùng ở đâu — cả 'root' lẫn providers-của-module đều là cú pháp hợp lệ và phổ biến."><code>providedIn: 'root'</code> không tương thích với service dùng <code>BehaviorSubject</code>.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — Checkout routing + state</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — 4 route con (<code>cart</code>/<code>coupon</code>/<code>payment</code>/<code>success</code>) dưới một <code>CheckoutShellComponent</code>, redirect mặc định về <code>cart</code>.</li>
+        <li><strong>TC2</strong> — <code>CheckoutStateService</code> khai ở <code>providers</code> của <code>CheckoutModule</code>, KHÔNG <code>providedIn: 'root'</code>, KHÔNG khai ở từng step component.</li>
+        <li><strong>TC3</strong> — Chọn coupon ở bước coupon, điều hướng sang payment, ĐỌC LẠI coupon từ <code>PaymentStepComponent</code> — phải khớp.</li>
+        <li><strong>TC4</strong> — Chứng minh 2 component con khác nhau inject CÙNG MỘT instance <code>CheckoutStateService</code> (so sánh bằng <code>toBe</code>, không phải <code>toEqual</code>).</li>
+        <li><strong>TC5</strong> — Dùng <code>RouterTestingHarness</code> cho mọi test điều hướng — không tự chế <code>ActivatedRoute</code> giả cho kịch bản có route con thật.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> <code>RouterTestingHarness.create()</code> có thể "treo" nếu route có resolver và bạn <code>await</code> nó trước khi flush request HTTP đang chờ — xem cách xử lý ở Bài 34.</p>
+    <p><strong>Hint 2 · API:</strong> <code>RouterTestingHarness.create(url)</code> · <code>harness.navigateByUrl(url)</code> · <code>harness.fixture.debugElement.query(By.directive(Type))</code> · <code>TestBed.configureTestingModule({ teardown: { destroyAfterEach: true } })</code> (bắt buộc khi dùng harness).</p>
+    <p><strong>Hint 3:</strong> Muốn tìm component ở outlet LỒNG, luôn dùng <code>By.directive()</code> quét toàn cây, đừng cố suy ra qua <code>routeDebugElement</code> (đó là outlet GỐC).</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi cấu hình được route con với shell component + outlet lồng.</li>
+      <li>Tôi chọn ĐÚNG CẤP để đặt provider dựa trên vòng đời mong muốn — không mặc định chọn <code>root</code> cho tiện.</li>
+      <li>Tôi phân biệt 3 lựa chọn (component/module/root) và giải thích được hệ quả cụ thể của từng lựa chọn bằng ví dụ thật.</li>
+      <li>Tôi dùng <code>RouterTestingHarness</code> để test điều hướng thật, thay vì luôn tự chế <code>ActivatedRoute</code> giả.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Bước "Mã giảm giá" cần một danh sách coupon TRƯỚC KHI người dùng nhìn thấy màn hình — nếu
+      không, bạn phải hiện spinner "đang tải" ngay khi vừa vào route, rồi lại render lại khi data
+      về. Route <code>coupon</code> ở trên đã có <code>resolve: { coupons: CouponResolver }</code>
+      — một khái niệm bạn chưa học chính thức.
+    </p>
+    <p>
+      Bạn đã biết Guard (Bài 13) — nó QUYẾT ĐỊNH có cho vào route hay không. Bạn đã biết
+      Interceptor (Bài 24) — nó can thiệp vào MỌI request HTTP. Resolver là một khái niệm THỨ BA,
+      cũng chạy TRƯỚC khi route kích hoạt như Guard, nhưng mục đích khác hẳn.
+    </p>
+    <p><strong>Resolver khác Guard ở điểm nào về MỤC ĐÍCH — và dữ liệu nó fetch về sẽ "đi" tới đâu để component đọc được?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: Guard trả lời câu hỏi "được vào không?" (boolean/UrlTree). Resolver trả lời câu hỏi khác hẳn — nó không CHẶN, nó CHUẨN BỊ. Nhớ lại Bài 08: <code>route.data</code> là nơi bạn từng đọc thứ gì đó được "gắn" vào route.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 34 · <code>Resolver</code> — preload data trước khi vào route</div>
+    <p class="nd">Mổ xẻ <code>CouponResolver</code> đã dùng ở trên — class-based <code>Resolve&lt;T&gt;</code>, và bẫy deadlock thật khi test route có resolver.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0032-cart-optimistic-update.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0034-resolver-preload-data.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi module + component + spec + output. TC3-TC4 (state sống qua các bước, cùng 1 instance) là bằng chứng quan trọng nhất — cấu hình route đúng mà chọn sai cấp provider vẫn coi như chưa xong bài.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

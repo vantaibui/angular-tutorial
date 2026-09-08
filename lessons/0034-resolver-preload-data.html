@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 34 · Resolver — preload data trước khi vào route</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 6 · Bài 34 · Cart &amp; Checkout</span>
+    <h1><code>Resolver</code> — preload data trước khi vào route</h1>
+    <p class="subtitle">
+      Guard trả lời "được vào không?". Resolver trả lời câu hỏi khác: "vào thì mang gì theo?" —
+      dữ liệu sẵn sàng TRƯỚC khi component tồn tại, không phải spinner rồi render lại.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Class-based Resolve&lt;T&gt; — nối lại Bài 08, Bài 13</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết một class implements <code>Resolve&lt;T&gt;</code>, gắn vào route qua <code>resolve: { key: Resolver }</code>.</li>
+      <li>Đọc dữ liệu đã resolve qua <code>route.snapshot.data['key']</code> — và biết nó CHẮC CHẮN có mặt khi <code>ngOnInit</code> chạy.</li>
+      <li>Test được route có resolver mà không làm treo test (deadlock thật đã gặp khi soạn bài này).</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 13: Guard là class, chạy TRƯỚC khi route kích hoạt, quyết định boolean/UrlTree. Bài 08:
+      <code>route.data</code> là <code>Record&lt;string, any&gt;</code> — nơi bạn đọc thứ gì đó đã
+      được "gắn" sẵn vào route. Resolver là mảnh ghép nối hai điều đó: nó cũng chạy TRƯỚC khi route
+      kích hoạt (như Guard), nhưng thay vì trả boolean, nó trả DỮ LIỆU — và dữ liệu đó được Angular
+      tự động gắn vào đúng chỗ bạn đã quen đọc: <code>route.data</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: "sẵn sàng trước" khác "tải xong rồi mới hiện"</h2>
+    <p>
+      Cách quen thuộc bạn đã làm suốt khoá học (Bài 09-11, 28-31): component vào <code>ngOnInit</code>,
+      gọi API, hiện spinner, nhận data, render. Cách này ổn cho hầu hết trường hợp — nhưng với bước
+      "Mã giảm giá" trong checkout, danh sách coupon RẤT nhỏ và bạn muốn màn hình hiện ra đã có sẵn
+      dữ liệu, không có khung hình "đang tải" chớp qua rồi biến mất ngay.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Guard (Bài 13) chứng minh Angular Router CÓ THỂ chạy code TRƯỚC khi component được tạo, và
+        CHỜ code đó xong (nếu nó trả Observable) trước khi tiếp tục điều hướng. Nếu thay vì trả về
+        boolean, đoạn code đó trả về DỮ LIỆU — dữ liệu đó có thể "đi" tới đâu để component đọc
+        được ngay khi vừa sinh ra?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Viết <code>CouponResolver</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/checkout/coupon.resolver.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CouponResolver <span class="kw">implements</span> Resolve&lt;Coupon[]&gt; {
+  <span class="kw">private readonly</span> http = <span class="fn">inject</span>(HttpClient);
+
+  <span class="fn">resolve</span>(): Observable&lt;Coupon[]&gt; {
+    <span class="cmt">// Lỗi ở đây KHÔNG nên chặn cả bước checkout — coi như "không có coupon nào" thay vì crash route.</span>
+    <span class="kw">return this</span>.http.<span class="fn">get</span>&lt;Coupon[]&gt;(<span class="str">'/api/coupons'</span>).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([])));
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · gắn vào route</span>
+<pre><code>{ path: <span class="str">'coupon'</span>, component: CouponStepComponent, resolve: { coupons: CouponResolver } }
+<span class="cmt">-- key "coupons" chính là TÊN sẽ xuất hiện trong route.snapshot.data</span></code></pre>
+    </div>
+    <p>
+      Giống hệt cấu trúc <code>AuthGuard implements CanActivate</code> ở Bài 13: một class,
+      <code>@Injectable({ providedIn: 'root' })</code>, gắn thẳng vào route config — không phải
+      hàm tự do (đó là kiểu Modern <code>ResolveFn</code>, dành cho Phase 14).
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao <code>catchError</code> ở ĐÂY quan trọng hơn bạn nghĩ</div>
+      <p>
+        Nếu <code>resolve()</code> trả về một Observable LỖI (không có <code>catchError</code>),
+        Router sẽ COI ĐÓ LÀ ĐIỀU HƯỚNG THẤT BẠI — người dùng bị kẹt, không vào được route
+        <code>coupon</code> luôn, kể cả khi lỗi chỉ là "server coupon tạm thời chậm". Với dữ liệu
+        KHÔNG QUAN TRỌNG SỐNG CÒN (coupon là tính năng phụ, không phải trung tâm), fallback về
+        mảng rỗng tốt hơn nhiều so với chặn đứng cả luồng checkout.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Đọc dữ liệu đã resolve trong component</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · coupon-step.component.ts</span>
+<pre><code><span class="kw">export class</span> CouponStepComponent <span class="kw">implements</span> OnInit {
+  validCoupons: Coupon[] = [];
+
+  <span class="fn">constructor</span>(<span class="kw">private readonly</span> route: ActivatedRoute, <span class="kw">readonly</span> checkoutState: CheckoutStateService) {}
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="cmt">// route.data là Record&lt;string, any&gt; (Bài 08) — đọc đúng KEY đã khai trong route.resolve.</span>
+    <span class="kw">const</span> coupons = (<span class="kw">this</span>.route.snapshot.data[<span class="str">'coupons'</span>] <span class="kw">as</span> Coupon[]) ?? [];
+    <span class="kw">const</span> now = <span class="fn">Date</span>.<span class="fn">now</span>();
+    <span class="kw">this</span>.validCoupons = coupons.<span class="fn">filter</span>((c) => <span class="kw">new</span> <span class="fn">Date</span>(c.expiresAt).<span class="fn">getTime</span>() > now &amp;&amp; c.usedCount &lt; c.maxUses);
+  }
+}</code></pre>
+    </div>
+    <p>
+      Không một dòng <code>HttpClient</code> nào trong component này — nó tin tưởng tuyệt đối rằng
+      <code>route.snapshot.data['coupons']</code> đã có mặt khi <code>ngOnInit</code> chạy. Đây
+      chính là điểm khác biệt với cách "tự fetch trong ngOnInit": component không cần biết dữ liệu
+      TỚI TỪ ĐÂU, chỉ cần biết Router đã chuẩn bị sẵn.
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy gõ nhầm — lặp lại nguyên văn cảnh báo Bài 08</div>
+      <p>
+        <code>route.data</code> là <code>Record&lt;string, any&gt;</code> — TypeScript KHÔNG báo
+        lỗi nếu bạn gõ nhầm <code>route.snapshot.data['coupon']</code> (thiếu chữ "s") thay vì
+        <code>'coupons'</code>. Kết quả: <code>undefined</code>, <code>?? []</code> âm thầm trả về
+        mảng rỗng, màn hình "không có coupon nào" dù server có dữ liệu thật. Không có lỗi biên
+        dịch, không có lỗi runtime — chỉ có hành vi sai lặng lẽ.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test — và một deadlock thật</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ thử đầu tiên — TREO tới khi hết timeout</span>
+<pre><code><span class="kw">const</span> harness = <span class="kw">await</span> RouterTestingHarness.<span class="fn">create</span>(<span class="str">'/checkout/coupon'</span>);
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/coupons'</span>).<span class="fn">flush</span>(RAW_COUPONS); <span class="cmt">// KHÔNG BAO GIỜ chạy tới dòng này</span></code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Bug thật tôi gặp khi soạn bài này — deadlock giữa <code>await</code> và <code>flush()</code></div>
+      <p>
+        <code>RouterTestingHarness.create(url)</code> nội bộ gọi
+        <code>await router.navigateByUrl(url)</code> — Promise đó CHỈ resolve SAU KHI resolver
+        (và HTTP request bên trong nó) hoàn tất. Nếu bạn viết
+        <code>const harness = await RouterTestingHarness.create(...)</code> rồi MỚI tìm request để
+        flush, code không bao giờ chạy tới dòng <code>flush()</code> — vì dòng đó nằm SAU
+        <code>await</code>, mà chính request đang chờ được flush lại là thứ khiến
+        <code>await</code> không bao giờ xong. Một deadlock cổ điển giữa hai bên cùng chờ nhau.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ✅ lời giải — TÁCH Promise ra, flush TRƯỚC KHI await</span>
+<pre><code><span class="kw">const</span> createPromise = RouterTestingHarness.<span class="fn">create</span>(<span class="str">'/checkout/coupon'</span>);  <span class="cmt">// KHÔNG await ngay</span>
+<span class="kw">await new</span> <span class="fn">Promise</span>((r) => <span class="fn">setTimeout</span>(r));  <span class="cmt">// nhường vòng lặp sự kiện, để loadChildren + resolver kịp bắn request</span>
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/coupons'</span>).<span class="fn">flush</span>(RAW_COUPONS);      <span class="cmt">// giờ request ĐÃ tồn tại, flush được</span>
+<span class="kw">const</span> harness = <span class="kw">await</span> createPromise;                          <span class="cmt">// bây giờ mới await -> resolve bình thường</span></code></pre>
+    </div>
+    <p>
+      Nguyên tắc chung khi test bất kỳ thao tác async nào có PHỤ THUỘC HAI CHIỀU (code chờ request,
+      request chờ bạn flush): đừng <code>await</code> ngay lập tức. Giữ Promise lại, làm việc cần
+      làm (flush request đang treo), RỒI mới <code>await</code>.
+    </p>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CouponResolver — class Resolve&lt;Coupon[]&gt; (Bài 34)
+  ✓ TC1 — resolve() gọi GET /api/coupons, trả về mảng coupon
+  ✓ TC2 — API lỗi → resolve() trả về mảng RỖNG thay vì lỗi (không chặn route)
+✓ CouponResolver — dữ liệu SẴN SÀNG trước khi component khởi tạo (Bài 34)
+  ✓ TC3 — vào route coupon: route.snapshot.data đã có coupons NGAY trong ngOnInit, lọc đúng coupon còn hạn + còn lượt
+
+Test Files  1 passed (1)
+     Tests  3 passed (3)</code></pre>
+    </div>
+    <p>
+      TC3 dùng bộ dữ liệu có cả coupon hết hạn (<code>EXPIRED5</code>) và hết lượt
+      (<code>MAXED_OUT</code>) lẫn coupon hợp lệ (<code>WELCOME10</code>) — chứng minh
+      <code>CouponStepComponent</code> lọc đúng, không chỉ hiển thị nguyên xi những gì resolver trả về.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Resolver khác Guard ở điểm cốt lõi nào?</div>
+    <button class="opt" data-correct="false" data-explain="Cả Guard lẫn Resolver đều CHẠY TRƯỚC khi route kích hoạt — đây không phải điểm khác biệt.">Resolver chạy SAU khi component đã hiện, Guard chạy TRƯỚC.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Guard trả lời 'boolean/UrlTree — có cho vào route này không?'. Resolver trả lời câu hỏi khác hẳn: 'đây là dữ liệu component cần, chuẩn bị sẵn trước khi nó tồn tại.' Cả hai đều chạy trước khi kích hoạt route, nhưng MỤC ĐÍCH của thứ chúng trả về hoàn toàn khác nhau.">Guard trả lời "được vào route không?" (boolean/UrlTree); Resolver trả lời "mang theo dữ liệu gì?" (giá trị thật, gắn vào <code>route.data</code>).</button>
+    <button class="opt" data-correct="false" data-explain="Guard hoàn toàn có thể trả về Observable/Promise và Router sẽ đợi nó — cả hai đều hỗ trợ async như nhau."><code>Resolver</code> hỗ trợ async (Observable), <code>Guard</code> thì không.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao đoạn code <code>await RouterTestingHarness.create(url)</code> rồi mới tìm request để flush lại gây treo test, trong khi các bài trước (vd Bài 25 test refresh token) `await` bình thường vẫn chạy được?</div>
+    <button class="opt" data-correct="false" data-explain="httpMock.expectOne không có timeout riêng — nó throw NGAY nếu không tìm thấy request tại thời điểm gọi. Vấn đề ở đây là code không BAO GIỜ chạy tới dòng expectOne, không phải nó chờ rồi timeout."><code>httpMock.expectOne</code> có timeout ngắn hơn <code>RouterTestingHarness</code>.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Ở Bài 25, code gọi http.get() TRỰC TIẾP trong thân test (đồng bộ, không đợi gì trước đó) rồi mới await kết quả — expectOne() chạy được vì request đã tồn tại NGAY LẬP TỨC. Ở đây, request nằm SÂU BÊN TRONG một chuỗi Promise (RouterTestingHarness.create await router.navigateByUrl), và chính dòng await đó chặn code chạy tiếp tới dòng expectOne — hai bên cùng chờ nhau.">Ở Bài 25, request được tạo ra ĐỒNG BỘ ngay khi gọi hàm — <code>expectOne</code> tìm thấy nó ngay. Ở đây, request nằm bên trong một <code>await</code> mà chính <code>await</code> đó chặn luôn dòng code gọi <code>expectOne</code> — hai bên khoá lẫn nhau.</button>
+    <button class="opt" data-correct="false" data-explain="HttpTestingController hoạt động giống hệt nhau bất kể ngữ cảnh gọi nó — vấn đề nằm ở THỨ TỰ code chạy (await), không phải ở bản thân HttpTestingController."><code>HttpTestingController</code> không hoạt động đúng bên trong <code>RouterTestingHarness</code>.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>CouponResolver</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>CouponResolver implements Resolve&lt;Coupon[]&gt;</code>, gọi <code>GET /api/coupons</code>.</li>
+        <li><strong>TC2</strong> — API lỗi → <code>resolve()</code> trả về mảng rỗng thay vì lỗi, KHÔNG chặn route.</li>
+        <li><strong>TC3</strong> — Vào route <code>coupon</code> qua <code>RouterTestingHarness</code>: <code>route.snapshot.data['coupons']</code> đã có dữ liệu NGAY trong <code>ngOnInit</code> của component — không có bước "loading" trung gian nào.</li>
+        <li><strong>TC4</strong> — Component lọc đúng: bỏ coupon hết hạn (<code>expiresAt</code> đã qua) và hết lượt (<code>usedCount &gt;= maxUses</code>).</li>
+        <li><strong>TC5</strong> — Test không bị deadlock: xử lý đúng thứ tự Promise/flush như mục 4.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết TC1-TC2 (test resolver ĐỘC LẬP, không qua router) trước — đơn giản như test một service bình thường. TC3 (qua router thật) khó hơn, để sau.</p>
+    <p><strong>Hint 2 · API:</strong> <code>Resolve&lt;T&gt;</code> từ <code>@angular/router</code> · <code>RouterTestingHarness.create()</code> KHÔNG await ngay nếu route có resolver · <code>By.directive(Type)</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu test treo tới khi hết timeout (thường 5000ms), gần như chắc chắn là deadlock await/flush ở mục 4 — không phải lỗi logic resolver.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi phân biệt rõ Guard (chặn) và Resolver (chuẩn bị dữ liệu) — hai khái niệm dễ lẫn vì cùng chạy trước khi route kích hoạt.</li>
+      <li>Tôi biết <code>catchError</code> trong resolver quan trọng: lỗi không bắt sẽ CHẶN CẢ ĐIỀU HƯỚNG, không chỉ lỗi hiển thị.</li>
+      <li>Tôi debug được deadlock giữa <code>await</code> và HTTP mock flush — một lớp lỗi mới so với những gì gặp trước đây.</li>
+      <li>Tôi dùng <code>RouterTestingHarness</code> thành thạo hơn: biết khi nào PHẢI tách Promise ra thay vì await ngay.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bước thanh toán cần một ô nhập <strong>số thẻ</strong>. Yêu cầu UX: gõ số thô
+      (<code>4111111111111111</code>) nhưng hiển thị có dấu cách mỗi 4 số
+      (<code>4111 1111 1111 1111</code>) để dễ đọc và dễ soát lỗi khi nhập.
+    </p>
+    <p>
+      Bạn đã xây CVA hai lần (Bài 17 rating, Bài 18 tag input) — cả hai đều có GIÁ TRỊ HIỂN THỊ
+      và GIÁ TRỊ MODEL giống hệt nhau. Lần này khác: người dùng NHÌN THẤY một chuỗi có dấu cách,
+      nhưng backend cần nhận chuỗi số THUẦN, không dấu cách.
+    </p>
+    <p><strong>ControlValueAccessor có cho phép giá trị HIỂN THỊ trên DOM khác với giá trị THẬT trong FormControl không? Chỗ nào trong 4 method của CVA là nơi bạn "phiên dịch" giữa hai giá trị đó?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: nhớ lại đúng khoảnh khắc bạn học ở Bài 16 — <code>writeValue</code> nhận giá trị TỪ model để đẩy VÀO DOM, còn hàm bạn gọi trong <code>(input)</code> đẩy giá trị TỪ DOM ra model qua <code>onChange</code>. Không có quy tắc nào bắt hai chiều đó phải truyền NGUYÊN VĂN cùng một chuỗi.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo · Bài cuối Module 7</div>
+    <div class="nt">Bài 35 · <code>&lt;app-card-number-input&gt;</code> — CVA lần hai, tự format</div>
+    <p class="nd">Hiển thị khác model — nơi CVA chứng minh giá trị thật của nó: KHÔNG PHẢI chỉ đẩy y nguyên dữ liệu qua lại.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0033-checkout-multistep-routing.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0035-card-number-input-cva.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi resolver + component + spec + output. TC3 (dữ liệu sẵn sàng NGAY trong ngOnInit, qua router thật) là bằng chứng quan trọng nhất — test resolver độc lập (TC1-2) chỉ chứng minh được nửa câu chuyện.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

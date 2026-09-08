@@ -240,9 +240,9 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–31** (hết Module 6 — Course Listing). Người học đã HOÀN THÀNH Bài 00-03,
-  đang làm Bài 04. Module 5-6 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
-  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08).
+- **Đã soạn: Bài 00–35** (hết Module 7 — Cart &amp; Checkout). Người học đã HOÀN THÀNH Bài 00-03,
+  đang làm Bài 04. Module 5-7 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
+  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08, hai lượt).
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
@@ -276,7 +276,35 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/forms-cheatsheet.html` — Bài 15–23.
 - `reference/auth-classic-cheatsheet.html` — Bài 24–27.
 - `reference/course-listing-cheatsheet.html` — Bài 28–31.
-- Mốc kế tiếp: sau **Bài 35** HOẶC khi Module 7 xong.
+- `reference/cart-checkout-cheatsheet.html` — Bài 32–35.
+- Mốc kế tiếp: sau **Bài 37** HOẶC khi Module 8 xong.
+
+### Phát hiện khi verify Module 7 (2026-09-08, đã đưa vào bài)
+Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `CartService` (optimistic
++ rollback), `cart-handlers.ts`/`coupon-handlers.ts` (MSW), toàn bộ `CheckoutModule` (shell +
+4 route con: cart/coupon/payment/success), `CheckoutStateService` (module-scoped),
+`CouponResolver` (class `Resolve<Coupon[]>`), `CardNumberInputComponent` (CVA thứ ba). Kết quả
+cuối: **44/44 test xanh** (11 file), `tsc --noEmit` sạch.
+- **Công cụ mới: `RouterTestingHarness`** (`@angular/router/testing`) — test điều hướng THẬT qua
+  Router thật thay vì tự chế `ActivatedRoute` giả. Dùng lần đầu ở Bài 33/34 cho route con +
+  resolver. `navigateByUrl()` trả về component ở OUTLET GỐC của harness — muốn lấy component ở
+  outlet LỒNG bên trong (route con thật sự), phải `fixture.debugElement.query(By.directive(Type))`,
+  KHÔNG `routeDebugElement.injector.get(ComponentClass)` (NG0201 — component NgModule-declared
+  không tự là DI token của chính nó).
+- **🔴 Deadlock thật giữa `await` và `httpMock.flush()`:** `RouterTestingHarness.create(url)` gọi
+  nội bộ `await router.navigateByUrl(url)` — Promise đó CHỈ resolve sau khi resolver (và HTTP
+  request bên trong) xong. `const harness = await RouterTestingHarness.create(...)` rồi mới tìm
+  request để flush → treo tới khi hết timeout, vì dòng flush nằm SAU await mà chính request đó
+  lại là thứ khiến await không xong. Sửa: tách Promise ra
+  (`const p = RouterTestingHarness.create(...)`), `await new Promise(r => setTimeout(r))` để
+  nhường vòng lặp sự kiện, flush request, RỒI mới `await p`. Đưa thành quy tắc chung ở Bài 34:
+  không `await` ngay một thao tác có phụ thuộc hai chiều với việc bạn cần làm tiếp theo.
+- **DI theo cấp cho state chia sẻ giữa nhiều bước:** `CheckoutStateService` khai ở `providers`
+  của `CheckoutModule` (không `providedIn:'root'`, không khai ở từng step component) — verify
+  bằng test so sánh `toBe()` hai instance inject từ 2 component con khác nhau. Giải thích rõ tại
+  sao `root` sai (rò rỉ state giữa 2 phiên checkout không liên quan) ở Bài 33.
+- **`HttpTestingController.expectOne(url)` dạng string khớp `urlWithParams`** — nhắc lại phát
+  hiện Module 6, áp dụng lại khi test `CartService`/`CouponResolver`.
 
 ### Phát hiện khi verify Module 6 (2026-09-08, đã đưa vào bài)
 Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/` (đã có sẵn từ Module 5). Thêm

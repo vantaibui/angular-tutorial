@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 35 · &lt;app-card-number-input&gt; — CVA lần hai, tự format</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 6 · Bài 35 · Cart &amp; Checkout · Bài cuối Module 7</span>
+    <h1><code>&lt;app-card-number-input&gt;</code> — CVA lần hai, tự format</h1>
+    <p class="subtitle">
+      Người dùng NHÌN THẤY "4111 1111 1111 1111". Backend nhận "4111111111111111". Một
+      <code>ControlValueAccessor</code> đúng nghĩa là cầu nối giữa hai giá trị KHÁC NHAU đó.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Kết bài Module 7 — CVA lần ba (Bài 17, 18, giờ là đây)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Phân biệt rõ "giá trị hiển thị trên DOM" và "giá trị thật trong FormControl" — và biết CHÍNH XÁC method nào của CVA xử lý chiều nào.</li>
+      <li>Viết logic format/parse hai chiều: số thô → chuỗi có dấu cách (hiển thị) và ngược lại (khi nhận giá trị từ model).</li>
+      <li>Kết hợp <code>NG_VALUE_ACCESSOR</code> (Bài 16) VÀ <code>NG_VALIDATORS</code> (Bài 18) trên cùng một component.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 16: <code>writeValue</code> nhận giá trị TỪ model, đẩy VÀO DOM. Bài 17: CVA đầu tiên
+      (<code>RatingInputComponent</code>) — giá trị hiển thị và giá trị model là MỘT, giống hệt
+      nhau. Bài 18: <code>NG_VALIDATORS</code> tự viết validator gắn liền với custom control. Bài
+      này là lần đầu tiên hai giá trị đó KHÁC NHAU — buộc bạn hiểu CVA sâu hơn "4 method điền vào
+      cho đủ".
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: hiển thị dễ đọc, model sạch cho backend</h2>
+    <p>
+      Số thẻ 16 chữ số liền nhau rất khó đọc và dễ gõ nhầm. Chuẩn ngành là hiển thị theo nhóm 4 số:
+      <code>4111 1111 1111 1111</code>. Nhưng backend xử lý thanh toán không cần (và không muốn)
+      nhận dấu cách — nó cần đúng 16 chữ số liền.
+    </p>
+    <p>
+      Nếu bạn build control này XONG XUÔI như một <code>&lt;input&gt;</code> thường với
+      <code>[(ngModel)]</code>, giá trị model SẼ chứa dấu cách (vì đó là những gì DOM có). Bạn phải
+      tự strip dấu cách ở NƠI KHÁC trước khi gửi API — logic bị rải rác, dễ quên một chỗ.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        <code>ControlValueAccessor</code> có đúng 2 "cửa" dữ liệu đi qua: <code>writeValue</code>
+        (model → DOM) và hàm bạn gọi trong <code>(input)</code> handler, thứ gọi
+        <code>onChange</code> (DOM → model). Không có quy tắc nào bắt buộc dữ liệu đi qua 2 cửa
+        đó phải NGUYÊN VĂN giống nhau — vậy bạn có thể "phiên dịch" ở đâu?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: 2 cửa, 2 chiều phiên dịch riêng</h2>
+    <div class="code-block">
+      <span class="code-label">Sơ đồ luồng dữ liệu</span>
+<pre><code>Model (FormControl.value)          DOM (input.value)
+   "4111111111111111"      ──────▶  "4111 1111 1111 1111"
+        (16 số thô)         writeValue    (có dấu cách, DỄ ĐỌC)
+
+   "4111111111111111"      ◀──────  "4111111111111119999"
+        (16 số thô,                  (người gõ, có thể thừa/thiếu)
+         đã cắt/strip)      onChange</code></pre>
+    </div>
+    <p>
+      Hai hàm tiện ích thuần (không phụ thuộc Angular) làm toàn bộ việc "phiên dịch":
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">function</span> <span class="fn">stripNonDigits</span>(value: <span class="kw">string</span>): <span class="kw">string</span> {
+  <span class="kw">return</span> value.<span class="fn">replace</span>(<span class="str">/\D/g</span>, <span class="str">''</span>);
+}
+
+<span class="kw">function</span> <span class="fn">formatWithSpaces</span>(digits: <span class="kw">string</span>): <span class="kw">string</span> {
+  <span class="kw">return</span> digits.<span class="fn">match</span>(<span class="str">/.{1,4}/g</span>)?.<span class="fn">join</span>(<span class="str">' '</span>) ?? <span class="str">''</span>;
+}</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/components/card-number-input/card-number-input.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-card-number-input'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;input type="text" inputmode="numeric" placeholder="1234 5678 9012 3456"
+           [value]="displayValue" [disabled]="isDisabled"
+           (input)="onInput($any($event.target).value)" (blur)="onTouched()" /&gt;
+  `</span>,
+  providers: [
+    { provide: NG_VALUE_ACCESSOR, useExisting: <span class="fn">forwardRef</span>(() => CardNumberInputComponent), multi: <span class="kw">true</span> },
+    { provide: NG_VALIDATORS, useExisting: <span class="fn">forwardRef</span>(() => CardNumberInputComponent), multi: <span class="kw">true</span> },
+  ],
+})
+<span class="kw">export class</span> CardNumberInputComponent <span class="kw">implements</span> ControlValueAccessor, Validator {
+  <span class="kw">private readonly</span> cdr = <span class="fn">inject</span>(ChangeDetectorRef);
+
+  displayValue = <span class="str">''</span>;    <span class="cmt">// "1234 5678 9012 3456" — CHỈ để hiển thị</span>
+  isDisabled = <span class="kw">false</span>;
+  <span class="kw">private</span> rawDigits = <span class="str">''</span>; <span class="cmt">// "1234567890123456" — giá trị THẬT đưa vào model</span>
+
+  <span class="kw">private</span> onChange: (value: <span class="kw">string</span>) => <span class="kw">void</span> = () => {};
+  onTouched: () => <span class="kw">void</span> = () => {};
+
+  <span class="cmt">// ── ControlValueAccessor: model → DOM ──</span>
+  <span class="fn">writeValue</span>(value: <span class="kw">string</span> | <span class="kw">null</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.rawDigits = <span class="fn">stripNonDigits</span>(value ?? <span class="str">''</span>);
+    <span class="kw">this</span>.displayValue = <span class="fn">formatWithSpaces</span>(<span class="kw">this</span>.rawDigits);
+    <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); <span class="cmt">// zoneless (Bài 16) — writeValue không chạy trong event template</span>
+  }
+
+  <span class="fn">registerOnChange</span>(fn: (value: <span class="kw">string</span>) => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onChange = fn; }
+  <span class="fn">registerOnTouched</span>(fn: () => <span class="kw">void</span>): <span class="kw">void</span> { <span class="kw">this</span>.onTouched = fn; }
+  <span class="fn">setDisabledState</span>(isDisabled: <span class="kw">boolean</span>): <span class="kw">void</span> { <span class="kw">this</span>.isDisabled = isDisabled; <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); }
+
+  <span class="cmt">// ── Sự kiện DOM thật: DOM → model ──</span>
+  <span class="fn">onInput</span>(rawInputValue: <span class="kw">string</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.rawDigits = <span class="fn">stripNonDigits</span>(rawInputValue).<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">16</span>); <span class="cmt">// tối đa 16 số</span>
+    <span class="kw">this</span>.displayValue = <span class="fn">formatWithSpaces</span>(<span class="kw">this</span>.rawDigits);
+    <span class="kw">this</span>.onChange(<span class="kw">this</span>.rawDigits); <span class="cmt">// model nhận DIGITS THÔ, không nhận chuỗi có dấu cách</span>
+  }
+
+  <span class="cmt">// ── Validator (NG_VALIDATORS — Bài 18) ──</span>
+  <span class="fn">validate</span>(): ValidationErrors | <span class="kw">null</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.rawDigits.length === <span class="num">0</span>) <span class="kw">return null</span>; <span class="cmt">// để required lo việc "bắt buộc nhập"</span>
+    <span class="kw">return</span> <span class="kw">this</span>.rawDigits.length === <span class="num">16</span> ? <span class="kw">null</span> : { cardNumberLength: <span class="kw">true</span> };
+  }
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao <code>writeValue</code> KHÔNG gọi <code>onChange</code></div>
+      <p>
+        <code>writeValue</code> là model NÓI cho DOM biết giá trị — nó không phải người dùng gõ,
+        nên KHÔNG được kích hoạt lại <code>onChange</code> (nếu không sẽ tạo vòng lặp vô nghĩa:
+        model đổi → writeValue → onChange → model đổi lại → writeValue...). Chỉ có
+        <code>onInput</code> (sự kiện DOM THẬT do người dùng gây ra) mới gọi <code>onChange</code>.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>writeValue</code> cũng phải <code>stripNonDigits</code>, không chỉ <code>onInput</code></div>
+      <p>
+        Nếu code gọi <code>form.patchValue('4111-1111-1111-1111')</code> (dấu gạch ngang thay vì
+        dấu cách, ví dụ paste từ nguồn khác), <code>writeValue</code> nhận nguyên chuỗi đó — không
+        strip trước khi format sẽ ra kết quả sai lệch. Luôn coi giá trị ĐẦU VÀO (dù từ DOM hay từ
+        model) là "chưa đáng tin", chuẩn hoá trước khi dùng.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Dùng trong <code>PaymentStepComponent</code></h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>&lt;label&gt;
+  Số thẻ
+  &lt;app-card-number-input [formControl]="cardNumber"&gt;&lt;/app-card-number-input&gt;
+&lt;/label&gt;
+&lt;p *ngIf="cardNumber.touched &amp;&amp; cardNumber.invalid"&gt;Số thẻ phải đủ 16 chữ số.&lt;/p&gt;</code></pre>
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">readonly</span> cardNumber = <span class="kw">new</span> FormControl(<span class="str">''</span>, { nonNullable: <span class="kw">true</span>, validators: [Validators.required] });</code></pre>
+    </div>
+    <p>
+      <code>Validators.required</code> kiểm "có nhập gì chưa"; validator TỰ VIẾT
+      (<code>cardNumberLength</code>) kiểm "nhập đủ 16 số chưa" — hai lớp validate độc lập, đúng
+      tinh thần Bài 18 (mỗi validator chỉ lo MỘT quy tắc).
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · TC1 — trái tim của bài này</span>
+<pre><code>input.value = <span class="str">'4111111111111111'</span>;
+input.<span class="fn">dispatchEvent</span>(<span class="kw">new</span> <span class="fn">Event</span>(<span class="str">'input'</span>));
+fixture.<span class="fn">detectChanges</span>();
+
+<span class="fn">expect</span>(input.value).<span class="fn">toBe</span>(<span class="str">'4111 1111 1111 1111'</span>);              <span class="cmt">// DOM: có dấu cách</span>
+<span class="fn">expect</span>(fixture.componentInstance.control.value).<span class="fn">toBe</span>(<span class="str">'4111111111111111'</span>); <span class="cmt">// MODEL: không dấu cách</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CardNumberInputComponent — CVA lần hai, tự format
+  ✓ TC1 — gõ số thô: hiển thị có dấu cách mỗi 4 số, model nhận DIGITS THÔ không dấu cách
+  ✓ TC2 — writeValue (patchValue) từ code: hiển thị format đúng ngay cả khi giá trị gán vào đã có dấu cách/ký tự lạ
+  ✓ TC3 — gõ quá 16 số: bị cắt bớt, không cho vượt quá
+  ✓ TC4 — Validator: đúng 16 số thì valid, thiếu số thì invalid với lỗi cardNumberLength, rỗng thì valid (để required lo)
+  ✓ TC5 — setDisabledState: input DOM thật sự bị disabled
+
+Test Files  1 passed (1)
+     Tests  5 passed (5)</code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao <code>writeValue</code> KHÔNG được gọi <code>this.onChange(...)</code>?</div>
+    <button class="opt" data-correct="false" data-explain="onChange có kiểu (value: string) => void — hoàn toàn gọi được về mặt cú pháp. Vấn đề không phải kỹ thuật, mà là NGỮ NGHĨA/vòng lặp."><code>onChange</code> chỉ nhận được gọi từ sự kiện DOM, gọi từ TypeScript sẽ lỗi runtime.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. writeValue là chiều model -> DOM (Angular Forms nói cho control biết giá trị). Nếu nó gọi onChange (chiều DOM -> model), sẽ tạo vòng lặp: model đổi -> writeValue chạy -> onChange chạy -> Angular Forms tưởng NGƯỜI DÙNG vừa đổi giá trị -> có thể kích hoạt lại các cơ chế khác một cách không cần thiết, sai bản chất của thao tác.">Sẽ tạo vòng lặp sai ngữ nghĩa: <code>writeValue</code> là model báo cho DOM, không phải người dùng gõ — gọi <code>onChange</code> ở đây coi một cập nhật TỪ TRÊN XUỐNG như thể nó đến TỪ NGƯỜI DÙNG.</button>
+    <button class="opt" data-correct="false" data-explain="registerOnChange chỉ ĐĂNG KÝ hàm callback — nó không quyết định writeValue có nên gọi onChange hay không, đó là quyết định của người viết CVA."><code>registerOnChange</code> chưa được gọi tại thời điểm <code>writeValue</code> chạy lần đầu.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. <code>validate()</code> trả <code>null</code> khi <code>rawDigits.length === 0</code> thay vì báo lỗi <code>cardNumberLength</code>. Vì sao?</div>
+    <button class="opt" data-correct="false" data-explain="0 vẫn nhỏ hơn 16 — nếu coi rỗng là lỗi 'chưa đủ 16 số', validator này sẽ LUÔN báo lỗi cho một field mới toanh, kể cả khi field đó KHÔNG bắt buộc hoặc người dùng chưa kịp chạm vào."><code>0</code> không phải số hợp lệ để so sánh, nên phải trả <code>null</code> để tránh lỗi runtime.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Tách trách nhiệm: Validators.required lo việc 'bắt buộc phải nhập', validator riêng của CardNumberInputComponent chỉ lo 'NẾU đã nhập thì phải đủ 16 số'. Nếu validator này TỰ báo lỗi khi rỗng, nó sẽ đá chéo sân với required — và field không bắt buộc (optional) sẽ bị báo lỗi sai dù người dùng chưa nhập gì cả.">Tách trách nhiệm: <code>Validators.required</code> lo "bắt buộc nhập", validator này chỉ lo "NẾU đã nhập thì phải đủ 16 số" — rỗng không thuộc phạm vi nó phải báo lỗi.</button>
+    <button class="opt" data-correct="false" data-explain="ValidationErrors chấp nhận bất kỳ key nào bạn muốn đặt, không có ràng buộc gì với giá trị length của input."><code>ValidationErrors</code> không cho phép báo lỗi khi <code>length</code> bằng 0.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn — bài cuối Module 7</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>CardNumberInputComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Gõ số thô vào input → DOM hiện có dấu cách mỗi 4 số, <code>FormControl.value</code> chỉ chứa digits (không dấu cách).</li>
+        <li><strong>TC2</strong> — <code>patchValue()</code> một chuỗi có ký tự lạ (dấu gạch ngang, khoảng trắng thừa) → hiển thị vẫn format ĐÚNG (đã strip trước khi format).</li>
+        <li><strong>TC3</strong> — Gõ quá 16 số → bị cắt, không cho vượt quá.</li>
+        <li><strong>TC4</strong> — <code>NG_VALIDATORS</code>: đủ 16 số → valid; thiếu số → lỗi <code>cardNumberLength</code>; rỗng → valid (nhường cho <code>required</code>).</li>
+        <li><strong>TC5</strong> — <code>setDisabledState</code> disable input DOM thật.</li>
+        <li><strong>TC6</strong> — Gắn vào <code>PaymentStepComponent</code> thật, kết hợp <code>Validators.required</code> — nút "Thanh toán" disable khi form invalid.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết 2 hàm thuần <code>stripNonDigits</code>/<code>formatWithSpaces</code> TRƯỚC, test chúng độc lập (không cần Angular) — rồi mới ráp vào component.</p>
+    <p><strong>Hint 2 · API:</strong> <code>NG_VALUE_ACCESSOR</code> + <code>NG_VALIDATORS</code> cùng <code>forwardRef</code>, <code>multi: true</code> · <code>ChangeDetectorRef.markForCheck()</code> trong <code>writeValue</code>/<code>setDisabledState</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 (patchValue với ký tự lạ) đỏ, kiểm tra <code>writeValue</code> có gọi <code>stripNonDigits</code> hay bạn chỉ strip ở <code>onInput</code> — đây là lỗi rất dễ bỏ sót vì TC1 vẫn xanh mà không cần strip ở writeValue.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — tổng kết Module 7</div>
+    <ul class="checklist">
+      <li>Tôi hiểu CVA sâu hơn "4 method điền cho đủ" — biết chính xác method nào xử lý chiều nào, và tại sao 2 chiều đó không bắt buộc phải cùng một giá trị.</li>
+      <li>Tôi kết hợp được <code>NG_VALUE_ACCESSOR</code> và <code>NG_VALIDATORS</code> trên cùng một component.</li>
+      <li>Tôi áp dụng đúng <code>markForCheck()</code> (Bài 16) cho custom control thứ ba của khoá.</li>
+      <li>Module 7 xong: optimistic update + rollback (Bài 32) → route con + DI theo cấp (Bài 33) → Resolver preload (Bài 34) → CVA nâng cao (Bài 35), toàn bộ luồng mua hàng của EduCommerce đã hoạt động từ đầu tới cuối.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Checkout xong, người dùng vào học. Trang học bài cần một <strong>video player</strong> theo
+      dõi tiến độ xem — và một thứ mới: điều khiển video bằng code (play/pause) VÀ phản ứng khi
+      video tự nhiên dừng lại (hết đoạn preview, buffer, người dùng bấm nút play/pause của trình
+      duyệt). Đây không phải chuyện đọc/ghi giá trị qua lại như Reactive Forms nữa — đây là điều
+      khiển một phần tử DOM <strong>có API riêng của nó</strong> (<code>&lt;video&gt;</code> có
+      <code>.play()</code>, <code>.pause()</code>, sự kiện <code>timeupdate</code>).
+    </p>
+    <p><strong>Angular có decorator nào cho phép component TypeScript của bạn cầm trực tiếp một phần tử DOM (hoặc component con) để gọi method/đọc property của nó, thay vì chỉ bind qua <code>[input]</code>/<code>(output)</code>?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã thấy khái niệm này thấp thoáng — nó cho phép "chọc tay" trực tiếp vào một phần tử trong template của CHÍNH component đó, dùng được ngay từ <code>ngAfterViewInit</code>.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Module tiếp theo</div>
+    <div class="nt">Module 8 · Phase 7 — Học bài &amp; Progress</div>
+    <p class="nd">Bài 36 · Video Player — <code>ViewChild</code> + Directive <code>appAutoPause</code>. Nơi bạn lần đầu điều khiển trực tiếp một DOM element từ TypeScript.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0034-resolver-preload-data.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC1-TC2 (hiển thị khác model, cả khi patchValue) là bằng chứng quan trọng nhất — chứng minh bạn hiểu CVA là cầu nối hai giá trị ĐỘC LẬP, không phải chỉ một binding hai chiều đơn giản.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

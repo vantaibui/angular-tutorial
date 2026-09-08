@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 32 · CartService — optimistic update + rollback</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 6 · Bài 32 · Cart &amp; Checkout</span>
+    <h1><code>CartService</code> — optimistic update + rollback</h1>
+    <p class="subtitle">
+      Bấm "Thêm vào giỏ" phải cảm giác NGAY LẬP TỨC, không đợi server. Nhưng nếu server từ chối,
+      UI phải "lùi lại" đúng như chưa có gì xảy ra.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Mở Module 7 — state management bắt đầu đau, chuẩn bị nền cho NgRx</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích chính xác "optimistic update" nghĩa là gì và đánh đổi gì so với chờ server trước.</li>
+      <li>Lưu lại state CŨ trước khi đổi, để có gì "lùi về" khi server từ chối.</li>
+      <li>Viết test chứng minh CẢ HAI chiều: cập nhật tức thời VÀ rollback khi lỗi — thiếu một trong hai là bài chưa xong.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 03 / Bài 26: <code>BehaviorSubject</code> giữ "giá trị hiện tại", đọc snapshot qua
+      <code>.value</code>. Bài này dùng chính <code>.value</code> đó cho việc khác: chụp lại state
+      TRƯỚC khi thay đổi, để có bản sao lưu phòng khi cần lùi lại.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: chờ server thì chậm, không chờ thì rủi ro</h2>
+    <p>
+      Cách "an toàn" nhất: bấm nút → gọi API → đợi phản hồi → MỚI cập nhật UI. Nhưng với hành động
+      nhỏ như "thêm vào giỏ", vài trăm mili-giây chờ đợi đó cảm giác ì ạch — người dùng mong UI
+      phản hồi ngay khi họ bấm.
+    </p>
+    <p>
+      Vấn đề: nếu bạn cập nhật UI ngay LẬP TỨC (trước khi biết server có đồng ý hay không), và
+      server sau đó từ chối (ví dụ: khoá học này người dùng đã mua rồi), UI đang nói dối — nó hiển
+      thị một trạng thái mà server không công nhận.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Muốn "lùi lại" một thay đổi, bạn cần biết trạng thái <strong>TRƯỚC</strong> khi thay đổi
+        đó xảy ra. Có công cụ nào trong tay bạn đã dùng suốt khoá học này luôn giữ sẵn "giá trị
+        hiện tại", đọc được bất cứ lúc nào mà không cần subscribe?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: chụp lại, đổi ngay, lùi nếu cần</h2>
+    <div class="code-block">
+      <span class="code-label">Ba bước cố định, mọi optimistic update đều theo khuôn này</span>
+<pre><code><span class="cmt">// BƯỚC 1 — chụp lại state CŨ (trước khi đổi bất cứ gì)</span>
+<span class="kw">const</span> previous = <span class="kw">this</span>.itemsSubject.value;
+
+<span class="cmt">// BƯỚC 2 — đổi NGAY, không đợi server (đây là phần "optimistic")</span>
+<span class="kw">this</span>.itemsSubject.<span class="fn">next</span>([...previous, item_moi]);
+
+<span class="cmt">// BƯỚC 3 — gọi API thật; nếu THÀNH CÔNG thì không làm gì thêm (state đã đúng từ Bước 2);</span>
+<span class="cmt">// nếu THẤT BẠI thì .next(previous) — LÙI VỀ đúng snapshot đã chụp ở Bước 1.</span></code></pre>
+    </div>
+    <p>
+      Đây là lý do <code>.value</code> của <code>BehaviorSubject</code> (Bài 03) quan trọng hơn
+      bạn nghĩ lúc đầu: nó không chỉ để "đọc nhanh không cần subscribe", nó còn là công cụ chụp
+      snapshot cho optimistic update.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/core/services/cart.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CartService {
+  <span class="kw">private readonly</span> http = <span class="fn">inject</span>(HttpClient);
+  <span class="kw">private readonly</span> itemsSubject = <span class="kw">new</span> BehaviorSubject&lt;CartItem[]&gt;([]);
+
+  <span class="kw">readonly</span> items$ = <span class="kw">this</span>.itemsSubject.<span class="fn">asObservable</span>();
+  <span class="kw">get</span> <span class="fn">items</span>(): CartItem[] { <span class="kw">return this</span>.itemsSubject.value; }
+
+  <span class="fn">addToCart</span>(courseId: <span class="kw">string</span>): Observable&lt;<span class="kw">void</span>&gt; {
+    <span class="kw">const</span> previous = <span class="kw">this</span>.itemsSubject.value;
+    <span class="kw">if</span> (previous.<span class="fn">some</span>((item) => item.courseId === courseId)) {
+      <span class="kw">return</span> <span class="fn">of</span>(<span class="kw">undefined</span>); <span class="cmt">// đã có trong giỏ — không optimistic, không gọi API thừa</span>
+    }
+
+    <span class="cmt">// OPTIMISTIC: cập nhật UI NGAY, chưa đợi server xác nhận.</span>
+    <span class="kw">const</span> optimisticItem: CartItem = { courseId, addedAt: <span class="kw">new</span> <span class="fn">Date</span>().<span class="fn">toISOString</span>() };
+    <span class="kw">this</span>.itemsSubject.<span class="fn">next</span>([...previous, optimisticItem]);
+
+    <span class="kw">return this</span>.http.<span class="fn">post</span>&lt;CartItem&gt;(<span class="str">'/api/cart'</span>, { courseId }).<span class="fn">pipe</span>(
+      <span class="fn">map</span>(() => <span class="kw">undefined</span>),
+      <span class="fn">catchError</span>((err) => {
+        <span class="kw">this</span>.itemsSubject.<span class="fn">next</span>(previous); <span class="cmt">// ROLLBACK: server từ chối -> lùi lại state cũ</span>
+        <span class="kw">return</span> <span class="fn">throwError</span>(() => err);
+      }),
+    );
+  }
+
+  <span class="fn">removeFromCart</span>(courseId: <span class="kw">string</span>): Observable&lt;<span class="kw">void</span>&gt; {
+    <span class="kw">const</span> previous = <span class="kw">this</span>.itemsSubject.value;
+    <span class="kw">this</span>.itemsSubject.<span class="fn">next</span>(previous.<span class="fn">filter</span>((item) => item.courseId !== courseId)); <span class="cmt">// OPTIMISTIC</span>
+
+    <span class="kw">return this</span>.http.<span class="fn">delete</span>&lt;<span class="kw">void</span>&gt;(<span class="str">`/api/cart/${courseId}`</span>).<span class="fn">pipe</span>(
+      <span class="fn">catchError</span>((err) => {
+        <span class="kw">this</span>.itemsSubject.<span class="fn">next</span>(previous); <span class="cmt">// ROLLBACK</span>
+        <span class="kw">return</span> <span class="fn">throwError</span>(() => err);
+      }),
+    );
+  }
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao <code>addToCart</code> vẫn trả về <code>Observable&lt;void&gt;</code> có thể lỗi</div>
+      <p>
+        Rollback xảy ra <strong>bên trong</strong> service — state luôn đúng dù component gọi có
+        xử lý lỗi hay không. Nhưng component vẫn cần <em>biết</em> việc thêm vào giỏ đã thất bại
+        để hiện thông báo ("Không thể thêm — bạn đã mua khoá học này rồi"). Tách hai việc: service
+        lo ĐÚNG STATE, component lo THÔNG BÁO NGƯỜI DÙNG.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao kiểm tra trùng <code>courseId</code> TRƯỚC khi optimistic, không phải sau</div>
+      <p>
+        Nếu không kiểm tra, bấm 2 lần liên tiếp vào cùng một khoá học sẽ optimistic thêm 2 lần
+        (UI hiện 2 dòng giống hệt nhau) trước khi request đầu kịp trả lời. Kiểm tra
+        <code>previous.some(...)</code> trước khi làm bất cứ gì biến việc này thành no-op an toàn.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · TC2 — trái tim của bài này</span>
+<pre><code><span class="kw">const</span> p = <span class="fn">firstValueFrom</span>(cart.<span class="fn">addToCart</span>(<span class="str">'course_1'</span>));
+<span class="fn">expect</span>(cart.items).<span class="fn">toHaveLength</span>(<span class="num">1</span>); <span class="cmt">// optimistic TRƯỚC khi server trả lời</span>
+
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/cart'</span>).<span class="fn">flush</span>({ message: <span class="str">'Đã mua khoá học này rồi'</span> }, { status: <span class="num">409</span>, statusText: <span class="str">'Conflict'</span> });
+
+<span class="kw">await</span> <span class="fn">expect</span>(p).rejects.<span class="fn">toBeTruthy</span>();
+<span class="fn">expect</span>(cart.items).<span class="fn">toHaveLength</span>(<span class="num">0</span>); <span class="cmt">// rollback: về lại rỗng như trước khi optimistic</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CartService — optimistic update + rollback
+  ✓ TC1 — addToCart cập nhật items$ NGAY, TRƯỚC KHI server phản hồi (optimistic)
+  ✓ TC2 — server từ chối (409 đã mua khoá học này rồi) → ROLLBACK, item biến mất khỏi items$
+  ✓ TC3 — courseId đã có trong giỏ: addToCart là no-op, KHÔNG gọi API, KHÔNG optimistic thêm lần 2
+  ✓ TC4 — removeFromCart: item biến mất NGAY (optimistic), server lỗi thì ROLLBACK trở lại
+
+Test Files  1 passed (1)
+     Tests  4 passed (4)</code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao phải chụp <code>previous = this.itemsSubject.value</code> TRƯỚC khi gọi <code>.next()</code> optimistic, không phải sau?</div>
+    <button class="opt" data-correct="false" data-explain="Thứ tự chụp không ảnh hưởng gì tới HttpClient hay tốc độ mạng — đây thuần là vấn đề logic JavaScript."><code>HttpClient</code> yêu cầu snapshot phải chụp trước khi gọi API, nếu không request sẽ lỗi.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Nếu chụp SAU khi .next() optimistic, previous sẽ VÔ TÌNH đã chứa item mới — rollback lúc đó chỉ đưa state về đúng cái vừa optimistic, không về được trạng thái thật sự ban đầu.">Nếu chụp sau, <code>previous</code> sẽ đã chứa item vừa optimistic thêm vào — rollback không còn tác dụng gì.</button>
+    <button class="opt" data-correct="false" data-explain="BehaviorSubject.value luôn đọc được ngay lập tức bất kể thời điểm nào, không có khái niệm 'chưa khởi tạo xong' ở đây."><code>itemsSubject.value</code> chỉ có giá trị hợp lệ TRƯỚC khi gọi <code>.next()</code> lần đầu.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. <code>addToCart</code> catchError rồi <code>throwError(() => err)</code> thay vì catch xong trả về <code>of(undefined)</code> im lặng. Vì sao?</div>
+    <button class="opt" data-correct="false" data-explain="Rollback (this.itemsSubject.next(previous)) đã chạy XONG trước khi throwError — state đã đúng. throwError không ảnh hưởng gì tới việc đó."><code>throwError</code> cần thiết để kích hoạt rollback — thiếu nó thì state không được lùi lại.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Rollback xảy ra TRONG catchError, độc lập với việc có throwError hay không — state luôn đúng. Nhưng nếu nuốt lỗi (trả of(undefined)), component gọi addToCart() sẽ tưởng mọi thứ ổn và không có cách nào hiện thông báo lỗi cho người dùng biết vì sao món hàng lại biến mất khỏi giỏ.">Để component gọi <code>addToCart()</code> biết được request đã thất bại và có thể hiện thông báo cho người dùng — nuốt lỗi im lặng thì item biến mất mà không ai giải thích vì sao.</button>
+    <button class="opt" data-correct="false" data-explain="Cả hai đều là Observable hợp lệ về mặt kiểu — sự khác biệt là NGỮ NGHĨA (im lặng vs báo lỗi), không phải kiểu dữ liệu."><code>of(undefined)</code> không đúng kiểu trả về, TypeScript sẽ báo lỗi biên dịch.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>CartService</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>addToCart(courseId)</code> cập nhật <code>items$</code>/<code>.items</code> NGAY, trước khi request tới server hoàn tất.</li>
+        <li><strong>TC2</strong> — Server từ chối (test bằng status 409 hoặc 500 tuỳ bạn) → item vừa thêm biến mất khỏi <code>.items</code> (rollback đúng snapshot cũ), Observable trả về lỗi.</li>
+        <li><strong>TC3</strong> — Gọi <code>addToCart()</code> với <code>courseId</code> đã có sẵn trong giỏ → KHÔNG gọi API, KHÔNG thêm trùng.</li>
+        <li><strong>TC4</strong> — <code>removeFromCart(courseId)</code> đối xứng: optimistic xoá ngay, rollback (thêm lại) nếu server lỗi.</li>
+        <li><strong>TC5</strong> — <code>loadCart()</code> gọi <code>GET /api/cart</code>, nạp state ban đầu khi app khởi động.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết TC1 (optimistic) trước, chạy xanh, RỒI mới viết TC2 (rollback) — đừng viết cả hai cùng lúc rồi debug chung.</p>
+    <p><strong>Hint 2 · API:</strong> <code>BehaviorSubject.value</code> (snapshot) · <code>catchError</code> + <code>throwError(() => err)</code> · <code>httpMock.expectOne(url).flush(body, {status, statusText})</code> cho response lỗi.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 báo item KHÔNG biến mất sau rollback, kiểm tra bạn có đang chụp <code>previous</code> ĐÚNG THỜI ĐIỂM (trước optimistic) hay không — lỗi kinh điển nêu ở Quiz Câu 1.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi giải thích được optimistic update là gì và đánh đổi (UX nhanh hơn, đổi lại phải xử lý rollback).</li>
+      <li>Tôi dùng đúng <code>BehaviorSubject.value</code> để chụp snapshot phòng khi cần lùi lại — không chỉ để đọc nhanh.</li>
+      <li>Tôi tách rõ trách nhiệm: service lo state luôn đúng, component lo thông báo người dùng khi có lỗi.</li>
+      <li>Tôi kiểm tra điều kiện trùng lặp TRƯỚC khi optimistic, tránh race khi người dùng bấm nhanh nhiều lần.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Giỏ hàng giờ hoạt động đúng. Bước tiếp theo: xây trang <strong>checkout</strong> với nhiều
+      bước con — xem giỏ hàng, chọn mã giảm giá, nhập thẻ thanh toán. Người dùng có thể đi tới đi
+      lui giữa các bước (ví dụ: đang ở bước thanh toán, nhớ ra muốn đổi mã giảm giá, bấm quay lại).
+    </p>
+    <p>
+      Bài 12 bạn đã học: <code>CoursesModule</code> lazy-load chỉ dựng MỘT LẦN, service của nó
+      không mất khi rời trang rồi quay lại (trong cùng phiên). Nếu bạn đặt "mã giảm giá đang chọn"
+      vào <code>providers</code> của một MODULE, ở cấp nào thì việc đi-tới-đi-lui giữa các bước
+      checkout sẽ KHÔNG làm mất lựa chọn đó?
+    </p>
+    <p><strong>Đặt provider ở cấp component (từng bước riêng) hay cấp module (bao trùm mọi bước)? Vì sao?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: nhớ lại chính xác Bài 07 mục 3 — provider ở component sống và chết theo VÒNG ĐỜI CỦA COMPONENT ĐÓ. Mỗi bước checkout là một component riêng, được tạo/huỷ khi chuyển route con.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 33 · Checkout nhiều bước qua route con</div>
+    <p class="nd"><code>/checkout/cart|coupon|payment</code> — nơi chọn ĐÚNG CẤP để đặt provider quyết định dữ liệu có sống sót qua các bước hay không.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0031-forkjoin-course-detail.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0033-checkout-multistep-routing.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi service + spec + output. TC2 (rollback) là bằng chứng quan trọng nhất — TC1 một mình chỉ chứng minh được nửa câu chuyện.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Cart &amp; Checkout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 32–35</span>
+    <h1>Cart &amp; Checkout — cheat-sheet</h1>
+    <p class="subtitle">Optimistic update + rollback, DI theo cấp, class Resolver, CVA hiển thị khác model.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.1.4 · 19 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. Optimistic update — chụp lại, đổi ngay, lùi nếu cần</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">const</span> previous = <span class="kw">this</span>.itemsSubject.value;              <span class="cmt">// 1. CHỤP state cũ TRƯỚC khi đổi</span>
+<span class="kw">this</span>.itemsSubject.<span class="fn">next</span>([...previous, item]);       <span class="cmt">// 2. Đổi NGAY — không đợi server</span>
+<span class="kw">return this</span>.http.<span class="fn">post</span>(...).<span class="fn">pipe</span>(
+  <span class="fn">catchError</span>((err) => {
+    <span class="kw">this</span>.itemsSubject.<span class="fn">next</span>(previous);        <span class="cmt">// 3. LÙI về snapshot nếu server từ chối</span>
+    <span class="kw">return</span> <span class="fn">throwError</span>(() => err);
+  }),
+);</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Chụp <code>previous</code> TRƯỚC khi <code>.next()</code> optimistic, không phải sau</div>
+      <p>Chụp sau thì <code>previous</code> đã lỡ chứa state MỚI — rollback vô tác dụng. Luôn: chụp → đổi → (lỗi thì) lùi.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. DI theo cấp — chọn nơi đặt <code>providers</code> theo VÒNG ĐỜI mong muốn</h2>
+    <table class="data">
+      <thead><tr><th>Đặt ở</th><th>Sống bao lâu</th><th>Dùng khi</th></tr></thead>
+      <tbody>
+        <tr><td>Component</td><td>Huỷ/dựng lại theo CHÍNH component đó</td><td>State chỉ cần trong 1 component, reset mỗi lần tạo lại</td></tr>
+        <tr><td>Module (lazy-loaded)</td><td>Sống suốt phiên module — qua mọi route con bên trong, reset khi rời hẳn rồi quay lại</td><td>State cần CHIA SẺ giữa nhiều bước/component con của cùng 1 tính năng (checkout)</td></tr>
+        <tr><td><code>providedIn: 'root'</code></td><td>Sống suốt vòng đời APP</td><td>State thật sự toàn cục (auth, cart) — không phải state của "một phiên thao tác"</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>root</code> cho tiện có thể rò rỉ trạng thái giữa 2 phiên KHÔNG LIÊN QUAN</div>
+      <p>Checkout xong, rời đi, bắt đầu phiên checkout MỚI — nếu <code>CheckoutStateService</code> là <code>root</code>, coupon của lần TRƯỚC vẫn còn đó. Module-provided dựng lại sạch mỗi lần lazy module được tải lại.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Resolver — chuẩn bị dữ liệu, khác Guard (chặn điều hướng)</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> CouponResolver <span class="kw">implements</span> Resolve&lt;Coupon[]&gt; {
+  <span class="kw">private readonly</span> http = <span class="fn">inject</span>(HttpClient);
+  <span class="fn">resolve</span>(): Observable&lt;Coupon[]&gt; {
+    <span class="kw">return this</span>.http.<span class="fn">get</span>&lt;Coupon[]&gt;(<span class="str">'/api/coupons'</span>).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([]))); <span class="cmt">// lỗi -> [] , KHÔNG chặn route</span>
+  }
+}
+<span class="cmt">// Gắn vào route:</span>
+{ path: <span class="str">'coupon'</span>, component: CouponStepComponent, resolve: { coupons: CouponResolver } }
+<span class="cmt">// Đọc trong component:</span>
+<span class="kw">const</span> coupons = (<span class="kw">this</span>.route.snapshot.data[<span class="str">'coupons'</span>] <span class="kw">as</span> Coupon[]) ?? [];</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th></th><th>Guard</th><th>Resolver</th></tr></thead>
+      <tbody>
+        <tr><td>Trả lời</td><td>"Được vào route này không?"</td><td>"Mang theo dữ liệu gì?"</td></tr>
+        <tr><td>Giá trị trả về</td><td><code>boolean</code> / <code>UrlTree</code></td><td>Dữ liệu thật, gắn vào <code>route.data</code></td></tr>
+        <tr><td>Lỗi không bắt</td><td>Chặn điều hướng (đúng ý muốn)</td><td>CŨNG chặn điều hướng — thường KHÔNG phải ý muốn, nhớ <code>catchError</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Test route có Resolver — deadlock await/flush</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// ❌ TREO tới khi hết timeout:</span>
+<span class="kw">const</span> harness = <span class="kw">await</span> RouterTestingHarness.<span class="fn">create</span>(<span class="str">'/checkout/coupon'</span>);
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/coupons'</span>).<span class="fn">flush</span>(...); <span class="cmt">// không bao giờ chạy tới đây</span>
+
+<span class="cmt">// ✅ tách Promise ra, flush TRƯỚC KHI await:</span>
+<span class="kw">const</span> createPromise = RouterTestingHarness.<span class="fn">create</span>(<span class="str">'/checkout/coupon'</span>);
+<span class="kw">await new</span> <span class="fn">Promise</span>((r) => <span class="fn">setTimeout</span>(r));
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/coupons'</span>).<span class="fn">flush</span>(...);
+<span class="kw">const</span> harness = <span class="kw">await</span> createPromise;</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · tìm component ở outlet LỒNG</span>
+<pre><code><span class="cmt">// ❌ NG0201 — component NgModule-declared không tự là DI token của chính nó:</span>
+harness.routeDebugElement!.injector.<span class="fn">get</span>(CouponStepComponent);
+
+<span class="cmt">// ✅ quét cây tìm đúng node:</span>
+harness.fixture.debugElement.<span class="fn">query</span>(By.<span class="fn">directive</span>(CouponStepComponent)).componentInstance;</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. CVA nâng cao — hiển thị khác model</h2>
+    <table class="data">
+      <thead><tr><th></th><th>Chiều</th><th>Việc</th></tr></thead>
+      <tbody>
+        <tr><td><code>writeValue(value)</code></td><td>Model → DOM</td><td>Nhận giá trị model, CHUẨN HOÁ (strip), rồi format để hiển thị</td></tr>
+        <tr><td><code>onInput(rawValue)</code> → <code>onChange()</code></td><td>DOM → Model</td><td>Nhận input người gõ, CHUẨN HOÁ, gọi <code>onChange</code> với giá trị SẠCH cho model</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>writeValue</code> KHÔNG được gọi <code>onChange</code></div>
+      <p>Model báo cho DOM (writeValue) khác với người dùng gõ (onInput → onChange). Gọi onChange trong writeValue tạo vòng lặp sai ngữ nghĩa.</p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>writeValue</code> cũng phải chuẩn hoá input, không chỉ <code>onInput</code></div>
+      <p><code>patchValue()</code> có thể đưa vào chuỗi "bẩn" (dấu gạch ngang, khoảng trắng thừa) — <code>writeValue</code> phải tự strip trước khi format, không được tin dữ liệu đầu vào từ BẤT KỲ hướng nào.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Optimistic update là gì, đánh đổi gì?</td><td>Cập nhật UI NGAY trước khi server xác nhận, đổi lấy UX nhanh hơn — phải lưu snapshot state cũ để rollback nếu server từ chối.</td></tr>
+        <tr><td>Chọn cấp nào để đặt provider cho state chia sẻ giữa nhiều bước 1 tính năng?</td><td>Module (lazy-loaded chứa các route con đó) — sống qua các bước, dựng lại sạch mỗi phiên mới. Không phải component (mất khi đổi bước) hay root (rò rỉ giữa các phiên).</td></tr>
+        <tr><td>Resolver khác Guard ở đâu?</td><td>Cùng chạy trước khi kích hoạt route, nhưng Guard quyết định CÓ CHO VÀO không (boolean/UrlTree), Resolver CHUẨN BỊ DỮ LIỆU (giá trị thật, gắn vào route.data).</td></tr>
+        <tr><td>CVA có bắt buộc giá trị hiển thị và giá trị model giống nhau?</td><td>Không. <code>writeValue</code> (model→DOM) và <code>onChange</code> (DOM→model) là 2 cửa độc lập — có thể format khác nhau miễn phiên dịch đúng cả 2 chiều.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="course-listing-cheatsheet.html">← Course Listing</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng 19 test chạy xanh trên Angular 22.1.4 / RxJS 7.8.2.</p>
+</div>
+</body>
+</html>

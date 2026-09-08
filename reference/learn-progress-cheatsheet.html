@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Học bài &amp; Progress</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 36–37</span>
+    <h1>Học bài &amp; Progress — cheat-sheet</h1>
+    <p class="subtitle"><code>ViewChild</code> vs binding khai báo, Directive + <code>@HostListener</code>, Subject làm event bus.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.1.4 · 10 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. <code>@ViewChild</code> — khi nào cần, khi nào không</h2>
+    <table class="data">
+      <thead><tr><th>Việc cần làm</th><th>Công cụ</th></tr></thead>
+      <tbody>
+        <tr><td>ĐỌC trạng thái của element (video đang phát/dừng, input có giá trị gì)</td><td>Binding khai báo: <code>(play)</code>, <code>(input)</code>, <code>[value]</code></td></tr>
+        <tr><td>RA LỆNH cho element (gọi <code>.play()</code>, <code>.focus()</code>, đo <code>.scrollHeight</code>)</td><td><code>@ViewChild</code> + <code>ElementRef.nativeElement</code></td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">@ViewChild</span>(<span class="str">'videoEl'</span>) <span class="kw">private</span> videoRef!: ElementRef&lt;HTMLVideoElement&gt;;
+<span class="cmt">// CHỈ chắc chắn có giá trị từ ngAfterViewInit trở đi (hoặc từ 1 event handler bất kỳ,</span>
+<span class="cmt">// vì event handler chỉ chạy được SAU khi view đã render xong).</span>
+<span class="cmt">// Gọi sớm hơn (constructor/ngOnInit) -> throw vì videoRef còn undefined.</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Attribute Directive + <code>@HostListener</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">@Directive</span>({ selector: <span class="str">'video[appAutoPause]'</span>, standalone: <span class="kw">false</span> })  <span class="cmt">// selector RÀNG BUỘC tag cụ thể</span>
+<span class="kw">export class</span> AutoPauseDirective {
+  <span class="kw">private readonly</span> el = <span class="fn">inject</span>(ElementRef&lt;HTMLVideoElement&gt;);
+
+  <span class="fn">@HostListener</span>(<span class="str">'play'</span>)   <span class="cmt">// lắng nghe sự kiện DOM THẬT — không quan tâm AI gây ra nó</span>
+  <span class="fn">onPlay</span>(): <span class="kw">void</span> { ... }
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Sự kiện DOM là nguồn sự thật, không phải "ai gọi method nào"</div>
+      <p>Khi service A gọi <code>videoB.pause()</code>, trình duyệt tự bắn sự kiện <code>pause</code> trên videoB — Directive gắn trên B tự nhận được, không cần A "báo" trực tiếp cho B.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Giới hạn jsdom với Media API</h2>
+    <table class="data">
+      <thead><tr><th>Cần</th><th>Làm</th></tr></thead>
+      <tbody>
+        <tr><td>Mô phỏng "trình duyệt vừa phát video"</td><td><code>video.dispatchEvent(new Event('play'))</code> — KHÔNG gọi <code>.play()</code> thật (jsdom không implement, không bắn event)</td></tr>
+        <tr><td>Kiểm code CÓ gọi <code>.play()</code>/<code>.pause()</code> không</td><td><code>vi.spyOn(video, 'play')</code> — kiểm lời gọi, không quan tâm hành vi thật</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Subject làm event bus — khác BehaviorSubject cho state</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> ProgressEventBusService {
+  <span class="kw">private readonly</span> lessonCompletedSubject = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();  <span class="cmt">// KHÔNG BehaviorSubject — đây là SỰ KIỆN</span>
+  <span class="kw">readonly</span> lessonCompleted$ = <span class="kw">this</span>.lessonCompletedSubject.<span class="fn">asObservable</span>();
+  <span class="fn">completeLesson</span>(id: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.lessonCompletedSubject.<span class="fn">next</span>(id); }
+}</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th></th><th><code>Subject</code> (event)</th><th><code>BehaviorSubject</code> (state)</th></tr></thead>
+      <tbody>
+        <tr><td>Trả lời</td><td>"Việc gì VỪA xảy ra?"</td><td>"Giá trị HIỆN TẠI là gì?"</td></tr>
+        <tr><td>Subscriber tới muộn</td><td>Bỏ lỡ mọi thứ đã qua</td><td>Nhận ngay giá trị hiện tại</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Giới hạn thật: subscriber tạo SAU khi event đã phát thì bỏ lỡ vĩnh viễn</div>
+      <p>Đây là bản chất của <code>Subject</code>, không phải bug. Fix tạm: <code>ReplaySubject(N)</code>. Fix triệt để: state tập trung bằng <code>signal()</code> + <code>computed()</code> (Module 13) — không có khái niệm "bỏ lỡ" vì không cần phát lại gì, chỉ đọc giá trị hiện tại.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. <code>markForCheck()</code> — quy tắc đã ổn định (lần thứ 4)</h2>
+    <p>Bài 16 (CVA) → Bài 29 (CourseList) → Bài 31 (CourseDetail) → Bài 37 (event bus): <code>.subscribe()</code> thủ công ngoài event template ở app zoneless luôn cần <code>ChangeDetectorRef.markForCheck()</code> sau khi mutate state — bất kể nguồn Observable là gì.</p>
+  </section>
+
+  <section>
+    <h2>6. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Khi nào dùng ViewChild thay vì binding khai báo?</td><td>Khi cần RA LỆNH gọi method trên element (play/pause/focus), không phải khi chỉ cần ĐỌC trạng thái của nó (dùng (event) binding cho việc đó).</td></tr>
+        <tr><td>Vì sao Directive nên lắng nghe sự kiện DOM thay vì tự set state khi gọi method?</td><td>Sự kiện DOM phản ánh trạng thái THỰC bất kể nguyên nhân (code gọi, người dùng, bên thứ ba can thiệp) — tự set state khi gọi method có thể sai lệch nếu có nguyên nhân khác.</td></tr>
+        <tr><td>Subject vs BehaviorSubject làm giao tiếp giữa component?</td><td>Subject cho SỰ KIỆN nhất thời (subscriber muộn bỏ lỡ); BehaviorSubject cho TRẠNG THÁI liên tục (subscriber muộn nhận giá trị hiện tại ngay).</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="cart-checkout-cheatsheet.html">← Cart &amp; Checkout</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng 10 test chạy xanh trên Angular 22.1.4 / RxJS 7.8.2.</p>
+</div>
+</body>
+</html>

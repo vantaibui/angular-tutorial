@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 36 · Video Player — ViewChild + Directive appAutoPause</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 7 · Bài 36 · Học bài &amp; Progress</span>
+    <h1>Video Player — <code>ViewChild</code> + Directive <code>appAutoPause</code></h1>
+    <p class="subtitle">
+      Lần đầu tiên trong khoá bạn "cầm tay" trực tiếp một DOM element có API riêng của nó —
+      không phải đọc/ghi giá trị qua Reactive Forms, mà gọi thẳng <code>.play()</code>/<code>.pause()</code>.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Mở Module 8 — <code>@ViewChild</code> và Directive đầu tiên của khoá</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>@ViewChild</code> để lấy tham chiếu tới một element trong CHÍNH template của component, và biết chính xác NÓ có giá trị từ lúc nào.</li>
+      <li>Phân biệt "đọc trạng thái của element" (dùng binding sự kiện Angular) và "điều khiển element" (dùng <code>ViewChild</code> gọi method) — không trộn lẫn hai việc.</li>
+      <li>Viết một Attribute Directive đầu tiên, dùng <code>@HostListener</code> lắng nghe sự kiện DOM thật.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Suốt khoá tới giờ, mọi tương tác với DOM đều qua binding khai báo:
+      <code>[value]</code>, <code>(click)</code>, <code>*ngIf</code>. Video player là bài toán
+      KHÁC: bạn cần <em>ra lệnh</em> cho một element ("phát đi", "dừng lại") — không có cú pháp
+      binding nào làm được việc "gọi một method tại một thời điểm tuỳ ý". Đây là lý do
+      <code>@ViewChild</code> tồn tại.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: điều khiển, không phải đọc/ghi giá trị</h2>
+    <p>
+      Trang học bài cần một nút Play/Pause tuỳ chỉnh (không dùng UI mặc định của trình duyệt cho
+      MỌI thao tác). Bấm nút phải gọi được <code>video.play()</code> hoặc
+      <code>video.pause()</code> trên đúng phần tử <code>&lt;video&gt;</code> trong template của
+      component — TypeScript cần một cách "chạm tay" vào DOM node đó.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Angular biên dịch template thành code, và mỗi element trong đó tồn tại đâu đó trong bộ
+        nhớ khi component đã render. Có decorator nào cho phép class TypeScript của component
+        "xin" một tham chiếu tới CHÍNH element mà nó vừa khai báo trong template của mình không?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>@ViewChild</code> chỉ có giá trị SAU khi view render xong</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/learn/video-player/video-player.component.ts</span>
+<pre><code><span class="fn">@Component</span>({ selector: <span class="str">'app-video-player'</span>, standalone: <span class="kw">false</span>, templateUrl: <span class="str">'./video-player.component.html'</span> })
+<span class="kw">export class</span> VideoPlayerComponent {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) src!: <span class="kw">string</span>;
+
+  <span class="cmt">// Chỉ CHẮC CHẮN có giá trị từ ngAfterViewInit trở đi — template phải render XONG</span>
+  <span class="cmt">// (Angular đã tạo xong DOM node) thì ViewChild mới có gì để trỏ vào.</span>
+  <span class="fn">@ViewChild</span>(<span class="str">'videoEl'</span>) <span class="kw">private</span> videoRef!: ElementRef&lt;HTMLVideoElement&gt;;
+
+  isPlaying = <span class="kw">false</span>;
+
+  <span class="fn">togglePlay</span>(): <span class="kw">void</span> {
+    <span class="kw">const</span> video = <span class="kw">this</span>.videoRef.nativeElement;
+    <span class="kw">if</span> (video.paused) {
+      video.<span class="fn">play</span>();
+    } <span class="kw">else</span> {
+      video.<span class="fn">pause</span>();
+    }
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · video-player.component.html</span>
+<pre><code>&lt;div class=<span class="str">"video-player"</span>&gt;
+  &lt;video
+    <span class="fn">#videoEl</span>
+    [src]=<span class="str">"src"</span>
+    appAutoPause
+    controls
+    (play)=<span class="str">"isPlaying = true"</span>
+    (pause)=<span class="str">"isPlaying = false"</span>
+  &gt;&lt;/video&gt;
+  &lt;button type=<span class="str">"button"</span> (click)=<span class="str">"togglePlay()"</span>&gt;{{ isPlaying ? <span class="str">'Tạm dừng'</span> : <span class="str">'Phát'</span> }}&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+    </div>
+    <p>
+      <code>#videoEl</code> là một <strong>template reference variable</strong> — cái tên bạn đặt
+      cho element ngay trong HTML. <code>@ViewChild('videoEl')</code> tìm đúng element mang tên đó
+      và trả về một <code>ElementRef</code> bọc quanh DOM node thật.
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao KHÔNG dùng <code>(play)</code>/<code>(pause)</code> để làm luôn cả việc điều khiển</div>
+      <p>
+        Nhìn kỹ template: <code>isPlaying</code> được cập nhật bằng BINDING SỰ KIỆN khai báo
+        (<code>(play)="isPlaying = true"</code>) — không cần <code>ViewChild</code> cho việc này.
+        <code>ViewChild</code> CHỈ cần thiết cho việc <code>togglePlay()</code> phải <em>ra lệnh</em>
+        gọi <code>.play()</code>/<code>.pause()</code> — thứ không có cú pháp binding khai báo nào
+        làm được. Quy tắc chung: <strong>đọc trạng thái → binding khai báo; điều khiển bằng lệnh →
+        ViewChild.</strong> Trộn lẫn hai việc (ví dụ tự <code>addEventListener</code> trong
+        <code>ngAfterViewInit</code> để "đọc" trạng thái) tạo thêm một luồng dữ liệu ngoài tầm kiểm
+        soát của Angular một cách không cần thiết.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Directive đầu tiên: <code>appAutoPause</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/directives/auto-pause.directive.ts</span>
+<pre><code><span class="cmt">// Gắn lên &lt;video&gt;: khi NÓ phát, mọi &lt;video appAutoPause&gt; khác trên trang tự dừng.</span>
+<span class="fn">@Directive</span>({ selector: <span class="str">'video[appAutoPause]'</span>, standalone: <span class="kw">false</span> })
+<span class="kw">export class</span> AutoPauseDirective {
+  <span class="kw">private readonly</span> el = <span class="fn">inject</span>(ElementRef&lt;HTMLVideoElement&gt;);
+  <span class="kw">private readonly</span> coordinator = <span class="fn">inject</span>(VideoCoordinatorService);
+
+  <span class="cmt">// Lắng nghe sự kiện DOM THẬT — không quan tâm AI khiến video phát/dừng (người dùng bấm nút</span>
+  <span class="cmt">// trình duyệt, code gọi .play(), hay chính coordinator gọi .pause() trên video KHÁC).</span>
+  <span class="fn">@HostListener</span>(<span class="str">'play'</span>)
+  <span class="fn">onPlay</span>(): <span class="kw">void</span> { <span class="kw">this</span>.coordinator.<span class="fn">notifyPlaying</span>(<span class="kw">this</span>.el.nativeElement); }
+
+  <span class="fn">@HostListener</span>(<span class="str">'pause'</span>)
+  <span class="fn">onPause</span>(): <span class="kw">void</span> { <span class="kw">this</span>.coordinator.<span class="fn">notifyPaused</span>(<span class="kw">this</span>.el.nativeElement); }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/learn/video-coordinator.service.ts</span>
+<pre><code><span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> VideoCoordinatorService {
+  <span class="kw">private</span> currentlyPlaying: HTMLVideoElement | <span class="kw">null</span> = <span class="kw">null</span>;
+
+  <span class="fn">notifyPlaying</span>(video: HTMLVideoElement): <span class="kw">void</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.currentlyPlaying &amp;&amp; <span class="kw">this</span>.currentlyPlaying !== video) {
+      <span class="kw">this</span>.currentlyPlaying.<span class="fn">pause</span>(); <span class="cmt">// trình duyệt thật sẽ tự bắn sự kiện 'pause' cho video đó</span>
+    }
+    <span class="kw">this</span>.currentlyPlaying = video;
+  }
+
+  <span class="fn">notifyPaused</span>(video: HTMLVideoElement): <span class="kw">void</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.currentlyPlaying === video) { <span class="kw">this</span>.currentlyPlaying = <span class="kw">null</span>; }
+  }
+}</code></pre>
+    </div>
+    <p>
+      Chọn selector <code>video[appAutoPause]</code> (không chỉ <code>[appAutoPause]</code>) —
+      Directive này CHỈ áp dụng được lên <code>&lt;video&gt;</code>, khớp đúng với việc
+      <code>ElementRef&lt;HTMLVideoElement&gt;</code> giả định kiểu cụ thể. Gắn nhầm lên
+      <code>&lt;div appAutoPause&gt;</code> sẽ không khớp selector — lỗi bị bắt sớm thay vì runtime.
+    </p>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao coordinator gọi <code>.pause()</code> trực tiếp mà không cần "báo" Directive kia</div>
+      <p>
+        <code>@HostListener('pause')</code> lắng nghe sự kiện <strong>DOM</strong>, không lắng nghe
+        "ai gọi <code>.pause()</code>". Khi coordinator gọi <code>otherVideo.pause()</code>, trình
+        duyệt tự bắn sự kiện <code>pause</code> trên chính <code>otherVideo</code> đó — Directive
+        gắn trên nó tự động nhận được, gọi <code>notifyPaused()</code>, dọn state. Một nguồn sự
+        thật duy nhất (sự kiện DOM), không cần hai component "gọi thẳng" lẫn nhau.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test — và một giới hạn thật của jsdom</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi tôi verify bài này — jsdom KHÔNG implement <code>&lt;video&gt;</code></div>
+      <p>
+        Gọi <code>videoElement.play()</code> trong test in ra
+        <code>"Not implemented: HTMLMediaElement's play() method"</code> và <strong>không hề bắn
+        sự kiện <code>play</code></strong> — khác hẳn trình duyệt thật. Test không được viết theo
+        kiểu "gọi <code>.play()</code> rồi kiểm sự kiện có bắn không" (sẽ luôn thất bại trong
+        jsdom). Thay vào đó:
+      </p>
+      <ul class="checklist">
+        <li>Muốn mô phỏng "trình duyệt vừa phát video" → tự <code>dispatchEvent(new Event('play'))</code> thẳng, không gọi <code>.play()</code>.</li>
+        <li>Muốn kiểm "code CÓ gọi <code>.play()</code>/<code>.pause()</code> không" → dùng <code>vi.spyOn(video, 'play')</code>, kiểm số lần gọi — không quan tâm việc phát có "thật sự" xảy ra trong jsdom hay không.</li>
+      </ul>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ spec đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'TC4 — video B bắt đầu phát → coordinator gọi .pause() trên video A (đang phát)'</span>, () => {
+  <span class="kw">const</span> pauseSpyA = vi.<span class="fn">spyOn</span>(videoA, <span class="str">'pause'</span>);
+
+  videoA.<span class="fn">dispatchEvent</span>(<span class="kw">new</span> <span class="fn">Event</span>(<span class="str">'play'</span>)); <span class="cmt">// A đang phát</span>
+  videoB.<span class="fn">dispatchEvent</span>(<span class="kw">new</span> <span class="fn">Event</span>(<span class="str">'play'</span>)); <span class="cmt">// B bắt đầu phát</span>
+
+  <span class="fn">expect</span>(pauseSpyA).<span class="fn">toHaveBeenCalledTimes</span>(<span class="num">1</span>); <span class="cmt">// coordinator tự dừng A</span>
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ VideoPlayerComponent — ViewChild
+  ✓ TC1 — gọi togglePlay() TRƯỚC khi view render xong sẽ throw — videoRef chưa có giá trị
+  ✓ TC2 — button hiện "Phát" ban đầu, chuyển "Tạm dừng" khi video bắn sự kiện play
+  ✓ TC3 — togglePlay() gọi đúng .play()/.pause() trên ĐÚNG video của CHÍNH component đó
+✓ AutoPauseDirective — chỉ 1 video được phát cùng lúc
+  ✓ TC4 — video B bắt đầu phát → coordinator gọi .pause() trên video A (đang phát)
+  ✓ TC5 — A tự dừng (không phải do B) thì KHÔNG kích hoạt gì thêm — chỉ dọn state coordinator
+  ✓ TC6 — phát lại A sau khi A đã dừng: B không bị ảnh hưởng (coordinator không còn nhớ A)
+
+Test Files  1 passed (1)
+     Tests  6 passed (6)</code></pre>
+    </div>
+    <p>
+      TC1 chứng minh trực tiếp mental model ở mục 2: tạo component nhưng <strong>chưa gọi
+      <code>fixture.detectChanges()</code></strong> (Angular chưa render template), gọi
+      <code>togglePlay()</code> ngay → throw vì <code>videoRef</code> chưa tồn tại.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao <code>isPlaying</code> được cập nhật qua <code>(play)="isPlaying = true"</code> trong template, KHÔNG qua <code>@ViewChild</code> + <code>addEventListener</code> thủ công trong <code>ngAfterViewInit</code>?</div>
+    <button class="opt" data-correct="false" data-explain="Cả hai cách đều CÓ THỂ hoạt động về mặt kỹ thuật — vấn đề không phải khả thi hay không.">addEventListener thủ công không hoạt động được với phần tử <code>&lt;video&gt;</code>.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Binding sự kiện Angular (play)/(pause) được Angular tự động theo dõi để biết khi nào cần vẽ lại view (kể cả ở app zoneless) — không cần markForCheck() thủ công. addEventListener tự thêm là một luồng NGOÀI tầm theo dõi của Angular, cần tự markForCheck() nếu muốn DOM cập nhật đúng trong app zoneless — thêm việc không cần thiết khi Angular đã có sẵn cách làm đúng.">Binding sự kiện khai báo được Angular tự động theo dõi để vẽ lại view (kể cả app zoneless); <code>addEventListener</code> tự thêm nằm ngoài tầm theo dõi đó, cần tự lo thêm việc báo view vẽ lại.</button>
+    <button class="opt" data-correct="false" data-explain="ngAfterViewInit hoàn toàn có thể truy cập videoRef.nativeElement — đó chính xác là lúc ViewChild được đảm bảo có giá trị."><code>ngAfterViewInit</code> chạy trước khi <code>videoRef</code> có giá trị.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Tại sao <code>AutoPauseDirective</code> lắng nghe sự kiện <code>pause</code> của DOM thay vì để <code>VideoCoordinatorService</code> tự cập nhật state khi nó gọi <code>.pause()</code>?</div>
+    <button class="opt" data-correct="false" data-explain="Cú pháp này hợp lệ về mặt TypeScript — vấn đề không phải cú pháp mà là THIẾT KẾ.">Vì <code>.pause()</code> không cho phép gọi trực tiếp từ service, chỉ Directive mới gọi được.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Nếu coordinator tự cập nhật state ngay khi NÓ gọi .pause(), state có thể sai lệch nếu video từ chối dừng (hiếm nhưng có thể) hoặc bị dừng bởi nguyên nhân KHÁC (người dùng bấm nút trình duyệt, tab mất focus). Lắng nghe sự kiện DOM thật đảm bảo state LUÔN khớp với trạng thái THỰC của video, bất kể nguyên nhân nào khiến nó đổi.">Sự kiện DOM là nguồn sự thật DUY NHẤT phản ánh trạng thái THỰC của video — bất kể nguyên nhân gì khiến nó phát/dừng (code gọi, người dùng bấm, hay coordinator can thiệp). Tự cập nhật state ngay khi gọi method có thể sai lệch nếu nguyên nhân khác xảy ra.</button>
+    <button class="opt" data-correct="false" data-explain="Không phải vấn đề hiệu năng — cả hai cách đều rẻ như nhau về chi phí tính toán."><code>@HostListener</code> chạy nhanh hơn gọi trực tiếp từ service.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>VideoPlayerComponent</code> + <code>appAutoPause</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Gọi method điều khiển video TRƯỚC khi <code>detectChanges()</code>/render → throw (chứng minh hiểu đúng thời điểm <code>@ViewChild</code> có giá trị).</li>
+        <li><strong>TC2</strong> — Binding <code>(play)</code>/<code>(pause)</code> cập nhật đúng trạng thái hiển thị trên nút bấm.</li>
+        <li><strong>TC3</strong> — <code>togglePlay()</code> gọi đúng <code>.play()</code>/<code>.pause()</code> trên video của <strong>CHÍNH</strong> component đó — không đụng vào video của instance khác (test với ít nhất 2 player cùng lúc).</li>
+        <li><strong>TC4</strong> — <code>appAutoPause</code>: video B phát → video A (đang phát) tự động bị gọi <code>.pause()</code>.</li>
+        <li><strong>TC5</strong> — A tự dừng (không do B gây ra) → không kích hoạt gì thêm, chỉ dọn state coordinator.</li>
+        <li><strong>TC6</strong> — Toàn bộ test dùng <code>dispatchEvent</code>/<code>vi.spyOn</code>, KHÔNG dựa vào <code>.play()</code>/<code>.pause()</code> thật sự hoạt động trong jsdom.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết <code>VideoCoordinatorService</code> và test nó ĐỘC LẬP trước (không qua Directive/DOM) — logic "ai đang phát, dừng ai" là thuần TypeScript, dễ test nhất khi tách riêng.</p>
+    <p><strong>Hint 2 · API:</strong> <code>@ViewChild('ref') el!: ElementRef&lt;T&gt;</code> · <code>@Directive({selector: 'tag[attr]'})</code> · <code>@HostListener('domEvent')</code> · <code>vi.spyOn(element, 'method')</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu test coordinator gọi <code>.pause()</code> nhưng spy không thấy gì, kiểm tra bạn có đang gọi <code>.play()</code>/<code>.pause()</code> thật (jsdom không implement, không bắn event) thay vì <code>dispatchEvent()</code> để mô phỏng.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi phân biệt rõ "đọc trạng thái DOM" (binding khai báo) và "điều khiển DOM" (<code>ViewChild</code> + gọi method) — không dùng nhầm công cụ cho việc kia.</li>
+      <li>Tôi biết chính xác <code>@ViewChild</code> có giá trị từ thời điểm nào, và test được cả trường hợp gọi SỚM (throw).</li>
+      <li>Tôi viết Directive đầu tiên dùng <code>@HostListener</code>, hiểu vì sao lắng nghe sự kiện DOM đáng tin hơn tự suy luận trạng thái.</li>
+      <li>Tôi biết giới hạn thật của jsdom với Media API, và cách test đúng bất chấp giới hạn đó.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bấm "Đánh dấu hoàn thành" ở cuối video cần cập nhật ĐỒNG THỜI hai chỗ hoàn toàn không liên
+      quan tới nhau về mặt component: thanh tiến độ tổng (progress bar) trên đầu trang, và danh
+      sách bài học ở sidebar (đánh dấu ✓ bên cạnh bài vừa xong). Hai component này không phải cha
+      con, không truyền <code>@Input</code>/<code>@Output</code> cho nhau được.
+    </p>
+    <p>
+      Bài 26 bạn đã dùng <code>BehaviorSubject</code> cho <strong>trạng thái</strong> (auth state) —
+      nơi ai subscribe cũng cần biết "giá trị HIỆN TẠI". Lần này khác: bạn cần thông báo một
+      <strong>sự kiện đã xảy ra</strong> ("bài X vừa hoàn thành") tới bất kỳ ai đang lắng nghe,
+      không phải một trạng thái liên tục.
+    </p>
+    <p><strong>RxJS có công cụ nào cho đúng việc "phát một sự kiện, ai đang nghe thì nhận" — và nó khác <code>BehaviorSubject</code> ở điểm nào khiến nó phù hợp hơn cho việc NÀY?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: quay lại Bài 03 — bạn đã học một thành viên trong "họ nhà Subject" không giữ lại giá trị nào cho người tới muộn. Đó chính xác là tính chất bạn cần ở đây.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo · Bài cuối Module 8</div>
+    <div class="nt">Bài 37 · Progress đồng bộ qua event stream RxJS</div>
+    <p class="nd"><code>Subject</code> làm event bus giữa 2 component xa lạ — và một giới hạn thật của nó sẽ là lý do bạn thấy Signals hấp dẫn hơn ở Module 13.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0035-card-number-input-cva.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0037-progress-event-bus-rxjs.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + directive + service + spec + output. TC4 (auto-pause) là bằng chứng quan trọng nhất — chứng minh 2 component "lạ" phối hợp đúng qua một service trung gian, không đụng trực tiếp vào nhau.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

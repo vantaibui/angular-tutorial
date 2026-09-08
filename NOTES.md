@@ -240,9 +240,9 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–35** (hết Module 7 — Cart &amp; Checkout). Người học đã HOÀN THÀNH Bài 00-03,
-  đang làm Bài 04. Module 5-7 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
-  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08, hai lượt).
+- **Đã soạn: Bài 00–37** (hết Module 8 — Học bài & Progress). Người học đã HOÀN THÀNH Bài 00-04,
+  đang làm Bài 05. Module 5-8 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
+  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08, ba lượt).
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
@@ -277,7 +277,33 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/auth-classic-cheatsheet.html` — Bài 24–27.
 - `reference/course-listing-cheatsheet.html` — Bài 28–31.
 - `reference/cart-checkout-cheatsheet.html` — Bài 32–35.
-- Mốc kế tiếp: sau **Bài 37** HOẶC khi Module 8 xong.
+- `reference/learn-progress-cheatsheet.html` — Bài 36–37.
+- Mốc kế tiếp: sau **Bài 40** HOẶC khi Module 9 xong.
+
+### Phát hiện khi verify Module 8 (2026-09-08, đã đưa vào bài)
+Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `VideoPlayerComponent`
+(`@ViewChild`), `AutoPauseDirective` (Directive đầu tiên của khoá, `@HostListener`),
+`VideoCoordinatorService`, `ProgressEventBusService` (`Subject` event bus), `ProgressBarComponent`,
+`LessonSidebarComponent`, `LessonPageComponent`. Kết quả cuối: **54/54 test xanh** (13 file),
+`tsc --noEmit` sạch.
+- **🔴 jsdom KHÔNG implement Media API:** `videoElement.play()`/`.pause()` in ra
+  `"Not implemented: HTMLMediaElement's ... method"` và KHÔNG bắn sự kiện `play`/`pause` tương
+  ứng (khác trình duyệt thật). Test phải dùng `dispatchEvent(new Event('play'))` để mô phỏng
+  hành vi trình duyệt, và `vi.spyOn(video, 'play')` để kiểm code có GỌI method đó hay không —
+  không dựa vào việc phát video "thật sự" xảy ra trong jsdom.
+- **`markForCheck()` lần thứ 4, cùng quy tắc từ Bài 16:** thử nghiệm thêm 1 lớp nữa —
+  component tự `.subscribe()` một `Subject` NỘI BỘ (event bus, không phải HTTP hay Reactive
+  Forms) vẫn cần `markForCheck()` y hệt 3 lần trước (Bài 16 CVA, Bài 29 CourseList, Bài 31
+  CourseDetail). Xác nhận lại bằng cách xoá dòng đó — DOM đứng yên dù state đã đúng.
+  Tổng quát hoá: quy tắc áp dụng cho MỌI nguồn Observable, không riêng loại nào.
+- **Đã thử và loại bỏ:** ban đầu định dùng `@ViewChild` + `addEventListener` thủ công trong
+  `ngAfterViewInit` để theo dõi `isPlaying` — verify cho thấy cách này CẦN `markForCheck()` (vì
+  `addEventListener` tự thêm nằm ngoài tầm theo dõi của Angular). Đổi sang binding khai báo
+  `(play)="isPlaying = true"` ngay trong template — Angular tự theo dõi binding này để vẽ lại
+  view kể cả zoneless, không cần `markForCheck()`. Bài học rút ra và dạy ở Bài 36: ưu tiên binding
+  khai báo cho việc ĐỌC trạng thái, chỉ dùng `ViewChild` cho việc ĐIỀU KHIỂN (gọi method).
+- **Directive đầu tiên của khoá:** `AutoPauseDirective` — chọn selector `video[appAutoPause]`
+  (ràng buộc tag) thay vì `[appAutoPause]` trần, khớp với kiểu `ElementRef<HTMLVideoElement>`.
 
 ### Phát hiện khi verify Module 7 (2026-09-08, đã đưa vào bài)
 Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `CartService` (optimistic

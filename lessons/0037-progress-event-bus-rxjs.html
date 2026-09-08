@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 37 · Progress đồng bộ qua event stream RxJS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 7 · Bài 37 · Học bài &amp; Progress · Bài cuối Module 8</span>
+    <h1>Progress đồng bộ qua event stream RxJS</h1>
+    <p class="subtitle">
+      Progress bar và sidebar không biết gì về nhau, nhưng phải đồng bộ khi một bài học hoàn
+      thành. Bài này cố tình làm thủ công — để bạn <em>cảm nhận</em> giới hạn của nó, không chỉ
+      nghe kể lý do Signals ra đời.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Kết bài Module 8 — nối lại Bài 03, chuẩn bị cảm nhận cho Module 13</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>Subject</code> làm "event bus" — nơi các component không liên quan phối hợp qua một service dùng chung.</li>
+      <li>Phân biệt rõ: <code>Subject</code> phát SỰ KIỆN ("việc X vừa xảy ra"), khác <code>BehaviorSubject</code> giữ TRẠNG THÁI ("giá trị hiện tại là gì").</li>
+      <li>Tự tay chứng minh giới hạn thật: subscriber tạo SAU khi sự kiện đã phát sẽ bỏ lỡ nó vĩnh viễn.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 03: <code>Subject</code> không giữ lại gì cho người tới muộn — khác
+      <code>BehaviorSubject</code> (giữ giá trị hiện tại) và <code>ReplaySubject</code> (giữ N giá
+      trị gần nhất). Bài 26: <code>BehaviorSubject</code> dùng cho TRẠNG THÁI (auth). Bài này áp
+      dụng ĐÚNG tính chất "không giữ lại gì" của <code>Subject</code> — nhưng lần này tính chất đó
+      là một GIỚI HẠN thật sự cảm nhận được, không phải chi tiết lý thuyết.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: hai component xa lạ, một sự kiện chung</h2>
+    <p>
+      <code>ProgressBarComponent</code> (thanh phần trăm tổng) và <code>LessonSidebarComponent</code>
+      (danh sách bài học, đánh dấu ✓) không phải cha-con, không cùng cấp trong cây component theo
+      cách dễ truyền <code>@Input</code>/<code>@Output</code>. Cả hai cần biết CHÍNH XÁC cùng một
+      thông tin: "bài học nào vừa được đánh dấu hoàn thành."
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Bài 26 dùng <code>BehaviorSubject</code> vì <code>AuthService</code> cần trả lời "trạng
+        thái ĐĂNG NHẬP HIỆN TẠI là gì" bất cứ lúc nào có ai hỏi. Ở đây, câu hỏi khác hẳn: bạn không
+        cần biết "trạng thái hoàn thành hiện tại", bạn cần biết "SỰ KIỆN nào vừa xảy ra" — một tín
+        hiệu tức thời, không phải một giá trị bền vững. RxJS có Subject nào KHÔNG giữ lại gì, chỉ
+        đơn thuần "hét lên" cho ai đang nghe?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: Event bus bằng <code>Subject</code> trần</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/learn/progress-event-bus.service.ts</span>
+<pre><code><span class="cmt">// Cố tình dùng Subject thủ công (không phải state tập trung) — mỗi subscriber TỰ tích luỹ</span>
+<span class="cmt">// lịch sử của riêng nó. Đây chính là thứ Module 13 sẽ thay bằng signal + computed().</span>
+<span class="fn">@Injectable</span>({ providedIn: <span class="str">'root'</span> })
+<span class="kw">export class</span> ProgressEventBusService {
+  <span class="kw">private readonly</span> lessonCompletedSubject = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+  <span class="kw">readonly</span> lessonCompleted$ = <span class="kw">this</span>.lessonCompletedSubject.<span class="fn">asObservable</span>();
+
+  <span class="fn">completeLesson</span>(lessonId: <span class="kw">string</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.lessonCompletedSubject.<span class="fn">next</span>(lessonId);
+  }
+}</code></pre>
+    </div>
+    <p>
+      So với <code>AuthService</code> ở Bài 26: <strong>không có getter đọc snapshot</strong>
+      (không có khái niệm "giá trị hiện tại" ở đây — mỗi lần <code>next()</code> là một SỰ KIỆN
+      độc lập, không phải một trạng thái được GHI ĐÈ). Đây chính là điểm khác biệt cốt lõi giữa
+      "Subject cho sự kiện" và "BehaviorSubject cho trạng thái".
+    </p>
+    <table class="data">
+      <thead><tr><th></th><th><code>Subject</code> (event)</th><th><code>BehaviorSubject</code> (state)</th></tr></thead>
+      <tbody>
+        <tr><td>Câu hỏi nó trả lời</td><td>"Việc gì VỪA xảy ra?"</td><td>"Giá trị HIỆN TẠI là gì?"</td></tr>
+        <tr><td>Subscriber tới muộn</td><td>Bỏ lỡ mọi thứ đã qua</td><td>Nhận ngay giá trị hiện tại</td></tr>
+        <tr><td>Ví dụ đã dùng trong khoá</td><td>Bài này — "lesson completed"</td><td>Bài 26 — <code>currentUser$</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. Hai subscriber, tự tích luỹ riêng</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · progress-bar.component.ts</span>
+<pre><code><span class="kw">export class</span> ProgressBarComponent <span class="kw">implements</span> OnInit, OnDestroy {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) totalLessons!: <span class="kw">number</span>;
+  <span class="kw">readonly</span> completedIds = <span class="kw">new</span> <span class="fn">Set</span>&lt;<span class="kw">string</span>&gt;();  <span class="cmt">// TỰ tích luỹ — không đọc chung state với ai</span>
+  <span class="kw">private readonly</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+
+  <span class="kw">get</span> <span class="fn">percent</span>(): <span class="kw">number</span> {
+    <span class="kw">return this</span>.totalLessons === <span class="num">0</span> ? <span class="num">0</span> : <span class="fn">Math</span>.<span class="fn">round</span>((<span class="kw">this</span>.completedIds.size / <span class="kw">this</span>.totalLessons) * <span class="num">100</span>);
+  }
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="kw">this</span>.bus.lessonCompleted$.<span class="fn">pipe</span>(<span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$)).<span class="fn">subscribe</span>((lessonId) => {
+      <span class="kw">this</span>.completedIds.<span class="fn">add</span>(lessonId);
+      <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); <span class="cmt">// zoneless (Bài 16/29/31) — .subscribe() thủ công, không có | async lo hộ</span>
+    });
+  }
+
+  <span class="fn">ngOnDestroy</span>(): <span class="kw">void</span> { <span class="kw">this</span>.destroy$.<span class="fn">next</span>(); <span class="kw">this</span>.destroy$.<span class="fn">complete</span>(); }
+}</code></pre>
+    </div>
+    <p>
+      <code>LessonSidebarComponent</code> viết gần như GIỐNG HỆT — cũng <code>subscribe</code>
+      cùng <code>lessonCompleted$</code>, cũng tự giữ <code>Set&lt;string&gt;</code> RIÊNG của nó.
+      Đây chính là điều "cố tình thủ công" mà roadmap nhắc tới: <strong>không có một nơi tập
+      trung nào giữ "tiến độ" — mỗi component tự đếm lại từ đầu bằng cách nghe event stream.</strong>
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>markForCheck()</code> lần thứ tư — quy tắc đã ổn định</div>
+      <p>
+        Bài 16 (CVA) → Bài 29 (CourseList) → Bài 31 (CourseDetail) → giờ là đây. Cùng MỘT quy tắc:
+        <code>.subscribe()</code> thủ công ngoài event template ở app zoneless cần
+        <code>markForCheck()</code>, bất kể nguồn Observable là gì (form, HTTP, hay event bus nội
+        bộ). Tôi xác minh lại lần này bằng cách xoá dòng đó — <code>TC1</code>/<code>TC2</code>
+        chuyển đỏ ngay (DOM đứng yên dù <code>completedIds</code> đã đúng), y hệt 3 lần trước.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Ráp lại trong một trang thật</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · lesson-page.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-lesson-page'</span>, standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;app-video-player [src]="currentLessonSrc"&gt;&lt;/app-video-player&gt;
+    &lt;button class="mark-complete" (click)="bus.completeLesson(currentLessonId)"&gt;Đánh dấu hoàn thành&lt;/button&gt;
+
+    &lt;app-progress-bar [totalLessons]="lessons.length"&gt;&lt;/app-progress-bar&gt;
+    &lt;app-lesson-sidebar [lessons]="lessons"&gt;&lt;/app-lesson-sidebar&gt;
+  `</span>,
+})
+<span class="kw">export class</span> LessonPageComponent {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) currentLessonId!: <span class="kw">string</span>;
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) currentLessonSrc!: <span class="kw">string</span>;
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) lessons!: SidebarLesson[];
+
+  <span class="fn">constructor</span>(<span class="kw">readonly</span> bus: ProgressEventBusService) {}
+}</code></pre>
+    </div>
+    <p>
+      <code>LessonPageComponent</code> chỉ CHUYỂN TIẾP hành động ("bấm nút → gọi
+      <code>bus.completeLesson()</code>") — nó không biết, và không cần biết,
+      <code>ProgressBarComponent</code> hay <code>LessonSidebarComponent</code> làm gì với sự
+      kiện đó. Đây là giá trị thật của event bus: 3 component hoàn toàn tách rời, chỉ gặp nhau ở
+      MỘT service dùng chung.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Giới hạn thật — chứng minh bằng test, không chỉ nghe kể</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · TC4 — trái tim của bài này</span>
+<pre><code><span class="fn">it</span>(<span class="str">'TC4 — 🔥 giới hạn thật của Subject: subscriber TẠO SAU khi event đã phát thì BỎ LỠ nó'</span>, () => {
+  bus.<span class="fn">completeLesson</span>(<span class="str">'l1'</span>); <span class="cmt">// phát TRƯỚC khi progress bar thứ hai tồn tại — CÙNG một bus (root singleton)</span>
+
+  <span class="cmt">// Dựng ProgressBarComponent MỚI — mô phỏng bị huỷ rồi tạo lại (*ngIf, điều hướng route)</span>
+  <span class="cmt">// SAU KHI lesson đã hoàn thành.</span>
+  <span class="kw">const</span> lateFixture = TestBed.<span class="fn">createComponent</span>(LateSubscriberHost);
+  lateFixture.<span class="fn">detectChanges</span>();
+  <span class="kw">const</span> lateProgressBar = ...;
+
+  <span class="cmt">// KHÔNG thấy 'l1' — Subject không replay lịch sử, khác hẳn BehaviorSubject/ReplaySubject (Bài 03).</span>
+  <span class="fn">expect</span>(lateProgressBar.completedIds.<span class="fn">has</span>(<span class="str">'l1'</span>)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  <span class="fn">expect</span>(lateProgressBar.percent).<span class="fn">toBe</span>(<span class="num">0</span>);
+});</code></pre>
+    </div>
+    <p>
+      Đây KHÔNG phải bug cần sửa trong bài này — đây là bản chất của <code>Subject</code>, và
+      "cố tình" để nó tồn tại đúng như roadmap yêu cầu. Hệ quả thật trong EduCommerce: nếu
+      <code>ProgressBarComponent</code> nằm sau một route lazy-load, và người dùng hoàn thành vài
+      bài học TRƯỚC khi lần đầu vào trang có progress bar (ví dụ học qua app khác, hay component
+      bị <code>*ngIf</code> ẩn đi rồi hiện lại) — thanh tiến độ sẽ hiện SAI, thấp hơn thực tế, cho
+      tới khi có sự kiện MỚI xảy ra.
+    </p>
+    <div class="callout why">
+      <div class="ct">💡 Vì sao Module 13 (Signals) giải quyết được vấn đề này</div>
+      <p>
+        Một <code>signal(new Set&lt;string&gt;())</code> giữ TRẠNG THÁI tập trung (không phải
+        event stream) — <code>computed()</code> đọc TỪ trạng thái đó bất cứ lúc nào, không quan
+        tâm nó được tạo trước hay sau khi state đổi. Không có khái niệm "bỏ lỡ" vì không có gì để
+        "phát lại" — signal luôn phản ánh giá trị HIỆN TẠI, giống hệt lý do
+        <code>BehaviorSubject</code> (Bài 03/26) không có vấn đề này. Bạn sẽ TỰ TAY viết lại chính
+        hai component này ở Module 13 và so sánh trực tiếp.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ Progress sync qua Subject — ProgressBarComponent + LessonSidebarComponent (Bài 37)
+  ✓ TC1 — hoàn thành 1 bài: cả progress bar VÀ sidebar đều cập nhật, dù không biết về nhau
+  ✓ TC2 — hoàn thành 2/3 bài: progress bar hiện đúng 67%
+  ✓ TC3 — nút "Đánh dấu hoàn thành" trong LessonPageComponent thực sự bắn event qua bus
+  ✓ TC4 — 🔥 giới hạn thật của Subject: subscriber TẠO SAU khi event đã phát thì BỎ LỠ nó
+
+Test Files  1 passed (1)
+     Tests  4 passed (4)</code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Nếu đổi <code>Subject&lt;string&gt;</code> thành <code>ReplaySubject&lt;string&gt;(10)</code> trong <code>ProgressEventBusService</code>, TC4 sẽ ra kết quả gì?</div>
+    <button class="opt" data-correct="false" data-explain="ReplaySubject(10) giữ lại tối đa 10 giá trị gần nhất và PHÁT LẠI chúng cho subscriber mới — nó không hoạt động giống Subject trần."><code>lateProgressBar.completedIds.has('l1')</code> vẫn là <code>false</code> — không đổi gì.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. ReplaySubject(10) nhớ tối đa 10 giá trị gần nhất và phát lại TOÀN BỘ cho bất kỳ subscriber mới nào — 'l1' (đã phát trước đó) sẽ được phát lại ngay khi lateProgressBar subscribe, completedIds sẽ CÓ 'l1'. Đây chính xác là cách Bài 03 mô tả ReplaySubject."><code>lateProgressBar.completedIds.has('l1')</code> sẽ là <code>true</code> — ReplaySubject phát lại lịch sử cho subscriber mới.</button>
+    <button class="opt" data-correct="false" data-explain="ReplaySubject không yêu cầu subscriber cũ phải còn tồn tại — nó tự lưu buffer nội bộ độc lập với subscriber.">Không thay đổi gì vì subscriber đầu tiên đã bị huỷ trước đó.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. <code>ProgressBarComponent</code> và <code>LessonSidebarComponent</code> đều <code>subscribe</code> CÙNG một <code>lessonCompleted$</code>. Nếu <code>ProgressBarComponent</code> gọi <code>.complete()</code> nhầm lên <code>lessonCompletedSubject</code> (làm Observable đó KẾT THÚC), điều gì xảy ra với <code>LessonSidebarComponent</code>?</div>
+    <button class="opt" data-correct="true" data-explain="Đúng. lessonCompletedSubject là MỘT instance DUY NHẤT (service providedIn:'root'), dùng CHUNG cho mọi subscriber. Gọi .complete() trên nó kết thúc luồng cho TẤT CẢ subscriber đang lắng nghe — không chỉ subscriber gọi complete(). LessonSidebarComponent sẽ ngừng nhận sự kiện mới vĩnh viễn, dù chính nó không hề gọi complete().">Toàn bộ subscriber (kể cả <code>LessonSidebarComponent</code>) ngừng nhận sự kiện MỚI vĩnh viễn — vì cả hai chia sẻ CÙNG một Subject, không phải bản sao riêng.</button>
+    <button class="opt" data-correct="false" data-explain="Subject không có khái niệm 'sở hữu' theo từng subscriber — .complete() ảnh hưởng NGAY LẬP TỨC tới mọi subscriber đang lắng nghe, không chỉ người gọi nó."><code>LessonSidebarComponent</code> không bị ảnh hưởng vì nó không phải người gọi <code>.complete()</code>.</button>
+    <button class="opt" data-correct="false" data-explain="asObservable() chỉ ẩn phương thức .next()/.complete() khỏi BÊN NGOÀI service — nó KHÔNG tạo ra một luồng độc lập, subscriber vẫn nghe chung MỘT Subject nội bộ."><code>asObservable()</code> tạo ra bản sao riêng cho mỗi subscriber, nên không ảnh hưởng gì.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn — bài cuối Module 8</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>ProgressEventBusService</code> + 2 subscriber</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Hoàn thành 1 bài → CẢ HAI <code>ProgressBarComponent</code> và <code>LessonSidebarComponent</code> cập nhật đúng, dù không biết về nhau.</li>
+        <li><strong>TC2</strong> — Hoàn thành N/M bài → <code>percent</code> tính đúng, hiển thị đúng trên DOM.</li>
+        <li><strong>TC3</strong> — Nút "Đánh dấu hoàn thành" trong <code>LessonPageComponent</code> thực sự kích hoạt luồng qua <code>bus.completeLesson()</code>.</li>
+        <li><strong>TC4</strong> — Chứng minh giới hạn: subscriber tạo SAU khi sự kiện đã phát BỎ LỠ nó — không sửa, chỉ ghi nhận và giải thích được TẠI SAO.</li>
+        <li><strong>TC5</strong> — Cả 2 component dùng <code>markForCheck()</code> đúng chỗ (đã xác minh bằng cách thử xoá và thấy test đỏ).</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> viết thử phiên bản dùng <code>ReplaySubject</code> thay <code>Subject</code>, xem TC4 đổi kết quả thế nào — đây chính là "vá tạm" trước khi có Signals thật sự ở Module 13.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết <code>ProgressEventBusService</code> và test nó với <code>vi.fn()</code> đếm lời gọi TRƯỚC — đảm bảo cơ chế phát/nghe đúng, rồi mới ráp vào 2 component thật.</p>
+    <p><strong>Hint 2 · API:</strong> <code>Subject&lt;string&gt;</code> + <code>asObservable()</code> · <code>takeUntil(destroy$)</code> (Bài 02) · <code>ChangeDetectorRef.markForCheck()</code>.</p>
+    <p><strong>Hint 3:</strong> TC4 KHÔNG cần sửa code để "qua" — nếu bạn thấy mình đang cố làm nó pass bằng cách thêm state tập trung, bạn đã hiểu sai mục đích bài này. Cứ để nó phản ánh đúng giới hạn thật.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — tổng kết Module 8</div>
+    <ul class="checklist">
+      <li>Tôi dùng <code>Subject</code> làm event bus giữa các component không liên quan, qua một service trung gian.</li>
+      <li>Tôi phân biệt rõ ràng "Subject cho sự kiện" và "BehaviorSubject cho trạng thái" — không chỉ về cú pháp mà về Ý NGHĨA sử dụng.</li>
+      <li>Tôi tự tay cảm nhận (không chỉ nghe kể) giới hạn thật của kiến trúc event-sourcing thủ công — nền tảng để hiểu TẠI SAO Signals đáng học, không chỉ HỌC NÓ vì được yêu cầu.</li>
+      <li>Module 8 xong: <code>ViewChild</code> điều khiển DOM trực tiếp (Bài 36) → event bus RxJS thủ công, cố tình để lộ giới hạn (Bài 37) — cả hai đều là kỹ năng thật, không phải bài tập lý thuyết.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      EduCommerce giờ cần trang <strong>Dashboard Admin</strong> — nơi giảng viên xem danh sách
+      khoá học của mình dưới dạng bảng, có sắp xếp, lọc, và phân trang cho hàng trăm dòng dữ liệu
+      mà không bị lag. Bạn đã có <code>GenericListComponent&lt;T&gt;</code> (Bài 30) cho danh sách
+      dạng lưới/thẻ — nhưng bảng dữ liệu (table) có nhu cầu khác hẳn: sort theo cột, nhiều cột hiển
+      thị đồng thời, và quan trọng nhất — hiệu năng khi có RẤT NHIỀU dòng.
+    </p>
+    <p><strong>Angular CDK có bộ công cụ chuyên cho bài toán "bảng dữ liệu lớn, không lag" không — và nó khác gì so với việc tự viết <code>*ngFor</code> render thẳng cả nghìn dòng?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã dùng một phần của CDK rồi — Bài 21 (Drag & Drop). CDK còn nhiều "công cụ hành vi không giao diện" khác, trong đó có một cái chuyên trị "chỉ render những dòng NHÌN THẤY ĐƯỢC trên màn hình".</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Module tiếp theo</div>
+    <div class="nt">Module 9 · Phase 8 — Dashboard Admin</div>
+    <p class="nd">Bài 38 · CRUD Course bằng Dynamic Form. Quay lại dùng <code>DynamicFormComponent</code> (Bài 22) cho một màn hình quản trị thật.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0036-video-player-viewchild-directive.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi service + 2 component + spec + output. TC4 (giới hạn thật) là bằng chứng quan trọng nhất — nó chứng minh bạn hiểu SÂU chứ không chỉ COPY pattern "Subject làm event bus" mà không biết đánh đổi gì.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

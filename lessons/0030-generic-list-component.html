@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 30 · GenericListComponent&lt;T&gt; + ngTemplateOutlet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 5 · Bài 30 · Course Listing</span>
+    <h1><code>GenericListComponent&lt;T&gt;</code> + <code>ngTemplateOutlet</code></h1>
+    <p class="subtitle">
+      Generics quay lại lần hai — Bài 10 áp nó cho <strong>service</strong>
+      (<code>GenericApiService&lt;T&gt;</code>), bài này áp cho <strong>component</strong>: một
+      khối hiển thị danh sách dùng chung cho lưới khoá học VÀ danh sách đánh giá.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 TypeScript Generics ở tầng UI</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết một component generic <code>GenericListComponent&lt;T&gt;</code> không biết gì về hình dạng <code>T</code>.</li>
+      <li>Dùng <code>TemplateRef</code> + <code>ngTemplateOutlet</code> để "tiêm" cách hiển thị MỘT item từ bên ngoài vào.</li>
+      <li>Giải thích context object (<code>$implicit</code>, <code>index</code>) của <code>ngTemplateOutlet</code> hoạt động thế nào với <code>let-x</code>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 10: <code>GenericApiService&lt;T extends {id: string}&gt;</code> — lớp CƠ SỞ không biết
+      entity cụ thể là gì, chỉ biết nó có <code>id</code>. Bài này lặp lại đúng ý tưởng đó ở tầng
+      khác: <code>GenericListComponent&lt;T&gt;</code> không biết <code>T</code> là <code>Course</code>
+      hay <code>Review</code> — nó chỉ biết "đây là một mảng, và có ai đó cho tôi biết cách vẽ MỘT
+      phần tử".
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: lưới khoá học và danh sách đánh giá — logic giống hệt, hình dạng khác hẳn</h2>
+    <p>
+      <code>CourseListComponent</code> (Bài 28-29) có một khối <code>*ngFor</code> vẽ từng
+      <code>Course</code>: ảnh, tên, giá. Sắp tới (Bài 31), trang chi tiết khoá học cần một khối
+      gần như GIỐNG HỆT về logic (lặp mảng, hiện thông báo khi rỗng) nhưng vẽ <code>Review</code>:
+      tên người dùng, số sao, bình luận — dữ liệu hoàn toàn khác dạng.
+    </p>
+    <p>
+      Copy-paste khối <code>*ngFor</code> + "rỗng thì hiện gì" cho mỗi nơi là chính xác vấn đề
+      Bài 10 đã giải quyết cho tầng service (5 entity, 5 lần lặp CRUD giống hệt nhau). Lần này vấn
+      đề nằm ở tầng hiển thị.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Nếu tách phần "lặp qua mảng, xử lý rỗng" ra một component riêng, component đó cần nhận vào
+        một mảng <code>T[]</code> — không vấn đề, đó là generic bình thường. Nhưng nó còn cần biết
+        "vẽ MỘT phần tử trông như thế nào" — mà mỗi nơi gọi lại muốn một giao diện khác nhau.
+        <strong>Bạn có thể truyền một mẩu HTML như một giá trị (giống truyền một hàm) vào Input
+        của component không?</strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>TemplateRef</code> + <code>ngTemplateOutlet</code></h2>
+    <p>
+      <code>&lt;ng-template&gt;</code> không render gì cả — nó là một "khuôn" HTML, Angular biên
+      dịch nó thành một <code>TemplateRef</code> mà bạn có thể cầm trong tay như một giá trị.
+      <code>*ngTemplateOutlet</code> nhận một <code>TemplateRef</code> và "đóng dấu" nó ra DOM tại
+      vị trí đó, kèm một <strong>context object</strong> để truyền dữ liệu vào bên trong khuôn.
+    </p>
+    <div class="code-block">
+      <span class="code-label">HTML · cú pháp cốt lõi</span>
+<pre><code><span class="cmt">&lt;!-- Nơi ĐỊNH NGHĨA khuôn — let-c đặt tên biến cục bộ cho $implicit --&gt;</span>
+&lt;ng-template <span class="fn">#courseTpl</span> let-c&gt;
+  &lt;div class=<span class="str">"course-card"</span>&gt;{{ c.title }}&lt;/div&gt;
+&lt;/ng-template&gt;
+
+<span class="cmt">&lt;!-- Nơi DÙNG khuôn — context object quyết định let-c nhận gì --&gt;</span>
+&lt;ng-container *ngTemplateOutlet=<span class="str">"courseTpl; context: { $implicit: mot_course, index: 0 }"</span>&gt;&lt;/ng-container&gt;
+<span class="cmt">-- $implicit là field ĐẶC BIỆT: let-c (không ghi rõ tên field) tự động nhận giá trị của nó.</span>
+<span class="cmt">-- Muốn field khác thì phải ghi rõ: let-i="index".</span></code></pre>
+    </div>
+    <p>
+      Đây chính là cách bạn "truyền một mẩu HTML như một giá trị": <code>TemplateRef</code> là một
+      Input bình thường, và ai truyền vào component quyết định HTML đó trông ra sao — component
+      nhận nó chỉ việc gọi <code>ngTemplateOutlet</code>, không cần biết bên trong khuôn có gì.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Viết <code>GenericListComponent&lt;T&gt;</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/components/generic-list/generic-list.component.ts</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-generic-list'</span>,
+  standalone: <span class="kw">false</span>,
+  template: <span class="str">`
+    &lt;div class="generic-list"&gt;
+      &lt;p *ngIf="items.length === 0"&gt;{{ emptyText }}&lt;/p&gt;
+      &lt;ng-container *ngFor="let item of items; index as i; trackBy: trackByFn"&gt;
+        &lt;ng-container
+          *ngTemplateOutlet="itemTemplate; context: { $implicit: item, index: i }"
+        &gt;&lt;/ng-container&gt;
+      &lt;/ng-container&gt;
+    &lt;/div&gt;
+  `</span>,
+})
+<span class="kw">export class</span> GenericListComponent&lt;T&gt; {
+  <span class="fn">@Input</span>() items: T[] = [];
+  <span class="fn">@Input</span>() itemTemplate!: TemplateRef&lt;{ $implicit: T; index: <span class="kw">number</span> }&gt;;
+  <span class="fn">@Input</span>() emptyText = <span class="str">'Không có dữ liệu.'</span>;
+  <span class="fn">@Input</span>() trackByFn: (index: <span class="kw">number</span>, item: T) => <span class="kw">unknown</span> = (index) => index;
+}</code></pre>
+    </div>
+    <p>
+      So với <code>GenericApiService&lt;T extends {id: string}&gt;</code> ở Bài 10, ở đây
+      <strong>không có ràng buộc nào trên <code>T</code></strong> — component này không gọi
+      <code>.id</code> hay bất kỳ field nào của <code>T</code>, nó chỉ lặp và uỷ quyền việc vẽ cho
+      <code>itemTemplate</code>. Generic càng "trần trụi" càng dùng lại được ở nhiều nơi hơn.
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao KHÔNG dùng cú pháp <code>@if</code>/<code>@for</code> mới ở đây</div>
+      <p>
+        Angular 22 hỗ trợ cú pháp control flow mới, nhưng project của bạn đang ở
+        <strong>Stage 1 — Classic</strong>. <code>*ngIf</code>/<code>*ngFor</code> vẫn là API đầy
+        đủ chức năng, không "lỗi thời" theo nghĩa hỏng — chỉ là cú pháp cũ hơn. Bạn sẽ học cú pháp
+        mới có chủ đích, đối chiếu trực tiếp với cách viết này, ở Phase 13.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Đăng ký vào <code>SharedModule</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/shared/shared.module.ts</span>
+<pre><code><span class="fn">@NgModule</span>({
+  declarations: [VndPipe, GenericListComponent],
+  imports: [CommonModule],
+  exports: [CommonModule, VndPipe, GenericListComponent],  <span class="cmt">// Bài 08: exports mới là thứ có ích</span>
+})
+<span class="kw">export class</span> SharedModule {}</code></pre>
+    </div>
+    <p>
+      Đúng nguyên tắc Bài 08: <code>GenericListComponent</code> dùng chung cho nhiều feature module
+      (courses, và Bài 31 là course-detail) — nơi hợp lý duy nhất để khai báo nó là
+      <code>SharedModule</code>, không phải trong <code>CoursesModule</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Dùng lại cho lưới khoá học</h2>
+    <div class="code-block">
+      <span class="code-label">HTML · course-list.component.html (refactor từ Bài 29)</span>
+<pre><code>&lt;app-generic-list [items]=<span class="str">"r.data"</span> [itemTemplate]=<span class="str">"courseTpl"</span> emptyText=<span class="str">"Không tìm thấy khoá học nào."</span>&gt;&lt;/app-generic-list&gt;
+&lt;ng-template <span class="fn">#courseTpl</span> let-course&gt;
+  &lt;div class=<span class="str">"course-card"</span>&gt;
+    &lt;h3&gt;{{ course.title }}&lt;/h3&gt;
+    &lt;p&gt;{{ course.price | vnd }}&lt;/p&gt;
+  &lt;/div&gt;
+&lt;/ng-template&gt;</code></pre>
+    </div>
+    <p>
+      Không một dòng nào trong <code>CourseListComponent</code> thay đổi ngoài khối template này —
+      logic RxJS của Bài 28-29 giữ nguyên. Đây là bằng chứng generic tách đúng chỗ: thay đổi CÁCH
+      HIỂN THỊ không đụng tới logic LẤY DỮ LIỆU.
+    </p>
+  </section>
+
+  <section>
+    <h2>6. Chứng minh genericity bằng test — 2 kiểu dữ liệu, 1 component</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ spec đã verify</span>
+<pre><code><span class="fn">@Component</span>({ standalone: <span class="kw">false</span>, template: <span class="str">`
+  &lt;app-generic-list [items]="courses" [itemTemplate]="courseTpl" emptyText="Không có khoá học."&gt;&lt;/app-generic-list&gt;
+  &lt;ng-template #courseTpl let-c&gt;&lt;span class="course-title"&gt;{{ c.title }}&lt;/span&gt;&lt;/ng-template&gt;
+`</span> })
+<span class="kw">class</span> CourseHostComponent { courses: Course[] = [{ id: <span class="str">'c1'</span>, title: <span class="str">'Angular Nâng Cao'</span> }, ...]; }
+
+<span class="fn">@Component</span>({ standalone: <span class="kw">false</span>, template: <span class="str">`
+  &lt;app-generic-list [items]="reviews" [itemTemplate]="reviewTpl" emptyText="Chưa có đánh giá."&gt;&lt;/app-generic-list&gt;
+  &lt;ng-template #reviewTpl let-r&gt;&lt;span class="review-comment"&gt;{{ r.comment }}&lt;/span&gt;&lt;/ng-template&gt;
+`</span> })
+<span class="kw">class</span> ReviewHostComponent { reviews: Review[] = []; }
+
+<span class="fn">it</span>(<span class="str">'TC3 — có review thì render qua reviewTpl, không lẫn sang courseTpl'</span>, () => {
+  fixture.componentInstance.reviews = [{ id: <span class="str">'r1'</span>, comment: <span class="str">'Rất hay'</span> }];
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="fn">expect</span>(fixture.debugElement.<span class="fn">query</span>(By.<span class="fn">css</span>(<span class="str">'.review-comment'</span>)).nativeElement.textContent.<span class="fn">trim</span>()).<span class="fn">toBe</span>(<span class="str">'Rất hay'</span>);
+  <span class="fn">expect</span>(fixture.debugElement.<span class="fn">query</span>(By.<span class="fn">css</span>(<span class="str">'.course-title'</span>))).<span class="fn">toBeNull</span>();  <span class="cmt">// KHÔNG lẫn template</span>
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ GenericListComponent&lt;T&gt; — dùng chung cho 2 kiểu dữ liệu khác nhau
+  ✓ TC1 — render đúng T = Course, dùng template course
+  ✓ TC2 — CÙNG component, T = Review, dùng template khác — items rỗng thì hiện emptyText
+  ✓ TC3 — có review thì render qua reviewTpl, không lẫn sang courseTpl
+
+Test Files  1 passed (1)
+     Tests  3 passed (3)</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Đừng quên quy tắc Bài 27</div>
+      <p>
+        <code>GenericListComponent</code> đã được khai trong <code>SharedModule</code>. File test
+        phải <strong>import</strong> <code>SharedModule</code> vào một <code>@NgModule</code> thật
+        của riêng nó (không dùng <code>TestBed.configureTestingModule({declarations})</code> một
+        mình), và tuyệt đối không khai lại <code>GenericListComponent</code> trong module test —
+        khai trùng ở 2 NgModule là lỗi biên dịch AOT, y hệt bug đã gặp ở Bài 27.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Trong <code>context: { $implicit: item, index: i }</code>, muốn lấy <code>index</code> ra trong <code>&lt;ng-template&gt;</code>, bạn viết thế nào?</div>
+    <button class="opt" data-correct="false" data-explain="let-index chỉ hoạt động nếu field trong context object tên đúng là 'index' — không tự suy luận thứ tự tham số.">A. <code>let-index</code> (Angular tự hiểu theo thứ tự khai báo).</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. $implicit là field ĐẶC BIỆT duy nhất được gán ngầm cho let-x không ghi rõ tên. Mọi field khác trong context object phải khai rõ: let-i='index' nghĩa là 'lấy field index từ context, gán vào biến cục bộ i'.">B. <code>let-i="index"</code> — field khác <code>$implicit</code> phải khai rõ tên field nguồn.</button>
+    <button class="opt" data-correct="false" data-explain="ngTemplateOutletContext không phải cú pháp — context truyền qua thuộc tính 'context' của *ngTemplateOutlet như trong ví dụ mục 2.">C. <code>ngTemplateOutletContext="index"</code>.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>GenericListComponent&lt;T&gt;</code> KHÔNG ràng buộc <code>T extends {id: string}</code> như <code>GenericApiService&lt;T&gt;</code>?</div>
+    <button class="opt" data-correct="false" data-explain="TypeScript hoàn toàn cho phép generic không ràng buộc gì — 'unknown' ngầm định là đủ nếu component không truy cập field nào của T.">A. Vì component không cho phép ràng buộc kiểu, chỉ service mới được.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. GenericApiService cần .id để dựng URL (this.endpoint + '/' + id) — đó là lý do nó CẦN ràng buộc. GenericListComponent không đọc bất kỳ field nào của T, nó chỉ lặp và giao việc vẽ cho itemTemplate — không cần biết gì về T thì không nên ràng buộc gì, generic càng lỏng càng tái dùng được rộng.">B. Vì <code>GenericApiService</code> cần <code>.id</code> để dựng URL, còn <code>GenericListComponent</code> không đọc field nào của <code>T</code> cả — không cần thì không ràng buộc.</button>
+    <button class="opt" data-correct="false" data-explain="trackBy nhận một hàm do NGƯỜI DÙNG component truyền vào (mặc định dùng index) — nó không tự đòi field 'id' từ T."><code>trackByFn</code> mặc định cần <code>T</code> có <code>id</code> để hoạt động.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>GenericListComponent&lt;T&gt;</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Component generic, nhận <code>items: T[]</code>, <code>itemTemplate: TemplateRef&lt;...&gt;</code>, <code>emptyText</code>, không ràng buộc gì trên <code>T</code>.</li>
+        <li><strong>TC2</strong> — Items rỗng → hiện <code>emptyText</code>, không render <code>itemTemplate</code> lần nào.</li>
+        <li><strong>TC3</strong> — Dùng ĐÚNG MỘT component này cho 2 kiểu dữ liệu khác nhau (2 test host component riêng, 2 <code>itemTemplate</code> khác nhau) — chứng minh cả hai render đúng, không lẫn nội dung.</li>
+        <li><strong>TC4</strong> — Refactor <code>CourseListComponent</code> (Bài 29) dùng <code>app-generic-list</code> thay cho <code>*ngFor</code> trực tiếp — toàn bộ test Bài 28-29 vẫn phải xanh, không sửa logic RxJS.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết 2 component test host RIÊNG BIỆT (một cho Course, một cho Review) thay vì cố nhồi cả hai bộ dữ liệu vào một host — dễ đọc hơn và đúng tinh thần "2 nơi dùng khác nhau".</p>
+    <p><strong>Hint 2 · API:</strong> <code>@Input() itemTemplate!: TemplateRef&lt;...&gt;</code> · <code>*ngTemplateOutlet="tpl; context: {...}"</code> · <code>let-x</code> cho <code>$implicit</code>, <code>let-y="fieldName"</code> cho field khác.</p>
+    <p><strong>Hint 3:</strong> Nếu compiler báo component không rõ trong module, nhớ lại Bài 27/29: test phải import module THẬT (SharedModule) có khai <code>GenericListComponent</code>, không khai lại nó trong module test.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết Generics áp dụng được cho Angular Component, không chỉ Service.</li>
+      <li>Tôi dùng <code>TemplateRef</code> + <code>ngTemplateOutlet</code> để "tiêm" cách hiển thị từ bên ngoài, tách hẳn logic hiển thị-danh-sách khỏi cách-vẽ-một-item.</li>
+      <li>Tôi hiểu context object của <code>ngTemplateOutlet</code>: <code>$implicit</code> là ngầm định, field khác phải khai rõ tên.</li>
+      <li>Tôi biết KHI NÀO nên ràng buộc generic (cần đọc field của <code>T</code>) và khi nào không (chỉ lặp và uỷ quyền).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Trang chi tiết khoá học (sắp tới) cần gọi <strong>3 API độc lập cùng lúc</strong>: thông tin
+      khoá học, danh sách đánh giá (giờ bạn đã có <code>GenericListComponent</code> để hiển thị
+      nó), và danh sách khoá học liên quan. Ba API này không phụ thuộc lẫn nhau — không cái nào
+      cần chờ cái nào xong mới gọi.
+    </p>
+    <p>
+      Nhưng có một rủi ro thật: nếu API đánh giá bị lỗi (server đang bảo trì phần review), bạn có
+      muốn cả trang chi tiết khoá học biến mất theo không? Người dùng vẫn nên xem được thông tin
+      khoá học và mua nó, dù phần đánh giá tạm thời trống.
+    </p>
+    <p><strong>RxJS có toán tử nào gọi nhiều Observable song song và gộp kết quả — và làm sao khiến MỘT nhánh lỗi không kéo sập toàn bộ?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã học nguyên tắc "Observable lỗi là kết thúc, không có tiếp theo" ở Bài 01. Toán tử gộp N Observable song song sẽ THỪA HƯỞNG đúng nguyên tắc đó — vậy phải chặn lỗi ở đâu để nó không lan lên tới toán tử gộp?</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo · Bài cuối Module 6</div>
+    <div class="nt">Bài 31 · <code>forkJoin</code> — fetch song song &amp; chịu lỗi từng phần</div>
+    <p class="nd">Course Detail: 3 API song song, dùng lại <code>GenericListComponent</code> vừa xây cho đánh giá VÀ khoá học liên quan.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0029-async-pipe-pagination.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0031-forkjoin-course-detail.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC3 (2 kiểu dữ liệu khác nhau, không lẫn template) là bằng chứng quan trọng nhất cho tính "generic" thật sự, không chỉ đặt tên có chữ <code>&lt;T&gt;</code>.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 29 · async pipe &amp; pagination không bắn API thừa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 5 · Bài 29 · Course Listing</span>
+    <h1><code>async</code> pipe &amp; pagination không bắn API thừa</h1>
+    <p class="subtitle">
+      DOM không tự cập nhật ở Bài 28 không phải lỗi vặt — nó là dấu hiệu cho thấy
+      <code>combineLatest</code> 3 nguồn rời rạc đã tới giới hạn. Sửa đúng cách giải quyết luôn
+      2 việc khác: debounce bàn phím và không bắn API thừa.
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 Kết nối Bài 02 (unsubscribe) + Bài 16 (zoneless)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích chính xác vì sao <code>| async</code> khiến DOM tự cập nhật mà <code>.subscribe()</code> thủ công thì không, ở app zoneless.</li>
+      <li>Đặt <code>debounceTime</code> ĐÚNG vị trí — trên luồng bàn phím thô, không trên state đã gộp.</li>
+      <li>Giải thích vì sao 3 <code>BehaviorSubject</code> rời rạc gây bắn API thừa khi 2 filter cần đổi CÙNG LÚC, và 1 state object giải quyết được.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 02: quên <code>.unsubscribe()</code> là leak. Bài 16 mục 5: zoneless cần
+      <code>markForCheck()</code> khi state đổi ngoài một event template. Hai bài học này thực ra
+      chỉ là MỘT nguyên tắc nhìn từ hai góc: <strong><code>AsyncPipe</code> tự làm cả hai việc đó
+      cho bạn</strong> — tự unsubscribe khi component huỷ, và tự gọi <code>markForCheck()</code>
+      mỗi khi Observable phát giá trị mới.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Mổ xẻ bug ở Bài 28</h2>
+    <p>
+      Test bạn viết ở Bài 28 (nếu làm theo gợi ý TC5) cho thấy: <code>this.result = res</code>
+      chạy đúng trong callback <code>.subscribe()</code>, nhưng <code>fixture.detectChanges()</code>
+      gọi lại sau đó vẫn không vẽ dữ liệu mới lên DOM.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test tái hiện bug (đã verify — dòng cuối THẤT BẠI trên code Bài 28)</span>
+<pre><code>httpMock.<span class="fn">expectOne</span>((r) => r.url === <span class="str">'/api/courses'</span>).<span class="fn">flush</span>({
+  data: [{ id: <span class="str">'c1'</span>, title: <span class="str">'Đã có dữ liệu'</span>, price: <span class="num">1000</span> }],
+  meta: { page: <span class="num">1</span>, limit: <span class="num">12</span>, total: <span class="num">1</span>, totalPages: <span class="num">1</span> },
+});
+
+<span class="fn">expect</span>(fixture.componentInstance.result?.data[<span class="num">0</span>].title).<span class="fn">toBe</span>(<span class="str">'Đã có dữ liệu'</span>); <span class="cmt">// ✅ state ĐÚNG</span>
+fixture.<span class="fn">detectChanges</span>();
+<span class="fn">expect</span>(fixture.nativeElement.textContent).<span class="fn">toContain</span>(<span class="str">'Đã có dữ liệu'</span>);          <span class="cmt">// ❌ DOM vẫn KHÔNG có chữ này</span></code></pre>
+    </div>
+    <p>
+      Nguyên nhân giống hệt Bài 16 mục 5, chỉ khác bối cảnh: <code>CourseListComponent</code>
+      không dùng <code>OnPush</code>, nhưng project của bạn <strong>zoneless từ Bài 00</strong>.
+      Zoneless không quan tâm bạn dùng <code>Default</code> hay <code>OnPush</code> — nó chỉ vẽ lại
+      view khi có ai đó <strong>báo</strong> nó biết "có gì đổi". Một sự kiện template (click,
+      input) tự động báo. Một callback <code>.subscribe()</code> chạy từ HTTP response thì
+      <strong>không</strong> — Angular không có cách nào biết bạn vừa gán lại một field.
+    </p>
+    <div class="callout why">
+      <div class="ct">💡 Vậy tại sao Bài 16-27 không gặp bug này?</div>
+      <p>
+        Những bài trước hoặc dùng <code>| async</code> sẵn (không tự subscribe), hoặc mutate state
+        NGAY TRONG một handler sự kiện template (<code>(click)</code>, <code>(input)</code>) —
+        trường hợp đó Angular tự biết phải kiểm tra lại view sau khi handler chạy xong.
+        <code>CourseListComponent</code> là bài ĐẦU TIÊN tự <code>.subscribe()</code> một
+        Observable bắt nguồn từ HTTP, ngoài mọi sự kiện template — nên bug mới lộ ra ở đây.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Vì sao không chỉ vá bằng <code>markForCheck()</code></h2>
+    <p>
+      Bạn có thể inject <code>ChangeDetectorRef</code> và gọi <code>markForCheck()</code> trong
+      <code>.subscribe()</code> — nó sẽ hết bug. Nhưng đó là vá triệu chứng. Vấn đề sâu hơn:
+      bạn đang <strong>tự quản lý</strong> một Observable (subscribe, giữ state, nhớ báo CD) trong
+      khi Angular có sẵn một công cụ làm đúng ba việc đó tự động: <code>| async</code>.
+    </p>
+    <table class="data">
+      <thead><tr><th></th><th><code>.subscribe()</code> thủ công</th><th><code>| async</code></th></tr></thead>
+      <tbody>
+        <tr><td>Tự unsubscribe khi component huỷ</td><td>❌ phải tự <code>takeUntil</code> (Bài 02)</td><td>✅ tự động</td></tr>
+        <tr><td>Báo CD vẽ lại (zoneless)</td><td>❌ phải tự <code>markForCheck()</code></td><td>✅ tự động</td></tr>
+        <tr><td>Số dòng code trong component</td><td>Nhiều hơn</td><td>Ít hơn</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Đổi <code>result: ApiListResponse&lt;Course&gt; | null</code> (field tự gán) thành
+      <code>result$: Observable&lt;ApiListResponse&lt;Course&gt;&gt;</code> (expose thẳng ra
+      template), rồi dùng <code>*ngIf="result$ | async as r"</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Vấn đề thứ hai: đổi search PHẢI reset về trang 1 — nhưng đừng bắn 2 request</h2>
+    <p>
+      Một yêu cầu UX rất tự nhiên: đổi search hoặc category thì nên nhảy về trang 1 (trang 5 của
+      kết quả cũ gần như chắc chắn không còn ý nghĩa với kết quả mới). Thử làm với 3
+      <code>BehaviorSubject</code> rời rạc của Bài 28:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ trông hợp lý — nhưng bắn 2 request cho 1 lần gõ</span>
+<pre><code><span class="fn">onSearch</span>(value: <span class="kw">string</span>): <span class="kw">void</span> {
+  <span class="kw">this</span>.pageSubject.<span class="fn">next</span>(<span class="num">1</span>);        <span class="cmt">// combineLatest phát lần 1 — page vừa đổi</span>
+  <span class="kw">this</span>.searchSubject.<span class="fn">next</span>(value); <span class="cmt">// combineLatest phát lần 2 — search vừa đổi</span>
+}
+<span class="cmt">// 1 lần gõ -> 2 emission -> 2 lời gọi API, request đầu gần như vô nghĩa (state cũ + page mới)</span></code></pre>
+    </div>
+    <p>
+      <code>combineLatest</code> phát lại <strong>mỗi khi MỘT nguồn đổi</strong> — đó là đúng thiết
+      kế của nó, nhưng nó không cho bạn cách gộp 2 thay đổi liên quan thành 1 emission nguyên tử.
+      Khi các filter liên quan tới nhau (đổi cái này phải kéo theo reset cái khác), mô hình đúng
+      không phải "N nguồn rời rạc + combineLatest" mà là <strong>1 state object + patch từng phần</strong>.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ✅ 1 state, 1 emission mỗi lần đổi</span>
+<pre><code><span class="kw">interface</span> FilterState { search: <span class="kw">string</span>; category: <span class="kw">string</span>; page: <span class="kw">number</span>; }
+
+<span class="kw">private readonly</span> filterSubject = <span class="kw">new</span> BehaviorSubject&lt;FilterState&gt;({ search: <span class="str">''</span>, category: <span class="str">''</span>, page: <span class="num">1</span> });
+
+<span class="fn">onSearch</span>(value: <span class="kw">string</span>): <span class="kw">void</span> {
+  <span class="kw">this</span>.<span class="fn">patchFilter</span>({ search: value, page: <span class="num">1</span> }); <span class="cmt">// MỘT .next() duy nhất, cả 2 field đổi cùng lúc</span>
+}
+
+<span class="kw">private</span> <span class="fn">patchFilter</span>(patch: <span class="fn">Partial</span>&lt;FilterState&gt;): <span class="kw">void</span> {
+  <span class="kw">this</span>.filterSubject.<span class="fn">next</span>({ ...<span class="kw">this</span>.filterSubject.value, ...patch });
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🎤 Câu phỏng vấn ẩn trong bài này</div>
+      <p>
+        "Khi nào dùng <code>combineLatest</code> nhiều nguồn, khi nào gộp thành 1 state object?"
+        — <strong>Trả lời:</strong> <code>combineLatest</code> hợp cho các nguồn <em>thực sự độc
+        lập</em> (không nguồn nào cần biết về nguồn khác). Khi một thay đổi PHẢI kéo theo thay đổi
+        khác một cách nguyên tử (search đổi → page reset), gộp thành 1 state object với
+        <code>patch()</code> tránh được N emission cho 1 hành động của người dùng.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Vấn đề thứ ba: debounce ĐÚNG chỗ</h2>
+    <p>
+      Đặt <code>debounceTime</code> ngay trên <code>filterSubject</code> (state đã gộp) trông tiện,
+      nhưng nó áp dụng cho <strong>MỌI</strong> emission — kể cả emission ĐẦU TIÊN lúc component
+      vừa vào trang. Hậu quả: mọi lần load trang đều bị trễ 300ms một cách vô lý, dù chưa ai gõ gì.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ✅ debounce trên bàn phím THÔ, không trên state đã gộp</span>
+<pre><code><span class="kw">private readonly</span> searchInput$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();  <span class="cmt">// raw keystroke, chưa qua state</span>
+
+<span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+  ...
+  <span class="kw">this</span>.searchInput$
+    .<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>), <span class="fn">distinctUntilChanged</span>(), <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$))
+    .<span class="fn">subscribe</span>((search) => <span class="kw">this</span>.<span class="fn">patchFilter</span>({ search, page: <span class="num">1</span> }));
+
+  <span class="cmt">// KHÔNG debounce ở đây — debounce đã xảy ra Ở NGUỒN trước khi tới filterSubject.</span>
+  <span class="kw">this</span>.result$ = <span class="kw">this</span>.filterSubject.<span class="fn">pipe</span>(
+    <span class="fn">distinctUntilChanged</span>(sameFilter),   <span class="cmt">// bấm lại ĐÚNG trang/category cũ -> không bắn thêm request</span>
+    <span class="fn">tap</span>((f) => <span class="kw">this</span>.<span class="fn">syncUrl</span>(f)),
+    <span class="fn">switchMap</span>((f) => <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({ ...f, limit: PAGE_SIZE })),
+  );
+}
+
+<span class="fn">onSearchInput</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.searchInput$.<span class="fn">next</span>(value); }   <span class="cmt">// gọi từ (input) trong template</span>
+<span class="fn">onCategory</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.<span class="fn">patchFilter</span>({ category: value, page: <span class="num">1</span> }); } <span class="cmt">// KHÔNG debounce — click, không phải gõ phím</span></code></pre>
+    </div>
+    <p>
+      Category và page là hành động <strong>click</strong>, không phải gõ liên tục — chúng không
+      cần debounce, chỉ search text (gõ từng ký tự) mới cần. Đặt debounce đúng NGUỒN thay vì trên
+      state tổng hợp giữ cho lần load đầu tiên nhanh như cũ.
+    </p>
+  </section>
+
+  <section>
+    <h2>5. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/courses/course-list/course-list.component.ts (bản đủ)</span>
+<pre><code><span class="kw">function</span> <span class="fn">sameFilter</span>(a: FilterState, b: FilterState): <span class="kw">boolean</span> {
+  <span class="kw">return</span> a.search === b.search &amp;&amp; a.category === b.category &amp;&amp; a.page === b.page;
+}
+
+<span class="fn">@Component</span>({ selector: <span class="str">'app-course-list'</span>, standalone: <span class="kw">false</span>, templateUrl: <span class="str">'./course-list.component.html'</span> })
+<span class="kw">export class</span> CourseListComponent <span class="kw">implements</span> OnInit, OnDestroy {
+  <span class="kw">private readonly</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+  <span class="kw">private readonly</span> searchInput$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+  <span class="kw">private readonly</span> filterSubject = <span class="kw">new</span> BehaviorSubject&lt;FilterState&gt;({ search: <span class="str">''</span>, category: <span class="str">''</span>, page: <span class="num">1</span> });
+
+  result$!: Observable&lt;ApiListResponse&lt;Course&gt;&gt;;
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="kw">const</span> qp = <span class="kw">this</span>.route.snapshot.queryParamMap;
+    <span class="kw">this</span>.filterSubject.<span class="fn">next</span>({
+      search: qp.<span class="fn">get</span>(<span class="str">'search'</span>) ?? <span class="str">''</span>,
+      category: qp.<span class="fn">get</span>(<span class="str">'category'</span>) ?? <span class="str">''</span>,
+      page: <span class="fn">Number</span>(qp.<span class="fn">get</span>(<span class="str">'page'</span>) ?? <span class="num">1</span>),
+    });
+
+    <span class="kw">this</span>.searchInput$.<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>), <span class="fn">distinctUntilChanged</span>(), <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$))
+      .<span class="fn">subscribe</span>((search) => <span class="kw">this</span>.<span class="fn">patchFilter</span>({ search, page: <span class="num">1</span> }));
+
+    <span class="kw">this</span>.result$ = <span class="kw">this</span>.filterSubject.<span class="fn">pipe</span>(
+      <span class="fn">distinctUntilChanged</span>(sameFilter),
+      <span class="fn">tap</span>((f) => <span class="kw">this</span>.<span class="fn">syncUrl</span>(f)),
+      <span class="fn">switchMap</span>((f) => <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({
+        ...(f.search ? { search: f.search } : {}),
+        ...(f.category ? { category: f.category } : {}),
+        page: f.page,
+        limit: PAGE_SIZE,
+      })),
+      <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$),
+    );
+  }
+
+  <span class="fn">onSearchInput</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.searchInput$.<span class="fn">next</span>(value); }
+  <span class="fn">onCategory</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.<span class="fn">patchFilter</span>({ category: value, page: <span class="num">1</span> }); }
+  <span class="fn">onPage</span>(page: <span class="kw">number</span>): <span class="kw">void</span> { <span class="kw">this</span>.<span class="fn">patchFilter</span>({ page }); }
+
+  <span class="kw">private</span> <span class="fn">patchFilter</span>(patch: <span class="fn">Partial</span>&lt;FilterState&gt;): <span class="kw">void</span> {
+    <span class="kw">this</span>.filterSubject.<span class="fn">next</span>({ ...<span class="kw">this</span>.filterSubject.value, ...patch });
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · template dùng async pipe</span>
+<pre><code>&lt;input type=<span class="str">"text"</span> placeholder=<span class="str">"Tìm khoá học..."</span> (input)=<span class="str">"onSearchInput($any($event.target).value)"</span>&gt;
+&lt;select (change)=<span class="str">"onCategory($any($event.target).value)"</span>&gt;...&lt;/select&gt;
+
+&lt;ng-container *ngIf=<span class="str">"result$ | async as r"</span>&gt;
+  &lt;app-generic-list [items]=<span class="str">"r.data"</span> [itemTemplate]=<span class="str">"courseTpl"</span> emptyText=<span class="str">"Không tìm thấy khoá học nào."</span>&gt;&lt;/app-generic-list&gt;
+  &lt;div class=<span class="str">"pager"</span>&gt;
+    &lt;button (click)=<span class="str">"onPage(r.meta.page - 1)"</span> [disabled]=<span class="str">"r.meta.page &lt;= 1"</span>&gt;← Trước&lt;/button&gt;
+    &lt;span&gt;Trang {{ r.meta.page }} / {{ r.meta.totalPages }}&lt;/span&gt;
+    &lt;button (click)=<span class="str">"onPage(r.meta.page + 1)"</span> [disabled]=<span class="str">"r.meta.page &gt;= r.meta.totalPages"</span>&gt;Sau →&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/ng-container&gt;</code></pre>
+    </div>
+    <p class="meta-line">📌 <code>app-generic-list</code> chưa tồn tại — bạn sẽ xây nó ở Bài 30. Tạm thời thay bằng <code>*ngFor</code> nếu làm bài theo đúng thứ tự.</p>
+  </section>
+
+  <section>
+    <h2>6. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CourseListComponent — async pipe &amp; pagination không bắn API thừa (Bài 29)
+  ✓ TC1 — lần load ĐẦU TIÊN gọi API NGAY, không chờ 300ms debounce
+  ✓ TC2 — gõ 3 ký tự liên tiếp nhanh chỉ bắn ĐÚNG 1 request bổ sung, với giá trị CUỐI CÙNG
+  ✓ TC3 — đổi category KHÔNG bị debounce, áp dụng ngay
+  ✓ TC4 — bấm lại ĐÚNG trang hiện tại thì KHÔNG bắn thêm request
+  ✓ TC5 — 🔥 dùng async pipe: DOM tự vẽ lại khi API trả về, KHÔNG cần markForCheck thủ công
+
+Test Files  1 passed (1)
+     Tests  5 passed (5)</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · TC2 — trái tim của bài này</span>
+<pre><code>vi.<span class="fn">useFakeTimers</span>();
+...
+component.<span class="fn">onSearchInput</span>(<span class="str">'a'</span>);   vi.<span class="fn">advanceTimersByTime</span>(<span class="num">100</span>);
+component.<span class="fn">onSearchInput</span>(<span class="str">'an'</span>);  vi.<span class="fn">advanceTimersByTime</span>(<span class="num">100</span>);
+component.<span class="fn">onSearchInput</span>(<span class="str">'ang'</span>);
+vi.<span class="fn">advanceTimersByTime</span>(<span class="num">299</span>);
+httpMock.<span class="fn">expectNone</span>((r) => r.params.<span class="fn">has</span>(<span class="str">'search'</span>));  <span class="cmt">// mới 299ms kể từ 'ang' — CHƯA đủ</span>
+
+vi.<span class="fn">advanceTimersByTime</span>(<span class="num">1</span>);                      <span class="cmt">// đúng mốc 300ms</span>
+<span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>((r) => r.params.<span class="fn">get</span>(<span class="str">'search'</span>) === <span class="str">'ang'</span>); <span class="cmt">// giá trị CUỐI, không phải 'a' hay 'an'</span></code></pre>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao đặt <code>debounceTime(300)</code> trực tiếp trên <code>filterSubject</code> (thay vì trên <code>searchInput$</code>) là sai?</div>
+    <button class="opt" data-correct="false" data-explain="debounceTime không quan tâm TYPE dữ liệu, nó hoạt động với mọi kiểu giá trị."><code>filterSubject</code> phát ra object, <code>debounceTime</code> chỉ nhận string.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. debounceTime áp dụng cho MỌI emission đi qua nó — kể cả emission đầu tiên lúc ngOnInit (khôi phục filter từ URL). Đặt nó trên state đã gộp khiến lần load trang nào cũng bị trễ 300ms, kể cả khi người dùng chưa gõ gì.">Nó áp dụng cho MỌI emission kể cả lần load đầu tiên, gây trễ 300ms vô lý mỗi khi vào trang.</button>
+    <button class="opt" data-correct="false" data-explain="debounceTime không quan tâm nguồn phát là gì, nó chỉ đo thời gian giữa các emission."><code>BehaviorSubject</code> không tương thích với <code>debounceTime</code>.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao gộp 3 <code>BehaviorSubject</code> thành 1 <code>FilterState</code> lại tránh được bug "bắn 2 request cho 1 hành động"?</div>
+    <button class="opt" data-correct="false" data-explain="RxJS không có khái niệm 'transaction' theo nghĩa database — không phải lý do đúng."><code>BehaviorSubject&lt;FilterState&gt;</code> có transaction tích hợp sẵn.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Với 3 Subject rời rạc, đổi 'search kéo theo reset page' cần 2 lệnh .next() riêng biệt -> 2 emission. Với 1 FilterState, patchFilter() gộp cả 2 field vào MỘT object rồi .next() đúng 1 lần -> đúng 1 emission, đúng 1 request.">Vì <code>patchFilter()</code> gộp mọi field cần đổi vào MỘT object rồi <code>.next()</code> đúng một lần — một hành động, một emission.</button>
+    <button class="opt" data-correct="false" data-explain="distinctUntilChanged chỉ lọc TRÙNG giá trị liên tiếp — ở đây 2 emission có giá trị filter KHÁC NHAU (page khác nhau), nên nó không lọc được cái nào cả."><code>distinctUntilChanged</code> tự phát hiện 2 request trùng nhau và gộp lại.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — nâng cấp <code>CourseListComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Đổi <code>result</code> (field) thành <code>result$</code> (Observable), template dùng <code>| async</code>. Xoá field <code>result</code> và mọi <code>.subscribe()</code> thủ công trong <code>ngOnInit</code> cho pipeline chính.</li>
+        <li><strong>TC2</strong> — Lần load đầu tiên gọi API ngay, KHÔNG chờ 300ms (chứng minh bằng <code>vi.useFakeTimers()</code> + không <code>advanceTimersByTime</code>).</li>
+        <li><strong>TC3</strong> — Gõ nhiều ký tự nhanh chỉ bắn đúng 1 request bổ sung, mang giá trị CUỐI CÙNG, sau đúng 300ms kể từ ký tự cuối.</li>
+        <li><strong>TC4</strong> — Đổi category áp dụng NGAY, không debounce.</li>
+        <li><strong>TC5</strong> — Bấm lại đúng trang/category hiện tại → không bắn thêm request (<code>distinctUntilChanged</code>).</li>
+        <li><strong>TC6</strong> — Flush dữ liệu thật, gọi <code>detectChanges()</code>, DOM PHẢI hiện đúng dữ liệu — không cần <code>markForCheck()</code> thủ công ở đâu cả.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Có 2 nguồn debounce khác nhau trong bài này — đừng nhầm luồng bàn phím thô với luồng state đã gộp.</p>
+    <p><strong>Hint 2 · API:</strong> <code>Subject&lt;string&gt;</code> cho bàn phím · <code>debounceTime</code> · <code>distinctUntilChanged</code> (có thể nhận comparator function) · <code>BehaviorSubject.value</code> để đọc state hiện tại khi patch.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 vẫn bị trễ 300ms, bạn đang đặt <code>debounceTime</code> nhầm chỗ — kiểm tra nó nằm trên <code>searchInput$</code> hay trên <code>filterSubject</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết <code>| async</code> tự làm 2 việc quan trọng ở app zoneless: unsubscribe (Bài 02) và <code>markForCheck()</code> (Bài 16) — không phải chỉ là "code gọn hơn".</li>
+      <li>Tôi phân biệt được khi nào dùng <code>combineLatest</code> nhiều nguồn độc lập, khi nào gộp thành 1 state object cho các trường liên quan tới nhau.</li>
+      <li>Tôi đặt <code>debounceTime</code> đúng vị trí — ở nguồn thô, không phải ở state đã tổng hợp.</li>
+      <li>Tôi chứng minh "không bắn API thừa" bằng <code>httpMock.expectNone()</code>, không chỉ bằng đọc code.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      <code>CourseListComponent</code> giờ hiển thị lưới khoá học bằng một khối <code>*ngFor</code>
+      với một <code>&lt;div class="course-card"&gt;</code> cố định. Sắp tới, trang chi tiết khoá học
+      (Bài 31) cần hiển thị <strong>danh sách đánh giá</strong> — cùng một nhu cầu "lặp qua mảng,
+      hiện rỗng khi không có gì", nhưng hình dạng item hoàn toàn khác (rating, comment, không phải
+      giá tiền hay thumbnail).
+    </p>
+    <p>
+      Copy-paste khối <code>*ngFor</code> cho mỗi nơi cần danh sách là điều bạn đã học cách tránh
+      từ Bài 10 (<code>GenericApiService&lt;T&gt;</code>) — nhưng đó là generic cho tầng
+      <strong>service</strong>. Danh sách hiển thị là chuyện của <strong>component</strong> và
+      <strong>template</strong>.
+    </p>
+    <p><strong>TypeScript Generics áp dụng được cho một Angular Component không? Nếu có, phần nào của component "biết hình dạng dữ liệu" và phần nào "không cần biết"?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: nghĩ về việc TÁCH — <em>vòng lặp và trạng thái rỗng</em> là logic chung; <em>cách hiển thị MỘT item</em> là thứ khác nhau mỗi nơi dùng. Angular có cách "tiêm" một mẩu HTML từ bên ngoài vào một component không?</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 30 · <code>GenericListComponent&lt;T&gt;</code> + <code>ngTemplateOutlet</code></div>
+    <p class="nd">Generics quay lại lần hai — lần này ở tầng component, dùng chung cho lưới khoá học VÀ danh sách đánh giá.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0028-combinelatest-filter-sync-url.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0030-generic-list-component.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC2 và TC6 là hai bằng chứng quan trọng nhất — thiếu chúng, "không bắn API thừa" và "DOM tự cập nhật" chỉ là lời hứa suông.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

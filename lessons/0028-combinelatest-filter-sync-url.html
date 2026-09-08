@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 28 · combineLatest gộp filter + sync URL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 5 · Bài 28 · Course Listing</span>
+    <h1><code>combineLatest</code> gộp filter + sync URL</h1>
+    <p class="subtitle">
+      3 ô filter độc lập (search, category, page), 1 pipeline fetch duy nhất — và URL phải
+      nhớ được filter để refresh trang hay gửi link cho đồng nghiệp không bị mất trạng thái.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Mở Module 6 — pipeline RxJS Bài 01 cắm vào app thật</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích vì sao <code>combineLatest</code> cần dùng <code>BehaviorSubject</code> chứ không phải <code>Subject</code> trơn cho từng filter.</li>
+      <li>Đọc filter TỪ URL đúng một lần lúc vào trang (snapshot), và ghi filter LÊN URL mỗi khi nó đổi.</li>
+      <li>Giải thích vì sao <code>replaceUrl: true</code> quan trọng ở đây — filter không phải điều hướng, không nên phá lịch sử back/forward.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 01: <code>combineLatest</code> im lặng cho tới khi <strong>MỌI</strong> nguồn phát ít nhất
+      một giá trị. Bài 03: <code>BehaviorSubject</code> luôn có "giá trị hiện tại" ngay khi subscribe.
+      Bài 27: đọc query param qua <code>snapshot</code> khi chỉ cần đọc một lần lúc khởi tạo.
+    </p>
+    <p>
+      Bài này ghép cả ba lại: dùng <code>BehaviorSubject</code> cho từng filter (đảm bảo
+      <code>combineLatest</code> phát ngay từ đầu), và snapshot để khôi phục filter từ URL.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: 3 ô filter, 1 danh sách</h2>
+    <p>
+      Trang danh sách khoá học có ô tìm kiếm, dropdown danh mục, và phân trang. Mỗi ô đổi phải
+      gọi lại <code>GET /api/courses</code> với tham số tương ứng — nhưng nếu người dùng gõ tìm
+      kiếm RỒI đổi danh mục, bạn không muốn viết 3 khối code gọi API gần giống hệt nhau, mỗi khối
+      lo một tổ hợp filter.
+    </p>
+    <p>
+      Thêm một yêu cầu thật: người dùng lọc xong, bấm F5 hoặc gửi link cho đồng nghiệp — filter
+      phải còn nguyên. Nghĩa là trạng thái filter không chỉ sống trong component, nó phải phản
+      ánh ra <strong>URL</strong>.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Bạn có 3 nguồn giá trị độc lập (search, category, page) nhưng chỉ cần MỘT hành động cuối
+        cùng mỗi khi bất kỳ nguồn nào đổi: gọi lại API với tổ hợp mới nhất của cả ba. Toán tử nào
+        trong RxJS sinh ra đúng cho việc "gộp N nguồn, phát lại mỗi khi MỘT trong số chúng đổi"?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>combineLatest</code> cần MỌI nguồn có giá trị</h2>
+    <div class="code-block">
+      <span class="code-label">Nhắc lại Bài 01 — bẫy im lặng</span>
+<pre><code><span class="kw">const</span> searchSubject = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();     <span class="cmt">// ❌ Subject trơn: chưa .next() lần nào thì chưa có gì</span>
+<span class="kw">const</span> categorySubject = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+
+<span class="fn">combineLatest</span>([searchSubject, categorySubject]).<span class="fn">subscribe</span>(...);
+<span class="cmt">// Nếu người dùng chỉ gõ search mà CHƯA đụng vào category -> combineLatest KHÔNG BAO GIỜ phát,</span>
+<span class="cmt">// vì categorySubject chưa có giá trị nào. Y hệt bẫy "combineLatest im lặng" ở Bài 01.</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">✅ Lời giải: BehaviorSubject — luôn có giá trị khởi tạo</span>
+<pre><code><span class="kw">const</span> searchSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);     <span class="cmt">// có giá trị NGAY từ khi tạo</span>
+<span class="kw">const</span> categorySubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);
+<span class="kw">const</span> pageSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">number</span>&gt;(<span class="num">1</span>);
+
+<span class="fn">combineLatest</span>([searchSubject, categorySubject, pageSubject]).<span class="fn">subscribe</span>(...);
+<span class="cmt">// Phát NGAY một lần lúc subscribe (['', '', 1]), rồi phát lại mỗi khi BẤT KỲ nguồn nào .next().</span></code></pre>
+    </div>
+    <p>
+      Đây chính là lý do Bài 03 nhấn <code>BehaviorSubject</code> "luôn có giá trị hiện tại" —
+      tính chất đó không chỉ hữu ích cho auth state, nó là điều kiện <strong>bắt buộc</strong> để
+      <code>combineLatest</code> hoạt động đúng ngay từ khung hình đầu tiên.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/courses/course-list/course-list.component.ts</span>
+<pre><code><span class="kw">const</span> PAGE_SIZE = <span class="num">12</span>;
+
+<span class="fn">@Component</span>({
+  selector: <span class="str">'app-course-list'</span>,
+  standalone: <span class="kw">false</span>,
+  templateUrl: <span class="str">'./course-list.component.html'</span>,
+})
+<span class="kw">export class</span> CourseListComponent <span class="kw">implements</span> OnInit, OnDestroy {
+  <span class="kw">private readonly</span> destroy$ = <span class="kw">new</span> Subject&lt;<span class="kw">void</span>&gt;();
+  <span class="kw">private readonly</span> searchSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);
+  <span class="kw">private readonly</span> categorySubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">string</span>&gt;(<span class="str">''</span>);
+  <span class="kw">private readonly</span> pageSubject = <span class="kw">new</span> BehaviorSubject&lt;<span class="kw">number</span>&gt;(<span class="num">1</span>);
+
+  result: ApiListResponse&lt;Course&gt; | <span class="kw">null</span> = <span class="kw">null</span>;
+
+  <span class="fn">constructor</span>(
+    <span class="kw">private readonly</span> courseService: CourseService,
+    <span class="kw">private readonly</span> route: ActivatedRoute,
+    <span class="kw">private readonly</span> router: Router,
+  ) {}
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="cmt">// Đọc URL 1 LẦN lúc vào trang — snapshot, không subscribe liên tục (Bài 27).</span>
+    <span class="cmt">// Đủ dùng vì chính component này là nơi DUY NHẤT ghi url trong lúc nó còn sống.</span>
+    <span class="kw">const</span> qp = <span class="kw">this</span>.route.snapshot.queryParamMap;
+    <span class="kw">this</span>.searchSubject.<span class="fn">next</span>(qp.<span class="fn">get</span>(<span class="str">'search'</span>) ?? <span class="str">''</span>);
+    <span class="kw">this</span>.categorySubject.<span class="fn">next</span>(qp.<span class="fn">get</span>(<span class="str">'category'</span>) ?? <span class="str">''</span>);
+    <span class="kw">this</span>.pageSubject.<span class="fn">next</span>(<span class="fn">Number</span>(qp.<span class="fn">get</span>(<span class="str">'page'</span>) ?? <span class="num">1</span>));
+
+    <span class="fn">combineLatest</span>([<span class="kw">this</span>.searchSubject, <span class="kw">this</span>.categorySubject, <span class="kw">this</span>.pageSubject])
+      .<span class="fn">pipe</span>(
+        <span class="fn">tap</span>(([search, category, page]) => <span class="kw">this</span>.<span class="fn">syncUrl</span>(search, category, page)),
+        <span class="fn">switchMap</span>(([search, category, page]) =>
+          <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({
+            ...(search ? { search } : {}),
+            ...(category ? { category } : {}),
+            page,
+            limit: PAGE_SIZE,
+          }),
+        ),
+        <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$),
+      )
+      .<span class="fn">subscribe</span>((res) => (<span class="kw">this</span>.result = res));
+  }
+
+  <span class="fn">ngOnDestroy</span>(): <span class="kw">void</span> {
+    <span class="kw">this</span>.destroy$.<span class="fn">next</span>();
+    <span class="kw">this</span>.destroy$.<span class="fn">complete</span>();
+  }
+
+  <span class="fn">onSearch</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.searchSubject.<span class="fn">next</span>(value); }
+  <span class="fn">onCategory</span>(value: <span class="kw">string</span>): <span class="kw">void</span> { <span class="kw">this</span>.categorySubject.<span class="fn">next</span>(value); }
+  <span class="fn">onPage</span>(page: <span class="kw">number</span>): <span class="kw">void</span> { <span class="kw">this</span>.pageSubject.<span class="fn">next</span>(page); }
+
+  <span class="kw">private</span> <span class="fn">syncUrl</span>(search: <span class="kw">string</span>, category: <span class="kw">string</span>, page: <span class="kw">number</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.router.<span class="fn">navigate</span>([], {
+      relativeTo: <span class="kw">this</span>.route,
+      queryParams: { search: search || <span class="kw">null</span>, category: category || <span class="kw">null</span>, page },
+      queryParamsHandling: <span class="str">'merge'</span>,
+      replaceUrl: <span class="kw">true</span>,   <span class="cmt">// filter KHÔNG phải điều hướng — đừng phá lịch sử back/forward</span>
+    });
+  }
+}</code></pre>
+    </div>
+    <div class="callout why">
+      <div class="ct">🔎 Vì sao <code>router.navigate([])</code> (mảng rỗng) mà không phải <code>navigate(['/courses'])</code></div>
+      <p>
+        Mảng rỗng + <code>relativeTo: this.route</code> nghĩa là "ở nguyên route hiện tại, chỉ đổi
+        query params". Bạn không muốn gõ cứng path — nếu route này bị đổi tên hay lồng sâu hơn,
+        code này vẫn đúng vì nó không biết (và không cần biết) path tuyệt đối là gì.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>search: search || null</code> chứ không phải <code>search: search</code></div>
+      <p>
+        Angular Router <strong>xoá</strong> query param khỏi URL khi giá trị là <code>null</code>
+        hoặc <code>undefined</code>, nhưng vẫn giữ nó (dạng <code>?search=</code>) khi giá trị là
+        chuỗi rỗng <code>''</code>. Xoá search text thì bạn muốn URL sạch (<code>/courses?page=1</code>),
+        không phải <code>/courses?search=&amp;page=1</code>.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · trích từ spec đã verify</span>
+<pre><code><span class="fn">it</span>(<span class="str">'TC1 — vào trang không query param: gọi GET /api/courses?page=1&amp;limit=12'</span>, () => {
+  s.fixture.<span class="fn">detectChanges</span>();
+  <span class="kw">const</span> req = httpMock.<span class="fn">expectOne</span>(
+    (r) => r.url === <span class="str">'/api/courses'</span> &amp;&amp; r.params.<span class="fn">get</span>(<span class="str">'page'</span>) === <span class="str">'1'</span> &amp;&amp; r.params.<span class="fn">get</span>(<span class="str">'limit'</span>) === <span class="str">'12'</span>,
+  );
+  <span class="fn">expect</span>(req.request.params.<span class="fn">has</span>(<span class="str">'search'</span>)).<span class="fn">toBe</span>(<span class="kw">false</span>);
+  req.<span class="fn">flush</span>({ data: [], meta: { page: <span class="num">1</span>, limit: <span class="num">12</span>, total: <span class="num">0</span>, totalPages: <span class="num">1</span> } });
+});
+
+<span class="fn">it</span>(<span class="str">'TC2 — khôi phục filter TỪ url lúc vào trang'</span>, () => {
+  <span class="cmt">// ActivatedRoute mock trả sẵn queryParamMap({ search: 'ng', category: 'cat_1', page: '2' })</span>
+  s.fixture.<span class="fn">detectChanges</span>();
+  httpMock.<span class="fn">expectOne</span>(
+    (r) => r.params.<span class="fn">get</span>(<span class="str">'search'</span>) === <span class="str">'ng'</span> &amp;&amp; r.params.<span class="fn">get</span>(<span class="str">'category'</span>) === <span class="str">'cat_1'</span> &amp;&amp; r.params.<span class="fn">get</span>(<span class="str">'page'</span>) === <span class="str">'2'</span>,
+  ).<span class="fn">flush</span>(...);
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CourseListComponent — combineLatest gộp filter + sync URL (Bài 28)
+  ✓ TC1 — vào trang không query param: gọi GET /api/courses?page=1&amp;limit=12, không search/category
+  ✓ TC2 — khôi phục filter TỪ url lúc vào trang (?search=ng&amp;category=cat_1&amp;page=2)
+  ✓ TC3 — mỗi lần filter đổi, URL được cập nhật qua router.navigate với queryParams tương ứng
+
+Test Files  1 passed (1)
+     Tests  3 passed (3)</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Happy path chưa đủ</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi tôi verify bài này — để dành cho Bài 29</div>
+      <p>
+        Tôi viết thêm một test: flush API trả về 1 khoá học, đọc lại <code>result</code> của
+        component — <strong>đúng</strong>, state đã cập nhật. Nhưng gọi <code>detectChanges()</code>
+        lần nữa để kiểm DOM thì màn hình <strong>vẫn trống</strong>, tên khoá học không hề xuất hiện.
+      </p>
+      <p>
+        Đây KHÔNG phải lỗi ở <code>combineLatest</code> hay <code>switchMap</code> — logic RxJS của
+        bạn đúng 100%. Vấn đề nằm ở chỗ khác hẳn, và nó lộ ra vì component này zoneless
+        (nối lại phát hiện ở Bài 16 mục 5). Tôi <strong>cố tình để bug này lại</strong> — Bài 29
+        sẽ sửa nó như một hệ quả tự nhiên của việc đổi cách bind dữ liệu vào template, không phải
+        một bản vá rời.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Nếu 3 filter dùng <code>Subject</code> trơn thay vì <code>BehaviorSubject</code>, chuyện gì xảy ra khi người dùng CHỈ gõ search mà chưa đụng category/page?</div>
+    <button class="opt" data-correct="false" data-explain="combineLatest cần MỌI nguồn có giá trị. category/page chưa .next() lần nào -> combineLatest chưa có gì để gộp.">A. Vẫn gọi API bình thường, chỉ thiếu category/page trong query.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — bẫy im lặng của Bài 01. combineLatest không phát bất cứ gì cho tới khi CẢ BA nguồn đã .next() ít nhất một lần. Gõ search không đủ vì category/page (Subject trơn) chưa từng phát.">B. combineLatest không phát gì cả — không có request nào được gửi.</button>
+    <button class="opt" data-correct="false" data-explain="Không có lỗi biên dịch hay runtime nào ở đây, TypeScript không phát hiện được vấn đề timing của Observable.">C. TypeScript báo lỗi vì combineLatest cần đủ 3 tham số cùng lúc.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>syncUrl</code> dùng <code>replaceUrl: true</code> thay vì để mặc định?</div>
+    <button class="opt" data-correct="false" data-explain="replaceUrl không liên quan tới việc query params có được giữ hay không — đó là việc của queryParamsHandling: 'merge'.">A. Để giữ lại các query param khác không thuộc filter này.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Mỗi ký tự gõ vào ô search (sau này có debounce) là một lần đổi filter — nếu mỗi lần đều PUSH vào lịch sử trình duyệt, bấm nút Back sẽ phải bấm hàng chục lần mới thoát khỏi trang filter. replaceUrl: true thay thế URL hiện tại thay vì thêm entry mới.">B. Đổi filter không phải là một điều hướng thật — không nên tạo entry mới trong lịch sử back/forward mỗi lần gõ.</button>
+    <button class="opt" data-correct="false" data-explain="replaceUrl không ảnh hưởng gì tới việc component có bị huỷ/tạo lại hay không.">C. Để tránh Angular tạo lại component mỗi lần URL đổi.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>CourseListComponent</code> (bản đầu)</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Vào trang không query param → gọi đúng <code>GET /api/courses?page=1&amp;limit=12</code>, không có <code>search</code>/<code>category</code> trong params.</li>
+        <li><strong>TC2</strong> — Vào trang VỚI query param có sẵn (<code>?search=...&amp;category=...&amp;page=...</code>) → filter được khôi phục đúng, API được gọi với đúng tham số đó ngay từ đầu.</li>
+        <li><strong>TC3</strong> — Gọi <code>onSearch()</code>/<code>onCategory()</code>/<code>onPage()</code> → mỗi lần đều gọi lại API với tổ hợp filter MỚI NHẤT của cả 3.</li>
+        <li><strong>TC4</strong> — Mỗi lần filter đổi, <code>router.navigate</code> được gọi với đúng <code>queryParams</code> tương ứng (dùng <code>vi.spyOn(router, 'navigate')</code>).</li>
+        <li><strong>TC5 (không bắt buộc sửa)</strong> — Viết thêm 1 test flush dữ liệu thật rồi kiểm DOM sau <code>detectChanges()</code>. Nếu nó đỏ (DOM không hiện dữ liệu dù state đã đúng) — đừng sửa vội, ghi chú lại. Bài 29 sẽ giải quyết bằng một thay đổi lớn hơn, không phải một dòng vá.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Ba <code>BehaviorSubject</code> giá trị khởi tạo phải khớp với giá trị mặc định bạn dùng khi build query params (chuỗi rỗng nghĩa là "không lọc").</p>
+    <p><strong>Hint 2 · API:</strong> <code>combineLatest</code> · <code>BehaviorSubject</code> · <code>ActivatedRoute.snapshot.queryParamMap</code> · <code>Router.navigate([], {relativeTo, queryParams, queryParamsHandling, replaceUrl})</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 không nhận đúng filter ban đầu, kiểm tra thứ tự: bạn phải <code>.next()</code> giá trị từ URL TRƯỚC khi subscribe <code>combineLatest</code>, không phải sau.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết vì sao <code>combineLatest</code> cần <code>BehaviorSubject</code> cho từng nguồn, không phải <code>Subject</code> trơn.</li>
+      <li>Tôi tách rõ "đọc URL 1 lần lúc init" (snapshot) và "ghi URL liên tục khi state đổi" (router.navigate trong pipe).</li>
+      <li>Tôi biết <code>replaceUrl: true</code> tồn tại vì lý do UX cụ thể, không phải mặc định ngẫu nhiên.</li>
+      <li>Tôi không hoảng khi phát hiện DOM không cập nhật — tôi biết cách tách "state đúng" khỏi "render đúng" khi debug.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Bug ở mục 5 rất lạ: <code>this.result = res</code> chạy đúng (bạn đọc được state mới), nhưng
+      template không vẽ lại — dù component này <strong>không</strong> dùng
+      <code>ChangeDetectionStrategy.OnPush</code>.
+    </p>
+    <p>
+      Bài 16 mục 5 đã dạy: zoneless cần <code>markForCheck()</code> khi state đổi ngoài một event
+      template (ở đó là <code>writeValue</code> của CVA). Ở đây, việc "đổi state" xảy ra trong
+      callback <code>.subscribe()</code> của một Observable — cũng là một sự kiện <strong>ngoài</strong>
+      event template.
+    </p>
+    <p><strong>Có cách nào để Angular tự lo việc "báo view vẽ lại" mỗi khi Observable phát giá trị mới, mà bạn không cần gọi <code>markForCheck()</code> thủ công ở mọi nơi có <code>.subscribe()</code>?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã dùng công cụ này ở Bài 02 để tránh phải tự <code>.unsubscribe()</code>. Nó còn làm được nhiều hơn thế.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 29 · <code>async</code> pipe &amp; pagination không bắn API thừa</div>
+    <p class="nd">Sửa bug DOM không cập nhật — không phải bằng một dòng <code>markForCheck()</code> vá víu, mà bằng cách đổi hẳn cách component này bind dữ liệu.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0027-forgot-reset-password.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0029-async-pipe-pagination.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. Đừng vội sửa bug ở mục 5 nếu bạn tìm thấy nó — cứ ghi chú lại, chúng ta sẽ mổ xẻ nó kỹ ở Bài 29.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

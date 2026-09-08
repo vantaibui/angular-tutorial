@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 31 · forkJoin — fetch song song &amp; chịu lỗi từng phần</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 5 · Bài 31 · Course Listing · Bài cuối Module 6</span>
+    <h1><code>forkJoin</code> — fetch song song &amp; chịu lỗi từng phần</h1>
+    <p class="subtitle">
+      Trang chi tiết khoá học cần 3 API độc lập cùng lúc — và một API chết không được phép kéo
+      sập hai API còn lại. Dùng lại <code>GenericListComponent</code> vừa xây ở Bài 30.
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 Kết bài Module 6 — nối lại Bài 01, Bài 16, Bài 27, Bài 30</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>forkJoin</code> để gọi N Observable song song và gộp kết quả thành một object.</li>
+      <li>Giải thích vì sao <code>forkJoin</code> thất bại HOÀN TOÀN nếu một nhánh lỗi, và đặt <code>catchError</code> đúng chỗ (TRONG từng nhánh) để chặn việc đó.</li>
+      <li>Nhận diện tình huống zoneless cần <code>markForCheck()</code> thủ công — khi component không thể dùng <code>| async</code> vì cần thêm trạng thái <code>loading</code> tự quản lý.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 01: Observable lỗi là <strong>kết thúc</strong>, không có "bỏ qua rồi tiếp". Bài 27: path
+      param (<code>:id</code>) bắt buộc để route khớp, khác hẳn query param tuỳ chọn. Bài 30:
+      <code>GenericListComponent&lt;T&gt;</code> dùng chung cho mọi danh sách. Bài 16 mục 5 /
+      Bài 29: zoneless cần được "báo" khi state đổi ngoài sự kiện template.
+    </p>
+    <p>Bài này ghép cả bốn lại trong một component thật: <code>CourseDetailComponent</code>.</p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: 3 API độc lập, 1 màn hình</h2>
+    <p>
+      Trang chi tiết khoá học cần: thông tin khoá học (<code>GET /api/courses/:id</code>), danh
+      sách đánh giá (<code>GET /api/courses/:id/reviews</code>), và khoá học liên quan
+      (<code>GET /api/courses?exclude=:id&amp;limit=4</code>). Ba API này <strong>không phụ thuộc
+      lẫn nhau</strong> — gọi tuần tự (cái này xong mới gọi cái kia) chỉ làm trang load chậm vô ích.
+    </p>
+    <p>
+      Nhưng có rủi ro thật: nếu server đánh giá đang lỗi, người dùng vẫn nên xem được khoá học và
+      mua nó — không nên vì một phần phụ chết mà cả trang trắng xoá.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        Bạn cần một toán tử gộp N Observable <strong>song song</strong> (không phải tuần tự như
+        <code>switchMap</code> lồng nhau) thành MỘT kết quả tổng hợp. Nhưng nhớ lại Bài 01: một
+        Observable lỗi thì kết thúc luôn, không phát tiếp giá trị nào. Nếu toán tử gộp thừa hưởng
+        đúng tính chất đó, một nhánh lỗi sẽ ảnh hưởng gì tới TOÀN BỘ kết quả gộp?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: <code>forkJoin</code> fail-fast — và cách "cách ly" từng nhánh</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ forkJoin trần trụi — 1 nhánh lỗi, mất cả 2 nhánh kia</span>
+<pre><code><span class="fn">forkJoin</span>({
+  course: <span class="kw">this</span>.courseService.<span class="fn">getById</span>(id),
+  reviews: <span class="kw">this</span>.courseService.<span class="fn">getReviews</span>(id),   <span class="cmt">// server lỗi 500</span>
+  related: <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({ exclude: id, limit: <span class="num">4</span> }),
+}).<span class="fn">subscribe</span>(...);
+<span class="cmt">// reviews lỗi -> forkJoin lỗi NGAY LẬP TỨC -> .subscribe(...) không bao giờ chạy tới,</span>
+<span class="cmt">// dù course và related đã fetch THÀNH CÔNG từ lâu. Đây là hệ quả trực tiếp của Bài 01.</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">✅ Lời giải: catchError TRONG TỪNG NHÁNH, forkJoin không bao giờ thấy lỗi</span>
+<pre><code><span class="fn">forkJoin</span>({
+  course: <span class="kw">this</span>.courseService.<span class="fn">getById</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>))),
+  reviews: <span class="kw">this</span>.courseService.<span class="fn">getReviews</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([] <span class="kw">as</span> Review[]))),
+  related: <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({ exclude: id, limit: <span class="num">4</span> }).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(EMPTY_LIST))),
+}).<span class="fn">subscribe</span>(({ course, reviews, related }) => { ... });
+<span class="cmt">// Mỗi nhánh TỰ bắt lỗi của CHÍNH NÓ, thay lỗi bằng một giá trị fallback an toàn.</span>
+<span class="cmt">// forkJoin nhìn thấy 3 Observable đều "thành công" (dù reviews thực chất vừa lỗi) -> luôn gộp được.</span></code></pre>
+    </div>
+    <p>
+      Đây là bài học "đặt <code>catchError</code> trong hay ngoài" từ Bài 01 (và Bài 25 ở tầng
+      interceptor) quay lại lần thứ ba: vị trí của <code>catchError</code> quyết định
+      <strong>phạm vi</strong> nó bắt lỗi. Đặt NGOÀI <code>forkJoin</code> chỉ bắt được lỗi của
+      chính <code>forkJoin</code> (đã quá muộn — nó đã lỗi rồi). Đặt TRONG từng nhánh chặn lỗi
+      trước khi nó kịp lan tới <code>forkJoin</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/courses/course-detail/course-detail.component.ts</span>
+<pre><code><span class="kw">export interface</span> CourseDetailData {
+  course: Course | <span class="kw">null</span>;
+  reviews: Review[];
+  related: Course[];
+}
+
+<span class="kw">const</span> EMPTY_LIST = { data: [] <span class="kw">as</span> Course[], meta: { page: <span class="num">1</span>, limit: <span class="num">4</span>, total: <span class="num">0</span>, totalPages: <span class="num">1</span> } };
+
+<span class="fn">@Component</span>({ selector: <span class="str">'app-course-detail'</span>, standalone: <span class="kw">false</span>, templateUrl: <span class="str">'./course-detail.component.html'</span> })
+<span class="kw">export class</span> CourseDetailComponent <span class="kw">implements</span> OnInit {
+  data: CourseDetailData | <span class="kw">null</span> = <span class="kw">null</span>;
+  loading = <span class="kw">true</span>;
+
+  <span class="fn">constructor</span>(
+    <span class="kw">private readonly</span> courseService: CourseService,
+    <span class="kw">private readonly</span> route: ActivatedRoute,
+    <span class="kw">private readonly</span> cdr: ChangeDetectorRef,
+  ) {}
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="cmt">// :id là PATH param (Bài 27) — thiếu nó thì route còn không khớp, khác hẳn query param tuỳ chọn.</span>
+    <span class="kw">const</span> id = <span class="kw">this</span>.route.snapshot.paramMap.<span class="fn">get</span>(<span class="str">'id'</span>)!;
+
+    <span class="fn">forkJoin</span>({
+      course: <span class="kw">this</span>.courseService.<span class="fn">getById</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>))),
+      reviews: <span class="kw">this</span>.courseService.<span class="fn">getReviews</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([] <span class="kw">as</span> Review[]))),
+      related: <span class="kw">this</span>.courseService.<span class="fn">getAll</span>({ exclude: id, limit: <span class="num">4</span> }).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(EMPTY_LIST))),
+    }).<span class="fn">subscribe</span>(({ course, reviews, related }) => {
+      <span class="kw">this</span>.data = { course, reviews, related: related.data };
+      <span class="kw">this</span>.loading = <span class="kw">false</span>;
+      <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>();  <span class="cmt">// zoneless (Bài 16/29) — .subscribe() thủ công, không có | async lo hộ</span>
+    });
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · course-detail.component.html — dùng lại GenericListComponent (Bài 30)</span>
+<pre><code>&lt;ng-container *ngIf=<span class="str">"!loading; else spin"</span>&gt;
+  &lt;ng-container *ngIf=<span class="str">"data?.course as course; else notFound"</span>&gt;
+    &lt;h1&gt;{{ course.title }}&lt;/h1&gt;
+
+    &lt;app-generic-list [items]=<span class="str">"data!.reviews"</span> [itemTemplate]=<span class="str">"reviewTpl"</span> emptyText=<span class="str">"Chưa có đánh giá nào."</span>&gt;&lt;/app-generic-list&gt;
+    &lt;ng-template <span class="fn">#reviewTpl</span> let-review&gt;
+      &lt;strong&gt;{{ review.userName }}&lt;/strong&gt; — {{ review.rating }}⭐ &lt;p&gt;{{ review.comment }}&lt;/p&gt;
+    &lt;/ng-template&gt;
+
+    &lt;app-generic-list [items]=<span class="str">"data!.related"</span> [itemTemplate]=<span class="str">"relatedTpl"</span> emptyText=<span class="str">"Không có khoá học liên quan."</span>&gt;&lt;/app-generic-list&gt;
+    &lt;ng-template <span class="fn">#relatedTpl</span> let-related&gt;&lt;div&gt;{{ related.title }}&lt;/div&gt;&lt;/ng-template&gt;
+  &lt;/ng-container&gt;
+  &lt;ng-template <span class="fn">#notFound</span>&gt;&lt;p class=<span class="str">"not-found"</span>&gt;Không tìm thấy khoá học.&lt;/p&gt;&lt;/ng-template&gt;
+&lt;/ng-container&gt;
+&lt;ng-template <span class="fn">#spin</span>&gt;&lt;p&gt;Đang tải...&lt;/p&gt;&lt;/ng-template&gt;</code></pre>
+    </div>
+    <p>
+      Cùng MỘT <code>GenericListComponent</code> viết ở Bài 30 dùng cho cả đánh giá lẫn khoá học
+      liên quan — hai kiểu dữ liệu khác nhau (<code>Review</code> và <code>Course</code>), hai
+      <code>itemTemplate</code> khác nhau, không sửa một dòng nào trong <code>GenericListComponent</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Phát hiện khi tôi verify bài này — <code>markForCheck()</code> lại xuất hiện</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao KHÔNG dùng <code>| async</code> ở đây như Bài 29?</div>
+      <p>
+        <code>CourseDetailComponent</code> cần một trạng thái <code>loading</code> riêng để phân
+        biệt "đang tải" / "không tìm thấy" / "có dữ liệu" — ba nhánh hiển thị khác hẳn nhau.
+        <code>forkJoin</code> chỉ phát ĐÚNG MỘT LẦN khi cả 3 nhánh xong (khác
+        <code>result$</code> ở Bài 29, có thể phát lại nhiều lần theo filter) nên
+        <code>| async</code> vẫn dùng được, nhưng bạn vẫn cần một field <code>loading</code> để
+        biết REQUEST đã xong hay chưa — và cách tự nhiên nhất để cập nhật nó là trong
+        <code>.subscribe()</code>, ngoài mọi sự kiện template.
+      </p>
+      <p>
+        Tôi viết component KHÔNG có <code>markForCheck()</code> trước, chạy test: state
+        (<code>this.data</code>, <code>this.loading</code>) đúng 100%, nhưng DOM sau
+        <code>detectChanges()</code> lần hai vẫn hiện "Đang tải..." mãi — y hệt bug đã thấy ở
+        Bài 28/29, lần này trong bối cảnh <code>forkJoin</code> thay vì <code>combineLatest</code>.
+      </p>
+    </div>
+    <p>
+      Đây là bằng chứng quy tắc Bài 16 mục 5 <strong>tổng quát hơn</strong> những gì bạn nghĩ ban
+      đầu: nó không chỉ áp dụng cho <code>ControlValueAccessor</code>. Bất kỳ đâu bạn tự
+      <code>.subscribe()</code> một Observable (không qua <code>| async</code>) trong app zoneless,
+      bạn cần tự hỏi: "callback này có chạy TRONG một event template không?" — nếu không, phải
+      <code>markForCheck()</code>.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test tái hiện bug (đã verify — thất bại nếu thiếu markForCheck)</span>
+<pre><code>httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/courses/course_1'</span>).<span class="fn">flush</span>({ message: <span class="str">'not found'</span> }, { status: <span class="num">404</span>, statusText: <span class="str">'Not Found'</span> });
+httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/courses/course_1/reviews'</span>).<span class="fn">flush</span>([]);
+httpMock.<span class="fn">expectOne</span>((r) => r.params.<span class="fn">get</span>(<span class="str">'exclude'</span>) === <span class="str">'course_1'</span>).<span class="fn">flush</span>({ data: [], meta: {...} });
+
+fixture.<span class="fn">detectChanges</span>();
+<span class="fn">expect</span>(fixture.componentInstance.loading).<span class="fn">toBe</span>(<span class="kw">false</span>);       <span class="cmt">// ✅ state đúng, kể cả KHÔNG có markForCheck</span>
+<span class="fn">expect</span>(fixture.nativeElement.querySelector(<span class="str">'.not-found'</span>)).<span class="fn">not</span>.<span class="fn">toBeNull</span>();  <span class="cmt">// ❌ đỏ nếu thiếu markForCheck() — DOM vẫn hiện "Đang tải..."</span></code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Chứng minh bằng test — cả 3 kịch bản lỗi</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ CourseDetailComponent — forkJoin fetch song song &amp; chịu lỗi từng phần
+  ✓ TC1 — cả 3 API thành công: hiện course, reviews, related cùng lúc
+  ✓ TC2 — reviews API lỗi 500: course và related VẪN hiện, reviews rỗng chứ không sập trang
+  ✓ TC3 — course API 404: hiện trạng thái "không tìm thấy", không throw, không treo loading mãi
+
+Test Files  1 passed (1)
+     Tests  3 passed (3)</code></pre>
+    </div>
+    <p>
+      TC2 là bằng chứng quan trọng nhất của cả bài: <code>reviews</code> trả lỗi 500 thật
+      (<code>flush('lỗi server', {status: 500})</code>), nhưng <code>course.title</code> và
+      <code>related</code> vẫn đúng — chứng minh <code>catchError</code> trong nhánh reviews thực
+      sự "cách ly" lỗi, không lan sang hai nhánh còn lại.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Nếu bạn đặt <code>catchError</code> NGOÀI <code>forkJoin</code> (bọc quanh toàn bộ) thay vì trong từng nhánh, điều gì xảy ra khi <code>reviews</code> lỗi?</div>
+    <button class="opt" data-correct="false" data-explain="catchError ngoài forkJoin CÓ bắt được lỗi — nhưng chỉ sau khi forkJoin đã lỗi HOÀN TOÀN, nghĩa là course và related (dù thành công) cũng đã bị huỷ theo.">A. Không bắt được lỗi gì cả, app crash.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. forkJoin lỗi ngay khi MỘT nhánh lỗi — course và related dù đã fetch xong vẫn bị vứt bỏ theo, vì forkJoin chỉ phát giá trị khi TẤT CẢ nhánh cùng thành công. catchError ngoài chỉ có thể thay thế TOÀN BỘ kết quả bằng một fallback chung, không cứu được course/related đã thành công.">B. Toàn bộ forkJoin lỗi — bạn mất luôn kết quả course và related dù chúng đã thành công.</button>
+    <button class="opt" data-correct="false" data-explain="catchError chặn được lỗi (không throw ra ngoài .subscribe error callback), nhưng THIỆT HẠI (mất course/related) đã xảy ra trước đó, ở tầng forkJoin.">C. Giống hệt đặt trong từng nhánh, chỉ khác vị trí code.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>CourseDetailComponent</code> cần <code>markForCheck()</code> thủ công còn <code>CourseListComponent</code> (Bài 29, dùng <code>| async</code>) thì không?</div>
+    <button class="opt" data-correct="false" data-explain="Cả hai component đều zoneless như nhau — sự khác biệt không nằm ở loại Observable, mà ở CÁCH tiêu thụ nó."><code>forkJoin</code> không tương thích với zoneless, <code>combineLatest</code> thì có.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. | async tự gọi markForCheck() mỗi khi Observable nó theo dõi phát giá trị mới — đó là cơ chế nội bộ của AsyncPipe. CourseDetailComponent tự .subscribe() thủ công (vì cần cập nhật thêm field loading ngoài dữ liệu), nên không có AsyncPipe nào đứng ra làm việc đó — phải tự markForCheck().">B. <code>| async</code> tự gọi <code>markForCheck()</code> bên trong nó; <code>.subscribe()</code> thủ công thì không ai làm việc đó thay bạn.</button>
+    <button class="opt" data-correct="false" data-explain="ChangeDetectionStrategy không được khai báo khác nhau ở 2 component này — cả hai đều Default (không OnPush)."><code>CourseDetailComponent</code> dùng <code>OnPush</code> còn <code>CourseListComponent</code> thì không.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>6. 🎯 Your turn — bài cuối Module 6</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>CourseDetailComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Cả 3 API thành công → <code>data.course</code>, <code>data.reviews</code>, <code>data.related</code> đều đúng, <code>loading = false</code>.</li>
+        <li><strong>TC2</strong> — <code>reviews</code> API lỗi (500) → <code>course</code> và <code>related</code> VẪN đúng, <code>reviews</code> rỗng, không throw ra ngoài.</li>
+        <li><strong>TC3</strong> — <code>course</code> API lỗi (404) → hiện trạng thái "không tìm thấy" trên DOM, <code>loading = false</code>, không treo mãi ở "Đang tải".</li>
+        <li><strong>TC4</strong> — Dùng lại <code>GenericListComponent</code> (Bài 30) cho CẢ reviews lẫn related — không viết thêm <code>*ngFor</code> nào mới trong component này.</li>
+        <li><strong>TC5</strong> — DOM cập nhật đúng sau khi dữ liệu về, kiểm bằng <code>detectChanges()</code> + đọc <code>textContent</code>, không chỉ đọc field component.</li>
+      </ul>
+      <p><strong>Thử thách thêm:</strong> nếu CẢ 3 API đều lỗi cùng lúc, trang có nên hiện "không tìm thấy" hay một thông báo khác rõ ràng hơn ("có lỗi xảy ra, thử lại")? Tự quyết định và giải thích lý do trong PR.</p>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết 3 nhánh <code>catchError</code> TRƯỚC, sau đó mới ghép vào <code>forkJoin</code> — dễ kiểm từng nhánh độc lập hơn là debug cả khối một lúc.</p>
+    <p><strong>Hint 2 · API:</strong> <code>forkJoin({ key: obs$ })</code> (object form, không phải array) · <code>catchError(() => of(fallback))</code> · <code>ChangeDetectorRef.markForCheck()</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC5 đỏ dù TC1-3 xanh, đó gần như chắc chắn là thiếu <code>markForCheck()</code> — quay lại mục 4 đọc lại lý do.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — tổng kết Module 6</div>
+    <ul class="checklist">
+      <li>Tôi dùng đúng <code>forkJoin</code> cho N request song song, và biết chính xác nó fail-fast thế nào.</li>
+      <li>Tôi đặt <code>catchError</code> TRONG từng nhánh để cách ly lỗi — không để 1 API chết kéo sập cả trang.</li>
+      <li>Tôi phân biệt được khi nào <code>| async</code> đủ (Bài 29) và khi nào cần tự <code>.subscribe()</code> + <code>markForCheck()</code> thủ công (khi cần thêm state như <code>loading</code>).</li>
+      <li>Tôi dùng lại <code>GenericListComponent</code> cho 2 loại dữ liệu khác nhau trong cùng một component — bằng chứng generic thật sự tái dùng được, không chỉ lý thuyết.</li>
+      <li>Module 6 xong: pipeline RxJS (Bài 01) → combineLatest + URL (Bài 28) → async pipe + zoneless (Bài 29) → Generics ở component (Bài 30) → forkJoin + graceful degradation (Bài 31), tất cả nối vào MỘT tính năng thật của EduCommerce.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Câu hỏi tư duy</h2>
+    <p>
+      Trang chi tiết khoá học giờ có nút "Thêm vào giỏ hàng". Để cảm giác nhanh, bạn muốn UI cập
+      nhật NGAY khi bấm (hiện badge giỏ hàng +1) — không đợi server xác nhận. Nhưng nếu server từ
+      chối (ví dụ khoá học đã bị gỡ), bạn phải "lùi lại" badge đó về giá trị cũ.
+    </p>
+    <p>
+      Đây khác hẳn mọi thứ Module 6 vừa làm: cho tới giờ, UI luôn đợi API trả lời rồi mới hiển thị
+      (loading → data). Giờ bạn cần UI đi TRƯỚC server, và có kế hoạch "quay xe" nếu đoán sai.
+    </p>
+    <p><strong>Thiết kế nào cho phép "cập nhật UI trước, xác nhận với server sau, và lùi lại nếu server từ chối" — mà không làm rối state của cả app?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: nghĩ về việc LƯU LẠI trạng thái CŨ trước khi đổi, để có gì đó "lùi về" nếu cần. Cụm từ bạn đang tìm bắt đầu bằng "optimistic".</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Module tiếp theo</div>
+    <div class="nt">Module 7 · Phase 6 — Cart &amp; Checkout</div>
+    <p class="nd">Bài 32 · <code>CartService</code> — optimistic update + rollback. Nơi state management bắt đầu đau, chuẩn bị nền cho NgRx ở Module 10.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0030-generic-list-component.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC2 (reviews lỗi, course/related vẫn sống) là bằng chứng quan trọng nhất — nó chứng minh "chịu lỗi từng phần" chứ không chỉ "không crash".</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

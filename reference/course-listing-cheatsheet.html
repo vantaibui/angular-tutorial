@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Course Listing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 28–31</span>
+    <h1>Course Listing — cheat-sheet</h1>
+    <p class="subtitle">combineLatest vs 1 state object, debounce đúng chỗ, Generics ở tầng component, forkJoin chịu lỗi từng phần.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.1.4 · 16 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. <code>combineLatest</code> cần MỌI nguồn có giá trị</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">const</span> a$ = <span class="kw">new</span> BehaviorSubject(<span class="str">''</span>);  <span class="cmt">// ✅ có giá trị NGAY — combineLatest phát được từ đầu</span>
+<span class="kw">const</span> b$ = <span class="kw">new</span> Subject();          <span class="cmt">// ❌ chưa .next() thì combineLatest KHÔNG BAO GIỜ phát</span>
+<span class="fn">combineLatest</span>([a$, b$]).<span class="fn">subscribe</span>(...);</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Dùng khi</th><th>combineLatest nhiều nguồn</th><th>1 state object + patch()</th></tr></thead>
+      <tbody>
+        <tr><td>Các nguồn</td><td>Độc lập thật sự</td><td>Liên quan tới nhau (đổi A phải kéo theo đổi B)</td></tr>
+        <tr><td>1 hành động → mấy emission?</td><td>Mỗi <code>.next()</code> = 1 emission riêng</td><td><code>patch({a, b})</code> = 1 emission duy nhất</td></tr>
+        <tr><td>Rủi ro</td><td>Đổi 2 field liên quan → 2 request (thừa)</td><td>Không có, vì atomic</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Debounce ĐÚNG CHỖ — trên nguồn thô, không trên state đã gộp</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">private readonly</span> searchInput$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();          <span class="cmt">// bàn phím thô</span>
+<span class="kw">private readonly</span> filterSubject = <span class="kw">new</span> BehaviorSubject&lt;FilterState&gt;({...}); <span class="cmt">// state đã gộp</span>
+
+searchInput$.<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>), <span class="fn">distinctUntilChanged</span>())
+  .<span class="fn">subscribe</span>((search) => <span class="kw">this</span>.<span class="fn">patchFilter</span>({ search, page: <span class="num">1</span> }));
+
+<span class="cmt">// filterSubject KHÔNG debounce -> lần load đầu tiên không bị trễ 300ms vô lý</span>
+result$ = filterSubject.<span class="fn">pipe</span>(<span class="fn">distinctUntilChanged</span>(sameFilter), <span class="fn">switchMap</span>(fetch));</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Đặt debounce trên state đã gộp → mọi lần vào trang đều trễ 300ms</div>
+      <p><code>debounceTime</code> áp cho MỌI emission đi qua nó, kể cả emission khởi tạo lúc <code>ngOnInit</code> khôi phục filter từ URL — không riêng gì thao tác gõ phím.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. <code>| async</code> = tự unsubscribe (Bài 02) + tự <code>markForCheck()</code> (Bài 16)</h2>
+    <table class="data">
+      <thead><tr><th></th><th><code>.subscribe()</code> thủ công</th><th><code>| async</code></th></tr></thead>
+      <tbody>
+        <tr><td>Tự unsubscribe khi huỷ</td><td>❌ cần <code>takeUntil</code></td><td>✅</td></tr>
+        <tr><td>Báo CD vẽ lại (zoneless)</td><td>❌ cần <code>markForCheck()</code></td><td>✅</td></tr>
+        <tr><td>Dùng khi</td><td>Cần thêm state tự quản lý (vd <code>loading</code>)</td><td>Chỉ cần hiển thị thẳng giá trị Observable</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Quy tắc chung (Bài 16 → Bài 29 → Bài 31)</div>
+      <p>App zoneless: bất kỳ đâu bạn <code>.subscribe()</code> thủ công NGOÀI một event template (click, input) — kể cả trong <code>forkJoin</code>, CVA, hay HTTP response — phải tự gọi <code>ChangeDetectorRef.markForCheck()</code> sau khi mutate state, dù component không dùng <code>OnPush</code>.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Generics ở tầng component — <code>TemplateRef</code> + <code>ngTemplateOutlet</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">export class</span> GenericListComponent&lt;T&gt; {  <span class="cmt">// KHÔNG ràng buộc gì — không đọc field nào của T</span>
+  <span class="fn">@Input</span>() items: T[] = [];
+  <span class="fn">@Input</span>() itemTemplate!: TemplateRef&lt;{ $implicit: T; index: <span class="kw">number</span> }&gt;;
+}</code></pre>
+      <span class="code-label">HTML</span>
+<pre><code>&lt;ng-container *ngTemplateOutlet=<span class="str">"itemTemplate; context: { $implicit: item, index: i }"</span>&gt;&lt;/ng-container&gt;
+<span class="cmt">-- Nơi dùng: &lt;ng-template let-c let-i="index"&gt; -- let-c nhận $implicit NGẦM ĐỊNH, field khác phải khai rõ tên.</span></code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Generic</th><th>Ràng buộc</th><th>Vì sao</th></tr></thead>
+      <tbody>
+        <tr><td><code>GenericApiService&lt;T extends {id:string}&gt;</code> (Bài 10)</td><td>Có</td><td>Cần <code>.id</code> để dựng URL</td></tr>
+        <tr><td><code>GenericListComponent&lt;T&gt;</code> (Bài 30)</td><td>Không</td><td>Chỉ lặp + uỷ quyền vẽ cho <code>itemTemplate</code>, không đọc field nào của T</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. <code>forkJoin</code> fail-fast — cách ly lỗi TRONG từng nhánh</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">forkJoin</span>({
+  course: courseService.<span class="fn">getById</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>(<span class="kw">null</span>))),      <span class="cmt">// mỗi nhánh TỰ bắt lỗi</span>
+  reviews: courseService.<span class="fn">getReviews</span>(id).<span class="fn">pipe</span>(<span class="fn">catchError</span>(() => <span class="fn">of</span>([]))),
+}).<span class="fn">subscribe</span>(...);
+<span class="cmt">-- catchError NGOÀI forkJoin: chỉ bắt được sau khi forkJoin đã lỗi HOÀN TOÀN -- mất cả nhánh THÀNH CÔNG.</span>
+<span class="cmt">-- catchError TRONG từng nhánh: forkJoin không bao giờ thấy lỗi -- mỗi nhánh độc lập cách ly.</span></code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 forkJoin thừa hưởng nguyên tắc Bài 01: 1 Observable lỗi = kết thúc</div>
+      <p>Không catchError trong nhánh nào lỗi → toàn bộ <code>forkJoin</code> lỗi, kể cả các nhánh khác ĐÃ thành công từ lâu.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>Khi nào dùng <code>combineLatest</code>, khi nào gộp 1 state object?</td><td><code>combineLatest</code> cho nguồn ĐỘC LẬP thật sự. Khi 1 thay đổi phải kéo theo thay đổi khác (atomic), dùng 1 <code>BehaviorSubject&lt;State&gt;</code> + <code>patch()</code> để tránh N emission cho 1 hành động.</td></tr>
+        <tr><td>Vì sao <code>| async</code> "an toàn" hơn <code>.subscribe()</code> thủ công ở app zoneless?</td><td><code>AsyncPipe</code> tự gọi <code>markForCheck()</code> mỗi lần Observable phát giá trị, và tự unsubscribe khi component huỷ — 2 việc bạn phải tự làm nếu subscribe thủ công.</td></tr>
+        <tr><td>Generics áp dụng cho Component thế nào?</td><td><code>TemplateRef&lt;Context&gt;</code> làm Input, dùng <code>ngTemplateOutlet</code> để "tiêm" cách hiển thị 1 item từ bên ngoài — component không cần biết hình dạng <code>T</code>.</td></tr>
+        <tr><td><code>forkJoin</code> vs <code>combineLatest</code> vs <code>zip</code>?</td><td><code>forkJoin</code>: N Observable, lấy giá trị CUỐI CÙNG của mỗi cái, phát 1 lần khi TẤT CẢ complete (hợp cho HTTP). <code>combineLatest</code>: phát lại mỗi khi 1 nguồn đổi, dùng cho stream sống lâu dài. <code>zip</code>: ghép theo THỨ TỰ index, hiếm dùng hơn trong CRUD app.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="auth-classic-cheatsheet.html">← Auth Classic</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng 16 test chạy xanh trên Angular 22.1.4 / RxJS 7.8.2.</p>
+</div>
+</body>
+</html>

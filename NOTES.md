@@ -240,8 +240,9 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–27** (hết Module 5 — Auth Flow Classic). Người học đã HOÀN THÀNH Bài 00-03,
-  đang làm Bài 04. Module 5 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài" (2026-09-07).
+- **Đã soạn: Bài 00–31** (hết Module 6 — Course Listing). Người học đã HOÀN THÀNH Bài 00-03,
+  đang làm Bài 04. Module 5-6 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
+  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08).
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
@@ -274,7 +275,39 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/kien-truc-routing-cheatsheet.html` — Bài 08–14.
 - `reference/forms-cheatsheet.html` — Bài 15–23.
 - `reference/auth-classic-cheatsheet.html` — Bài 24–27.
-- Mốc kế tiếp: sau **Bài 31** HOẶC khi Module 6 xong.
+- `reference/course-listing-cheatsheet.html` — Bài 28–31.
+- Mốc kế tiếp: sau **Bài 35** HOẶC khi Module 7 xong.
+
+### Phát hiện khi verify Module 6 (2026-09-08, đã đưa vào bài)
+Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/` (đã có sẵn từ Module 5). Thêm
+`GenericApiService<T>`, `CourseService`, `course-handlers.ts` (MSW), `GenericListComponent<T>`,
+`CourseListComponent`, `CourseDetailComponent`. Kết quả cuối: **30/30 test xanh** (7 file),
+`tsc --noEmit` sạch.
+- **🔴 PHÁT HIỆN LỚN — `markForCheck()` không chỉ cho CVA:** quy tắc Bài 16 mục 5 (zoneless cần
+  báo CD tường minh khi state đổi ngoài event template) hoá ra áp dụng cho MỌI `.subscribe()` thủ
+  công, không riêng `ControlValueAccessor`. Phát hiện khi verify `CourseDetailComponent`
+  (`forkJoin` + `.subscribe()` gán `this.data`/`this.loading`): state component đúng 100%
+  (verify bằng field trực tiếp), nhưng `fixture.detectChanges()` gọi lại vẫn không vẽ DOM mới —
+  kể cả gọi trực tiếp `fixture.changeDetectorRef.detectChanges()` hay `await fixture.whenStable()`.
+  Chỉ hết khi thêm `inject(ChangeDetectorRef).markForCheck()` trong callback `.subscribe()`.
+  Đã tổng quát hoá thành quy tắc rõ ràng ở Bài 29/31: "bất kỳ đâu `.subscribe()` thủ công NGOÀI
+  event template ở app zoneless đều cần `markForCheck()`, bất kể component có `OnPush` hay không."
+- **Thiết kế lại từ `combineLatest` 3 subject rời rạc sang 1 `BehaviorSubject<FilterState>`:**
+  phát hiện khi thêm yêu cầu UX "đổi search thì reset page" — với 3 subject riêng, `onSearch()`
+  phải gọi `pageSubject.next(1)` RỒI `searchSubject.next(value)`, tạo 2 emission (2 request) cho
+  1 hành động. Giải pháp: gộp thành 1 state object, `patchFilter()` merge nhiều field rồi
+  `.next()` đúng 1 lần. Dạy ở Bài 28 (dùng combineLatest đúng cách trước) rồi Bài 29 (lý do đổi).
+- **`debounceTime` đặt trên state đã gộp làm trễ CẢ lần load đầu tiên:** vì nó áp dụng cho MỌI
+  emission qua nó, không riêng gõ phím. Sửa bằng cách tách `Subject<string>` riêng cho bàn phím
+  thô, debounce ở đó, patch vào `filterSubject` (không debounce) sau khi debounce đã xảy ra.
+- **`HttpTestingController.expectOne(url: string)` so khớp `urlWithParams`, không phải `url`
+  trơn:** `expectOne('/api/courses')` báo "found none" dù request đúng là tới
+  `/api/courses` — vì server trả về `/api/courses?page=1&limit=12`. Phải dùng predicate
+  `(r) => r.url === '/api/courses'` (so `.url`, bỏ qua query) khi muốn khớp bất kể params.
+- Bug thật khác lặp lại y hệt Bài 27: khai trùng `CourseListComponent`/`CourseDetailComponent`/
+  `GenericListComponent` ở cả module thật (`CoursesModule`/`SharedModule`) lẫn `TestHostModule`
+  trong spec → `NG6007`. Sửa bằng thêm `exports` vào module thật và cho `TestHostModule`
+  **import** module đó thay vì khai lại.
 
 ### Phát hiện khi verify Module 5 (2026-09-07, đã đưa vào bài)
 Sandbox dựng lại từ đầu tại `<scratchpad>/ref/educommerce-ng-classic/` (sandbox Module 2–4 đã dọn

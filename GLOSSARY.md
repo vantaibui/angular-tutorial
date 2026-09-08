@@ -44,3 +44,19 @@ _Avoid_: cleanup subject, huỷ subscription
 Test mà khi ta cố tình phá code thì nó chuyển sang đỏ. Test xanh nhưng không đỏ khi phá code
 thì chưa chứng minh được điều nó tuyên bố.
 _Avoid_: test tốt, test đầy đủ
+
+**`combineLatest` im lặng**:
+`combineLatest` không phát gì cho tới khi **MỌI** nguồn đã phát ít nhất một giá trị. Muốn phát
+ngay từ nguồn chưa emit, phải cho nó giá trị khởi tạo (`startWith` hoặc `BehaviorSubject`).
+_Avoid_: combineLatest bị treo, combineLatest lỗi
+
+**Bẫy phát trùng (duplicate emission)**:
+`combineLatest`/`Subject.next()` phát lại dù giá trị mới giống hệt giá trị cũ — ví dụ set lại
+`page` về đúng giá trị đang có vẫn tính là một emission mới. Chặn bằng `distinctUntilChanged()`.
+_Avoid_: bug gọi API 2 lần, race condition (đây không phải race — thứ tự vẫn đúng, chỉ là THỪA)
+
+**`withLatestFrom` — nguồn chính/nguồn phụ**:
+Chỉ nguồn ĐỨNG TRƯỚC `.pipe()` (nguồn chính) kích hoạt emission; nguồn truyền vào
+`withLatestFrom(...)` (nguồn phụ) chỉ đóng vai trò cung cấp giá trị mới nhất, tự nó đổi
+không kích hoạt gì. Khác `combineLatest` — ở đó mọi nguồn đều bình đẳng, đổi nguồn nào cũng kích hoạt.
+_Avoid_: combineLatest một chiều

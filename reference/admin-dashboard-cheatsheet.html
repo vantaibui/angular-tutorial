@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Dashboard Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 38–40</span>
+    <h1>Dashboard Admin — cheat-sheet</h1>
+    <p class="subtitle">Generic component + template typing, CdkTable, trackBy/OnPush/virtual scroll.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.1.4 · @angular/cdk 22.1.5 · 15 test xanh + tsc sạch</p>
+  </header>
+
+  <section>
+    <h2>1. Generic component — kiểu rò vào template</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="kw">export class</span> DynamicFormComponent&lt;TModel = <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;&gt; {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) schema: FormFieldSchema&lt;TModel&gt;[] = [];
+
+  <span class="cmt">// field.name: keyof TModel có thể là string|number|symbol -> ép về string ở MỘT chỗ,</span>
+  <span class="cmt">// KHÔNG để template đọc field.name trực tiếp (lỗi biên dịch template).</span>
+  <span class="fn">fieldName</span>(field: FormFieldSchema&lt;TModel&gt;): <span class="kw">string</span> { <span class="kw">return</span> field.name <span class="kw">as string</span>; }
+}
+<span class="cmt">// Test component generic trực tiếp: PHẢI khai rõ tham số generic —</span>
+<span class="cmt">// truyền class như GIÁ TRỊ không tự áp dụng default type parameter.</span>
+TestBed.<span class="fn">createComponent</span>&lt;DynamicFormComponent&lt;<span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;&gt;&gt;(DynamicFormComponent);</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Interface cụ thể không tự khớp <code>Record&lt;string, unknown&gt;</code></div>
+      <p><code>Course</code> (interface, không index signature) KHÔNG được TypeScript coi là tương thích với <code>Record&lt;string, unknown&gt;</code> dù mọi field đều string-keyed hợp lệ — quirk kinh điển, không phải bug.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. <code>markForCheck()</code> — không chỉ vẽ lại view của chính nó</h2>
+    <div class="callout danger">
+      <div class="ct">🔥🔥 Phát hiện quan trọng: markForCheck() còn quyết định @Input có LAN TRUYỀN xuống con hay không</div>
+      <p>Thiếu <code>markForCheck()</code> ở cha: property cha ĐÚNG giá trị, nhưng <code>ngOnChanges()</code> của CON hoàn toàn không được gọi trong lần <code>detectChanges()</code> kế tiếp — dù binding <code>[input]</code> vẫn còn đó. Verify bằng probe tối giản (host+child thuần, không HTTP/RxJS).</p>
+    </div>
+    <p>Áp dụng cho MỌI nơi mutate field được bind xuống con từ callback ngoài event template (Bài 16 CVA → 29 CourseList → 31 CourseDetail → 37 event bus → 38 form cha/con — 5 lần liên tiếp, cùng 1 quy tắc).</p>
+  </section>
+
+  <section>
+    <h2>3. CDK Table — cột định nghĩa riêng, hàng chỉ lắp ráp</h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>&lt;table cdk-table [dataSource]=<span class="str">"items"</span> [trackBy]=<span class="str">"trackByFn"</span>&gt;
+  &lt;ng-container cdkColumnDef=<span class="str">"title"</span>&gt;
+    &lt;th cdk-header-cell *cdkHeaderCellDef&gt;Tiêu đề&lt;/th&gt;
+    &lt;td cdk-cell *cdkCellDef=<span class="str">"let row"</span>&gt;{{ row.title }}&lt;/td&gt;
+  &lt;/ng-container&gt;
+  &lt;tr cdk-header-row *cdkHeaderRowDef=<span class="str">"displayedColumns"</span>&gt;&lt;/tr&gt;
+  &lt;tr cdk-row *cdkRowDef=<span class="str">"let row; columns: displayedColumns"</span>&gt;&lt;/tr&gt;
+&lt;/table&gt;</code></pre>
+    </div>
+    <p>Đổi thứ tự/ẩn hiện cột chỉ cần đổi mảng <code>displayedColumns</code> — không sửa phần định nghĩa cột.</p>
+  </section>
+
+  <section>
+    <h2>4. <code>trackBy</code> — chứng minh bằng đúng kịch bản</h2>
+    <table class="data">
+      <thead><tr><th>Kịch bản test</th><th>Có cần trackBy để giữ DOM?</th></tr></thead>
+      <tbody>
+        <tr><td>Sort lại MẢNG hiện có (object bên trong giữ nguyên tham chiếu)</td><td>❌ Không — so khớp mặc định theo tham chiếu đã đủ</td></tr>
+        <tr><td>Gọi lại API, response JSON MỚI (object mới, cùng id)</td><td>✅ Có — không có trackBy sẽ huỷ + tạo lại toàn bộ DOM row</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Test sort-lại-mảng KHÔNG chứng minh được giá trị của trackBy</div>
+      <p>Phải test đúng kịch bản "server trả object mới cùng id" (vd sau khi xoá 1 dòng rồi load lại) mới thấy được sự khác biệt trackBy tạo ra.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. <code>OnPush</code> — điều kiện an toàn</h2>
+    <table class="data">
+      <thead><tr><th>Trước khi bật OnPush</th><th>Kiểm tra</th></tr></thead>
+      <tbody>
+        <tr><td>Mọi chỗ đổi mảng/object</td><td>Gán REFERENCE MỚI (spread/map/filter), không <code>.push()</code>/mutate tại chỗ</td></tr>
+        <tr><td>Mọi <code>.subscribe()</code> thủ công</td><td>Gọi <code>markForCheck()</code> sau khi mutate state</td></tr>
+      </tbody>
+    </table>
+    <p>Code viết đúng kỷ luật zoneless (Bài 16 trở đi) đã tự động thoả điều kiện <code>OnPush</code> — bật cờ này thường không cần sửa logic.</p>
+  </section>
+
+  <section>
+    <h2>6. Virtual scroll — giới thiệu, giới hạn test</h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>&lt;cdk-virtual-scroll-viewport itemSize=<span class="str">"48"</span> style=<span class="str">"height: 400px"</span>&gt;
+  &lt;div *cdkVirtualFor=<span class="str">"let item of items; trackBy: trackByFn"</span>&gt;{{ item.title }}&lt;/div&gt;
+&lt;/cdk-virtual-scroll-viewport&gt;</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 jsdom không tính layout — không đếm chính xác số DOM row được trong test</div>
+      <p><code>getBoundingClientRect()</code> luôn trả 0 trong jsdom, kể cả sau khi ép qua <code>viewport.checkViewportSize()</code>. Test chỉ xác nhận cấu trúc CDK đúng + không throw với dữ liệu lớn; xác minh "chỉ render dòng nhìn thấy" bằng mắt trong trình duyệt thật.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td><code>trackBy</code>/<code>OnPush</code>/virtual scroll khác nhau ở đâu?</td><td><code>trackBy</code> giảm huỷ-tạo-lại DOM khi identity không đổi; <code>OnPush</code> giảm số component bị CHECK; virtual scroll giảm số DOM node tồn tại cùng lúc. Ba vấn đề độc lập, không thay thế nhau.</td></tr>
+        <tr><td>Điều kiện an toàn để bật OnPush?</td><td>Mọi thay đổi state phải qua reference mới (không mutate tại chỗ), và mọi mutate ngoài event template phải gọi markForCheck().</td></tr>
+        <tr><td>Generic component có nhược điểm gì?</td><td>Kiểu generic không ràng buộc (keyof TModel) có thể rò vào template gây lỗi biên dịch — cần ép kiểu tường minh qua method, không để rải rác trong template.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="learn-progress-cheatsheet.html">← Học bài &amp; Progress</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng 15 test chạy xanh trên Angular 22.1.4 / @angular/cdk 22.1.5.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 39 · CDK Table — sort / filter / paginate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8 · Bài 39 · Dashboard Admin</span>
+    <h1>CDK Table — sort / filter / paginate</h1>
+    <p class="subtitle">
+      Danh sách admin cần CỘT, không chỉ thẻ. CDK Table cho cấu trúc bảng "trần" — không theming,
+      không CSS mặc định — bạn tự quyết định giao diện, CDK chỉ lo cấu trúc dữ liệu-cột-hàng.
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 CDK thứ hai của khoá (sau Drag &amp; Drop, Bài 21)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dựng một bảng bằng <code>CdkTableModule</code>: <code>cdkColumnDef</code>, <code>cdkHeaderCellDef</code>, <code>cdkCellDef</code>, <code>cdkRowDef</code>.</li>
+      <li>Tái dùng NGUYÊN XI pattern debounce search + phân trang từ Bài 29 — không viết lại từ đầu.</li>
+      <li>Thêm sắp xếp CLIENT-SIDE trên dữ liệu trang hiện tại, phân biệt rõ với phân trang SERVER-SIDE.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 21: CDK Drag &amp; Drop — "hành vi không giao diện", bạn tự viết CSS. CDK Table đi theo
+      đúng triết lý đó cho bảng dữ liệu. Bài 29: debounce đúng chỗ (nguồn thô, không phải state đã
+      gộp), <code>distinctUntilChanged</code> tránh gọi API thừa khi bấm lại trang cũ — tái dùng
+      lại NGUYÊN VẸN ở đây, chỉ đổi nơi hiển thị kết quả từ thẻ sang bảng.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: bảng, không phải lưới thẻ</h2>
+    <p>
+      Admin quản lý hàng chục, hàng trăm khoá học — xem dạng thẻ (Bài 38) không hiệu quả để so
+      sánh nhanh giá, trình độ giữa nhiều dòng. Cần bảng: mỗi cột một loại dữ liệu, click tiêu đề
+      cột để sắp xếp.
+    </p>
+    <div class="callout why">
+      <div class="ct">🤔 Trước khi nhìn lời giải</div>
+      <p>
+        <code>GenericListComponent</code> (Bài 30) lặp qua mảng và uỷ quyền vẽ MỘT item cho
+        template — nó không có khái niệm "cột". Bảng cần một cấu trúc khác: định nghĩa CỘT trước
+        (tên, cách hiển thị), rồi lắp NHIỀU cột đó vào một hàng. Angular CDK có bộ nào tách đúng
+        hai khái niệm này — cột định nghĩa RIÊNG, hàng chỉ LẮP RÁP các cột đã định nghĩa?
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Mental model: định nghĩa CỘT trước, LẮP vào hàng sau</h2>
+    <div class="code-block">
+      <span class="code-label">HTML · cấu trúc CdkTable</span>
+<pre><code>&lt;table cdk-table [dataSource]=<span class="str">"courses"</span>&gt;
+  <span class="cmt">&lt;!-- Định nghĩa MỘT cột: tên cột + cách vẽ header + cách vẽ ô --&gt;</span>
+  &lt;ng-container cdkColumnDef=<span class="str">"title"</span>&gt;
+    &lt;th cdk-header-cell *cdkHeaderCellDef&gt;Tiêu đề&lt;/th&gt;
+    &lt;td cdk-cell *cdkCellDef=<span class="str">"let course"</span>&gt;{{ course.title }}&lt;/td&gt;
+  &lt;/ng-container&gt;
+
+  <span class="cmt">&lt;!-- Lắp các cột đã định nghĩa (ở TRÊN, có thể theo bất kỳ thứ tự nào) vào MỘT hàng --&gt;</span>
+  &lt;tr cdk-header-row *cdkHeaderRowDef=<span class="str">"displayedColumns"</span>&gt;&lt;/tr&gt;
+  &lt;tr cdk-row *cdkRowDef=<span class="str">"let row; columns: displayedColumns"</span>&gt;&lt;/tr&gt;
+&lt;/table&gt;</code></pre>
+    </div>
+    <p>
+      Tách biệt này cho phép <strong>đổi thứ tự cột chỉ bằng cách đổi mảng
+      <code>displayedColumns</code></strong> — không cần sắp xếp lại các khối
+      <code>cdkColumnDef</code> trong template. Đây chính là ý tưởng "khai báo cấu trúc, lắp ráp
+      riêng" — cùng tinh thần tách biệt với <code>ngTemplateOutlet</code> ở Bài 30, chỉ khác quy mô.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Code đầy đủ — tái dùng Bài 29, thêm sort</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · admin-course-table.component.ts</span>
+<pre><code><span class="kw">const</span> PAGE_SIZE = <span class="num">10</span>;
+
+<span class="kw">export class</span> AdminCourseTableComponent <span class="kw">implements</span> OnInit, OnDestroy {
+  <span class="kw">readonly</span> displayedColumns: <span class="kw">string</span>[] = [<span class="str">'title'</span>, <span class="str">'price'</span>, <span class="str">'level'</span>, <span class="str">'actions'</span>];
+  courses: Course[] = [];
+  page = <span class="num">1</span>;
+  totalPages = <span class="num">1</span>;
+
+  <span class="kw">private</span> sortKey: <span class="str">'title'</span> | <span class="str">'price'</span> = <span class="str">'title'</span>;
+  <span class="kw">private</span> sortDirection: <span class="str">'asc'</span> | <span class="str">'desc'</span> = <span class="str">'asc'</span>;
+  <span class="kw">private</span> lastSearch = <span class="str">''</span>;
+  <span class="kw">private readonly</span> searchInput$ = <span class="kw">new</span> Subject&lt;<span class="kw">string</span>&gt;();
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="cmt">// Y HỆT Bài 29: debounce trên nguồn thô (bàn phím), KHÔNG trên state đã gộp.</span>
+    <span class="kw">this</span>.searchInput$.<span class="fn">pipe</span>(<span class="fn">debounceTime</span>(<span class="num">300</span>), <span class="fn">distinctUntilChanged</span>(), <span class="fn">takeUntil</span>(<span class="kw">this</span>.destroy$))
+      .<span class="fn">subscribe</span>((search) => <span class="kw">this</span>.<span class="fn">load</span>(search, <span class="num">1</span>));
+    <span class="kw">this</span>.<span class="fn">load</span>(<span class="str">''</span>, <span class="num">1</span>); <span class="cmt">// KHÔNG debounce lần đầu — đúng lý do đã học ở Bài 29</span>
+  }
+
+  <span class="cmt">// Sort CHỈ trên TRANG hiện tại — API (Bài 28-29) chưa hỗ trợ tham số sort.</span>
+  <span class="cmt">// Phân trang vẫn do SERVER quyết định (search/page tái dùng nguyên xi Bài 29).</span>
+  <span class="fn">onSort</span>(key: <span class="str">'title'</span> | <span class="str">'price'</span>): <span class="kw">void</span> {
+    <span class="kw">if</span> (<span class="kw">this</span>.sortKey === key) { <span class="kw">this</span>.sortDirection = <span class="kw">this</span>.sortDirection === <span class="str">'asc'</span> ? <span class="str">'desc'</span> : <span class="str">'asc'</span>; }
+    <span class="kw">else</span> { <span class="kw">this</span>.sortKey = key; <span class="kw">this</span>.sortDirection = <span class="str">'asc'</span>; }
+    <span class="kw">this</span>.<span class="fn">applySortInPlace</span>();
+  }
+
+  <span class="kw">private</span> <span class="fn">load</span>(search: <span class="kw">string</span>, page: <span class="kw">number</span>): <span class="kw">void</span> {
+    <span class="kw">this</span>.lastSearch = search;
+    <span class="kw">this</span>.courseService
+      .<span class="fn">getAll</span>({ ...(search ? { search } : {}), page, limit: PAGE_SIZE })
+      .<span class="fn">subscribe</span>((res) => {
+        <span class="kw">this</span>.courses = res.data;
+        <span class="kw">this</span>.page = res.meta.page;
+        <span class="kw">this</span>.totalPages = res.meta.totalPages;
+        <span class="kw">this</span>.<span class="fn">applySortInPlace</span>();
+        <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); <span class="cmt">// zoneless — .subscribe() thủ công gán mảng mới cho CdkTable</span>
+      });
+  }
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML · cột sort được bằng click header</span>
+<pre><code>&lt;th cdk-header-cell *cdkHeaderCellDef (click)=<span class="str">"onSort('price')"</span>&gt;Giá {{ sortIndicator(<span class="str">'price'</span>) }}&lt;/th&gt;</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Vì sao sort KHÔNG đụng vào <code>load()</code> hay gọi lại API</div>
+      <p>
+        API (Bài 28-29) chưa có tham số <code>sort</code>. Thêm nó cần đổi cả MSW handler lẫn
+        service — ngoài phạm vi bài này. Giải pháp thực dụng: sort CHỈ áp dụng trên MẢNG ĐÃ CÓ
+        (trang hiện tại), qua <code>[...this.courses].sort(...)</code>. Hệ quả CẦN NÓI RÕ với
+        người dùng: sort chỉ đúng TRONG một trang, không sort được toàn bộ tập dữ liệu qua nhiều
+        trang — một đánh đổi thật, không phải thiếu sót.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ AdminCourseTableComponent — CdkTable sort/filter/paginate (Bài 39)
+  ✓ TC1 — vào trang gọi GET /api/courses ngay, KHÔNG chờ debounce
+  ✓ TC2 — gõ search: debounce 300ms rồi mới gọi API với tham số search
+  ✓ TC3 — onSort("price") sắp xếp lại mảng courses TĂNG DẦN theo giá, click lần 2 đảo chiều
+  ✓ TC4 — onPage(2) gọi lại API với page=2, GIỮ NGUYÊN search hiện tại
+  ✓ TC5 — remove() gọi DELETE rồi tải lại ĐÚNG trang + search hiện tại (không reset về trang 1)
+
+Test Files  1 passed (1)
+     Tests  5 passed (5)</code></pre>
+    </div>
+    <p>
+      TC5 là chi tiết dễ bỏ sót: xoá một dòng ở trang 2 rồi tải lại phải VẪN Ở TRANG 2 (và giữ
+      nguyên search) — không nhảy về trang 1 một cách khó chịu. <code>remove()</code> gọi
+      <code>this.load(this.lastSearch, this.page)</code>, không phải <code>load('', 1)</code>.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao tách <code>cdkColumnDef</code> (định nghĩa cột) khỏi <code>cdkRowDef</code> (lắp ráp hàng) lại hữu ích hơn viết thẳng một khối <code>*ngFor</code> lồng nhau?</div>
+    <button class="opt" data-correct="false" data-explain="Hiệu năng của CdkTable không phụ thuộc vào việc tách hay không tách cdkColumnDef — đây không phải lý do chính."><code>cdkColumnDef</code> tách riêng thì bảng chạy nhanh hơn.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Vì cột được ĐỊNH NGHĨA và LẮP RÁP tách rời, bạn có thể đổi thứ tự/ẩn hiện cột chỉ bằng cách đổi mảng displayedColumns — không cần sắp xếp lại code định nghĩa cột. Đây là lợi ích chính của kiến trúc CdkTable so với viết tay.">Đổi thứ tự hoặc ẩn/hiện cột chỉ cần đổi mảng <code>displayedColumns</code> — không phải viết lại phần định nghĩa cột.</button>
+    <button class="opt" data-correct="false" data-explain="CdkColumnDef không có ràng buộc gì về SỐ LƯỢNG cột tối đa — có thể định nghĩa bao nhiêu cột tuỳ ý."><code>*ngFor</code> lồng nhau không hỗ trợ quá 3 cột.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Sort trong bài này chỉ áp dụng trên trang hiện tại. Sếp muốn sort ĐÚNG trên toàn bộ tập dữ liệu (xuyên các trang). Cách nào đúng?</div>
+    <button class="opt" data-correct="false" data-explain="Sort client-side trên MỘT trang không thể đúng cho TOÀN BỘ dữ liệu — trang 2 vẫn giữ nguyên thứ tự gốc, không liên quan gì tới sort đã làm ở trang 1.">Tăng <code>limit</code> lên thật lớn để tải hết dữ liệu về client rồi sort.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Sort đúng nghĩa xuyên trang PHẢI do SERVER thực hiện — client chỉ thấy được 1 trang tại một thời điểm, không thể biết thứ tự đúng của TOÀN BỘ tập dữ liệu. Cần thêm tham số sort vào API (tương tự search/page đã có), và gọi lại API mỗi khi đổi cột/chiều sort — logic y hệt onSearchInput()/onPage() đã có, chỉ thêm 1 tham số.">Thêm tham số <code>sort</code> vào API (giống <code>search</code>/<code>page</code> đã có), để SERVER trả về đúng thứ tự trên toàn bộ tập dữ liệu — client không tự sort được khi chỉ thấy một phần dữ liệu.</button>
+    <button class="opt" data-correct="false" data-explain="Tải hết dữ liệu về rồi mới phân trang trên client đánh mất toàn bộ lợi ích của phân trang server-side (giảm tải mạng/server) — không phải giải pháp hợp lý cho tập dữ liệu lớn."><code>limit</code> lớn kết hợp tải hết dữ liệu về rồi tự phân trang lại trên client.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — <code>AdminCourseTableComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Vào trang gọi API ngay, không chờ debounce (tái dùng đúng Bài 29).</li>
+        <li><strong>TC2</strong> — Gõ search: debounce 300ms, không bắn API thừa.</li>
+        <li><strong>TC3</strong> — Click header cột: sort tăng dần lần đầu, đảo chiều lần click thứ hai.</li>
+        <li><strong>TC4</strong> — Đổi trang: giữ nguyên search hiện tại, không reset.</li>
+        <li><strong>TC5</strong> — Xoá một dòng: tải lại ĐÚNG trang + search hiện tại, không nhảy về trang 1.</li>
+        <li><strong>TC6</strong> — Dùng đúng <code>cdkColumnDef</code>/<code>cdkHeaderCellDef</code>/<code>cdkCellDef</code>/<code>cdkRowDef</code> — không viết bảng bằng <code>*ngFor</code> lồng tay.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Copy nguyên khối search + pagination logic từ <code>CourseListComponent</code> (Bài 29) trước, chỉ đổi phần TEMPLATE hiển thị từ <code>GenericListComponent</code> sang <code>CdkTable</code>.</p>
+    <p><strong>Hint 2 · API:</strong> <code>CdkTableModule</code> từ <code>@angular/cdk/table</code> · <code>[dataSource]</code> nhận mảng trực tiếp · <code>cdkHeaderRowDef</code>/<code>cdkRowDef</code> cần đúng mảng <code>displayedColumns</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu bảng không hiện gì dù <code>courses</code> có dữ liệu, kiểm tra <code>columns: displayedColumns</code> trong <code>*cdkRowDef</code> — thiếu phần này bảng render rỗng không báo lỗi.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi dựng được bảng bằng CDK Table — công cụ headless thứ hai của khoá, cùng triết lý với Drag &amp; Drop (Bài 21).</li>
+      <li>Tôi tái dùng ĐÚNG logic debounce/phân trang từ Bài 29 thay vì viết lại — nhận ra khi nào một pattern đã học lại áp dụng được.</li>
+      <li>Tôi phân biệt rõ sort CLIENT-SIDE (trên 1 trang) và sort cần SERVER-SIDE (xuyên trang) — không nhầm lẫn hai bài toán khác nhau.</li>
+      <li>Tôi giữ đúng trang/search khi tải lại sau một hành động (xoá) — chi tiết UX dễ bị bỏ sót.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bảng hiện chỉ có 10 dòng mỗi trang. Nếu admin có 500 khoá học và muốn xem TẤT CẢ trong một
+      trang cuộn dài (không phân trang bằng nút bấm) — render cả 500 dòng cùng lúc, dù chỉ khoảng
+      10 dòng hiện trong khung nhìn, sẽ khiến trình duyệt tạo ra 500 <code>&lt;tr&gt;</code>
+      DOM node ngay lập tức.
+    </p>
+    <p><strong>Có cách nào để trình duyệt CHỈ thực sự tạo DOM node cho những dòng đang HIỂN THỊ trong khung nhìn, và tự tạo/huỷ khi người dùng cuộn — mà không cần bạn tự viết logic tính toán đó?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: cùng họ CDK bạn vừa dùng cho bảng. Tên của nó có chữ "ảo" (virtual) — vì phần lớn không gian cuộn không hề có DOM thật, chỉ là khoảng trống được tính toán để thanh cuộn trông đúng kích thước.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo · Bài cuối Module 9</div>
+    <div class="nt">Bài 40 · 500 dòng không lag · <code>trackBy</code> · <code>OnPush</code> · virtual scroll (giới thiệu)</div>
+    <p class="nd">Ba kỹ thuật độc lập, ba vấn đề khác nhau — áp cả ba vào chính bảng vừa xây.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0038-crud-course-dynamic-form.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0040-trackby-onpush-virtual-scroll.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC5 (giữ đúng trang/search sau khi xoá) là chi tiết nhỏ nhưng phân biệt rõ code "chạy được" và code THỰC SỰ nghĩ cho UX.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

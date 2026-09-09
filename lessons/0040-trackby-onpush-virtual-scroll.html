@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 40 · 500 dòng không lag — trackBy · OnPush · virtual scroll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8 · Bài 40 · Dashboard Admin · Bài cuối Module 9</span>
+    <h1>500 dòng không lag — <code>trackBy</code> · <code>OnPush</code> · virtual scroll</h1>
+    <p class="subtitle">
+      Ba kỹ thuật, ba vấn đề KHÁC NHAU. Nhầm lẫn "cái nào giải quyết cái gì" là dấu hiệu chưa
+      thật sự hiểu Change Detection — điều bạn sẽ đào sâu ngay ở Module 10.
+    </p>
+    <p class="meta-line">⏱ ~50 phút · 🎯 <code>OnPush</code> lần đầu ÁP DỤNG THẬT (đã nhắc 3 lần trước: Bài 06, 18, giờ là đây)</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích CHÍNH XÁC <code>trackBy</code> giải quyết vấn đề gì — và chứng minh bằng cách quan sát DOM node, không chỉ đọc code.</li>
+      <li>Bật <code>ChangeDetectionStrategy.OnPush</code> AN TOÀN — biết điều kiện tiên quyết trước khi bật.</li>
+      <li>Biết CDK Virtual Scrolling giải quyết vấn đề gì KHÁC HẲN hai kỹ thuật kia, và giới hạn thật của việc kiểm thử nó.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 06/18: <code>OnPush</code> được NHẮC tới nhưng chưa bao giờ THỰC SỰ bật lên một component
+      của bạn. Bài 16/29/31/37/38: <code>markForCheck()</code> dùng để "báo view vẽ lại" ở app
+      zoneless — hoá ra đó CHÍNH LÀ kỷ luật <code>OnPush</code> đòi hỏi, chỉ là bạn cần nó ngay cả
+      khi CHƯA bật <code>OnPush</code> (vì zoneless). Bài này là lúc hai đường hội tụ: code bạn đã
+      viết đúng kỷ luật <code>OnPush</code> TỪ TRƯỚC, giờ bật cờ đó lên chỉ là xác nhận điều đó.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: bảng 500 dòng, mỗi thao tác đều giật</h2>
+    <p>
+      <code>AdminCourseTableComponent</code> (Bài 39) hoạt động mượt với 10 dòng. Với 500 dòng:
+      gõ mỗi ký tự search, đổi trang, hay bấm sort đều khiến trình duyệt phải LÀM VIỆC NHIỀU HƠN
+      cần thiết — không phải vì logic sai, mà vì Angular/DOM đang làm những việc THỪA.
+    </p>
+    <p>
+      Ba việc "thừa" khác nhau, ba kỹ thuật khác nhau để cắt từng việc:
+    </p>
+    <table class="data">
+      <thead><tr><th>Vấn đề</th><th>Kỹ thuật</th><th>Cắt cái gì thừa</th></tr></thead>
+      <tbody>
+        <tr><td>Sort/reload huỷ + tạo lại TOÀN BỘ DOM row dù nhiều dòng không đổi</td><td><code>trackBy</code></td><td>Việc HUỶ + TẠO LẠI DOM node không cần thiết</td></tr>
+        <tr><td>Angular check lại CẢ CÂY component dù chỉ 1 nhánh nhỏ đổi</td><td><code>OnPush</code></td><td>Việc CHECK component không liên quan</td></tr>
+        <tr><td>Trình duyệt phải giữ 500 DOM row trong bộ nhớ dù chỉ ~10 dòng nhìn thấy</td><td>Virtual scroll</td><td>Việc TẠO SẴN DOM cho dòng CHƯA nhìn thấy</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. <code>trackBy</code> — nhận diện "đây vẫn là hàng cũ"</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// CdkTable so khớp row theo THAM CHIẾU object mặc định. Server trả JSON mỗi lần là OBJECT MỚI</span>
+<span class="cmt">// (dù cùng id) -> không có trackBy, CdkTable coi đó là "khác hoàn toàn", huỷ + tạo lại &lt;tr&gt;.</span>
+<span class="kw">readonly</span> trackByCourseId = (_index: <span class="kw">number</span>, course: Course): <span class="kw">string</span> => course.id;</code></pre>
+      <span class="code-label">HTML</span>
+<pre><code>&lt;table cdk-table [dataSource]=<span class="str">"courses"</span> [trackBy]=<span class="str">"trackByCourseId"</span>&gt;</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi verify: thử sai kịch bản đầu tiên, tưởng đã chứng minh được nhưng chưa</div>
+      <p>
+        Thử đầu tiên: sort lại MẢNG hiện có (<code>[...this.courses].sort(...)</code>) rồi kiểm
+        DOM node có giữ nguyên không — <strong>giữ nguyên ngay cả khi KHÔNG có <code>trackBy</code></strong>.
+        Lý do: <code>sort()</code> chỉ đổi VỊ TRÍ trong mảng, các OBJECT course bên trong vẫn là
+        CHÍNH NÓ (cùng tham chiếu) — CdkTable so khớp theo tham chiếu object MẶC ĐỊNH đã đúng rồi,
+        chưa cần <code>trackBy</code> mới đúng.
+      </p>
+      <p>
+        <code>trackBy</code> chỉ thật sự cần khi dữ liệu tới từ một NGUỒN MỚI (gọi lại API) mà
+        logic vẫn là "cùng một khoá học". Kịch bản đúng: xoá 1 dòng rồi <code>load()</code> gọi lại
+        <code>courseService.getAll()</code> — response JSON MỚI, mỗi object course trong đó là
+        INSTANCE MỚI dù <code>id</code> giống hệt. Đây mới là nơi <code>trackBy</code> tạo khác biệt.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · test đã verify — kịch bản ĐÚNG</span>
+<pre><code><span class="fn">it</span>(<span class="str">'trackBy giữ DOM row khi server trả OBJECT MỚI cùng id'</span>, () => {
+  <span class="cmt">// Load lần 1: course 'c2' là OBJECT A</span>
+  <span class="kw">const</span> c2RowBefore = ...tìm &lt;tr&gt; chứa "RxJS"...;
+
+  <span class="cmt">// Xoá c1 -> load() gọi lại getAll() -> server trả OBJECT B cho 'c2' (khác tham chiếu A)</span>
+  component.<span class="fn">remove</span>({ id: <span class="str">'c1'</span> });
+  httpMock.<span class="fn">expectOne</span>(<span class="str">'/api/courses/c1'</span>).<span class="fn">flush</span>(<span class="kw">null</span>);
+  httpMock.<span class="fn">expectOne</span>(...).<span class="fn">flush</span>({ data: [{ id: <span class="str">'c2'</span>, title: <span class="str">'RxJS'</span>, ... }] }); <span class="cmt">// object B</span>
+
+  <span class="kw">const</span> c2RowAfter = ...tìm &lt;tr&gt; chứa "RxJS"...;
+  <span class="fn">expect</span>(c2RowAfter).<span class="fn">toBe</span>(c2RowBefore); <span class="cmt">// CÙNG DOM node — trackBy nhận ra "vẫn là c2"</span>
+});</code></pre>
+    </div>
+    <p>
+      Xác minh đây là test canh gác thật: xoá <code>[trackBy]</code> khỏi template → test CHUYỂN
+      ĐỎ ngay (<code>c2RowAfter</code> khác <code>c2RowBefore</code> — DOM bị huỷ tạo lại dù logic
+      là "cùng course"). Thêm lại <code>trackBy</code> → xanh trở lại.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. <code>OnPush</code> — điều kiện an toàn để bật</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">@Component</span>({
+  selector: <span class="str">'app-admin-course-table'</span>,
+  standalone: <span class="kw">false</span>,
+  templateUrl: <span class="str">'./admin-course-table.component.html'</span>,
+  <span class="cmt">// Điều kiện an toàn: MỌI chỗ đổi `courses` phải gán MẢNG MỚI, không mutate tại chỗ.</span>
+  <span class="cmt">// Đã đúng SẴN từ Bài 39 (spread trong sort, gán res.data mới trong load()) — không cần sửa gì.</span>
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+<span class="kw">export class</span> AdminCourseTableComponent { ... }</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>OnPush check lại view khi</th><th>Đã có sẵn trong component này?</th></tr></thead>
+      <tbody>
+        <tr><td>Một <code>@Input</code> đổi REFERENCE</td><td>Component này không có <code>@Input</code> — không áp dụng</td></tr>
+        <tr><td>Một sự kiện template CỦA CHÍNH component (click, input)</td><td>✅ <code>onSort()</code>, <code>onSearchInput()</code>, <code>onPage()</code> đều là <code>(click)</code>/<code>(input)</code></td></tr>
+        <tr><td><code>markForCheck()</code> được gọi tường minh</td><td>✅ đã có trong <code>load()</code> — cho nhánh <code>.subscribe()</code> thủ công</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 Vì sao bật <code>OnPush</code> ở đây "miễn phí"</div>
+      <p>
+        Code từ Bài 39 vốn đã tuân thủ kỷ luật <code>OnPush</code> TỪ TRƯỚC — không phải vì cố ý,
+        mà vì zoneless (Bài 16 mục 5) đòi hỏi ĐÚNG kỷ luật đó (gán mảng mới thay vì mutate, gọi
+        <code>markForCheck()</code> sau <code>.subscribe()</code> thủ công). Đây là điểm hội tụ đã
+        nhắc ở đầu bài: <strong>viết code đúng cho zoneless = viết code đã sẵn sàng cho
+        <code>OnPush</code></strong>. Bật cờ này không cần sửa một dòng logic nào.
+      </p>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Điều kiện an toàn — nếu KHÔNG tuân thủ thì đừng bật</div>
+      <p>
+        Nếu component nào đó đổi dữ liệu bằng <code>this.courses.push(item)</code> (mutate tại
+        chỗ, KHÔNG đổi reference) thay vì <code>this.courses = [...this.courses, item]</code>,
+        bật <code>OnPush</code> sẽ khiến view ĐỨNG YÊN dù dữ liệu đã đổi — vì <code>OnPush</code>
+        so sánh THAM CHIẾU input, không so sánh nội dung bên trong.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Virtual scroll — giới thiệu, không sâu</h2>
+    <p>
+      <code>trackBy</code> và <code>OnPush</code> giảm việc THỪA khi RE-RENDER. Chúng không giải
+      quyết một vấn đề khác: nếu bạn thật sự có 500 dòng và hiện HẾT một lúc (không phân trang),
+      trình duyệt vẫn phải giữ 500 <code>&lt;tr&gt;</code> trong bộ nhớ — dù chỉ ~10 dòng nằm
+      trong khung nhìn tại một thời điểm.
+    </p>
+    <div class="code-block">
+      <span class="code-label">HTML · src/app/features/admin/virtual-course-list/virtual-course-list.component.ts</span>
+<pre><code>&lt;cdk-virtual-scroll-viewport itemSize=<span class="str">"48"</span> style=<span class="str">"height: 400px"</span>&gt;
+  &lt;div class=<span class="str">"virtual-row"</span> *cdkVirtualFor=<span class="str">"let course of courses; trackBy: trackByCourseId"</span>&gt;
+    {{ course.title }}
+  &lt;/div&gt;
+&lt;/cdk-virtual-scroll-viewport&gt;</code></pre>
+    </div>
+    <p>
+      <code>itemSize="48"</code> báo cho CDK biết MỖI dòng cao bao nhiêu pixel — từ đó nó tính
+      được "với khung nhìn cao 400px, cần khoảng bao nhiêu dòng DOM thật, còn lại chỉ là khoảng
+      trống ảo để thanh cuộn đúng kích thước". <code>*cdkVirtualFor</code> hoạt động giống
+      <code>*ngFor</code> nhưng CHỈ tạo DOM cho phần tử THẬT SỰ cần vẽ.
+    </p>
+    <div class="callout danger">
+      <div class="ct">🔥 Giới hạn thật khi verify bài này — jsdom không tính layout</div>
+      <p>
+        Cố gắng đếm chính xác số <code>&lt;div class="virtual-row"&gt;</code> được tạo ra trong
+        test: LUÔN ra 0, kể cả sau khi ép <code>getBoundingClientRect()</code> trả về chiều cao
+        400px và gọi <code>viewport.checkViewportSize()</code> thủ công. <strong>jsdom không tính
+        layout thật</strong> — <code>CdkVirtualScrollViewport</code> cần nhiều thông tin layout
+        hơn những gì có thể giả lập gọn trong jsdom.
+      </p>
+      <p>
+        Quyết định thực dụng: test chỉ xác nhận component dựng ĐÚNG CẤU TRÚC CDK và KHÔNG THROW
+        với 500 phần tử — việc "chỉ render dòng nhìn thấy" phải xác minh BẰNG MẮT trong trình
+        duyệt thật (mở DevTools → Elements, cuộn, xem số node thay đổi). Nói thẳng giới hạn này
+        thay vì viết một test trông có vẻ đúng nhưng không kiểm tra được điều nó tuyên bố.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ VirtualCourseListComponent — CDK virtual scroll (giới thiệu, Bài 40)
+  ✓ TC1 — dựng được với 500 khoá học, không throw, có đúng cấu trúc cdk-virtual-scroll-viewport
+  ✓ TC2 — trackBy nhận đúng courseId, không phải index — bằng chứng function được viết đúng chữ ký CDK cần
+
+Test Files  1 passed (1)
+     Tests  2 passed (2)</code></pre>
+    </div>
+    <p class="meta-line">
+      📌 Học sâu về virtual scroll (recycle rows, đo item size động, ráp trực tiếp vào
+      <code>CdkTable</code>) ở Phase 10.7 — bài này CHỦ ĐÍCH chỉ giới thiệu nguyên lý.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Sort lại mảng bằng <code>[...this.courses].sort(...)</code> (không đổi object bên trong) mà KHÔNG có <code>trackBy</code>. DOM row có bị huỷ + tạo lại không?</div>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify trực tiếp. CdkTable so khớp theo THAM CHIẾU OBJECT mặc định (không cần trackBy). sort() chỉ đổi VỊ TRÍ trong mảng, các object course bên trong vẫn giữ nguyên tham chiếu -> CdkTable tự nhận ra 'vẫn là những object cũ', chỉ cần đổi vị trí DOM, không huỷ tạo lại.">Không — vì các object course bên trong mảng vẫn giữ nguyên tham chiếu, CdkTable tự nhận ra bằng so khớp mặc định.</button>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify: không có trackBy, sort KHÔNG gây huỷ tạo lại DOM, vì object bên trong không đổi tham chiếu.">Có — không có <code>trackBy</code> thì CdkTable luôn huỷ tạo lại toàn bộ khi mảng đổi.</button>
+    <button class="opt" data-correct="false" data-explain="CdkTable không dùng index để so khớp mặc định — nó dùng tham chiếu object. Vị trí trong mảng không phải tiêu chí so khớp mặc định."><code>sort()</code> luôn làm mất tất cả DOM row bất kể có <code>trackBy</code> hay không, vì thay đổi index.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao bật <code>OnPush</code> cho <code>AdminCourseTableComponent</code> không cần sửa một dòng logic nào?</div>
+    <button class="opt" data-correct="false" data-explain="OnPush và zoneless là hai cơ chế riêng biệt của Angular, không phải cùng một API — nhưng chúng đòi hỏi CÙNG một kỷ luật viết code."><code>OnPush</code> và zoneless thực chất là MỘT tính năng, chỉ khác tên gọi.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Zoneless (đã áp dụng từ Bài 16) đòi hỏi: gán mảng/object MỚI thay vì mutate tại chỗ, và gọi markForCheck() sau .subscribe() thủ công. Đây CHÍNH XÁC là hai điều kiện OnPush cần để hoạt động đúng. Code tuân thủ kỷ luật zoneless từ đầu vô tình đã sẵn sàng cho OnPush.">Code đã tuân thủ đúng kỷ luật zoneless từ Bài 16 (gán reference mới, gọi <code>markForCheck()</code> sau <code>.subscribe()</code> thủ công) — đó CHÍNH LÀ điều kiện <code>OnPush</code> cần để hoạt động đúng.</button>
+    <button class="opt" data-correct="false" data-explain="OnPush hoàn toàn tương thích với RxJS/Observable — nhiều pattern OnPush kinh điển (async pipe) còn dựa vào RxJS. Không phải lý do đúng."><code>OnPush</code> chỉ hoạt động với component không dùng RxJS, và component này tình cờ không dùng.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn — bài cuối Module 9</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — Tối ưu <code>AdminCourseTableComponent</code></div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Thêm <code>[trackBy]</code> theo <code>id</code>. Test đúng kịch bản: server trả OBJECT MỚI cùng id (không phải chỉ sort mảng cũ) → DOM row được TÁI SỬ DỤNG.</li>
+        <li><strong>TC2</strong> — Xoá <code>trackBy</code> tạm thời, xác nhận TC1 chuyển đỏ (test canh gác thật) — rồi thêm lại.</li>
+        <li><strong>TC3</strong> — Bật <code>ChangeDetectionStrategy.OnPush</code>, toàn bộ test Bài 39 cũ vẫn xanh KHÔNG SỬA GÌ.</li>
+        <li><strong>TC4</strong> — Viết <code>VirtualCourseListComponent</code> dùng <code>ScrollingModule</code>, nhận <code>@Input() courses: Course[]</code>.</li>
+        <li><strong>TC5</strong> — Test component KHÔNG throw với 500 phần tử, đúng cấu trúc CDK — không cố đếm chính xác số dòng DOM (giới hạn jsdom đã nêu ở mục 4).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Viết test TC1 (trackBy) TRƯỚC khi thêm <code>[trackBy]</code> vào template — xác nhận nó đỏ ĐÚNG LÝ DO (DOM bị thay, không phải lỗi cú pháp) rồi mới sửa.</p>
+    <p><strong>Hint 2 · API:</strong> <code>TrackByFunction&lt;T&gt;</code> · <code>ChangeDetectionStrategy.OnPush</code> · <code>ScrollingModule</code> từ <code>@angular/cdk/scrolling</code> · <code>cdk-virtual-scroll-viewport</code> + <code>*cdkVirtualFor</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu bật <code>OnPush</code> mà một test cũ đỏ, gần như chắc chắn có chỗ MUTATE mảng/object tại chỗ thay vì gán reference mới — soát lại mọi nơi đổi <code>this.courses</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — tổng kết Module 9</div>
+    <ul class="checklist">
+      <li>Tôi phân biệt CHÍNH XÁC ba kỹ thuật hiệu năng — mỗi cái cắt một loại việc thừa khác nhau, không thay thế lẫn nhau.</li>
+      <li>Tôi chứng minh <code>trackBy</code> bằng kịch bản ĐÚNG (object mới cùng id), không phải kịch bản dễ nhưng không thật sự kiểm tra được điều cần chứng minh.</li>
+      <li>Tôi hiểu <code>OnPush</code> không phải "bật lên là xong" — nó có điều kiện an toàn, và code viết đúng kỷ luật zoneless từ đầu đã tự động thoả điều kiện đó.</li>
+      <li>Tôi biết giới hạn thật của việc test trong jsdom (Media API ở Bài 36, layout thật ở đây) — và không giả vờ đã kiểm chứng được điều môi trường test không cho phép.</li>
+      <li>Module 9 xong: CRUD tích hợp 2 hệ generic (Bài 38) → CDK Table tái dùng pattern Bài 29 (Bài 39) → 3 kỹ thuật hiệu năng độc lập (Bài 40) — Dashboard Admin của EduCommerce hoạt động đầy đủ.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa dùng <code>markForCheck()</code> ở ít nhất năm bài liên tiếp (Bài 16, 29, 31, 37, 38)
+      — luôn cùng một lý do: mutate state trong <code>.subscribe()</code> thủ công, ngoài event
+      template. Và bạn vừa thấy <code>OnPush</code> đòi hỏi ĐÚNG kỷ luật đó.
+    </p>
+    <p>
+      Có một câu hỏi chưa ai trả lời trong suốt hành trình này: <strong>Angular thực sự BIẾT
+      "khi nào cần kiểm tra lại" bằng cơ chế gì?</strong> Bạn đã dùng <code>markForCheck()</code>
+      như một "công tắc thủ công", nhưng chưa hiểu NÓ vận hành trên cơ chế nào bên dưới — Zone.js
+      hoạt động ra sao ở Angular Classic, và app của bạn (zoneless từ Bài 00) thay thế nó bằng gì.
+    </p>
+    <p><strong>Change Detection thực chất LÀ GÌ — và vì sao hiểu đúng nó lại là câu hỏi phỏng vấn senior kinh điển nhất của Angular?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã dùng công tắc (<code>markForCheck()</code>) ở rất nhiều bài — giờ là lúc mở hộp đen ra xem công tắc đó nối tới đâu.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Module tiếp theo</div>
+    <div class="nt">Module 10 · Phase 8.5 — Change Detection &amp; Performance sâu</div>
+    <p class="nd">Bài 41 · Change Detection cơ bản — Zone.js, dirty checking, <code>ApplicationRef.tick()</code>. Mở hộp đen đứng sau mọi <code>markForCheck()</code> bạn đã gõ.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0039-cdk-table-sort-filter-paginate.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + spec + output. TC2 (xoá trackBy để xác nhận test canh gác) là bằng chứng quan trọng nhất — chứng minh bạn kiểm được test của mình có ý nghĩa thật, không chỉ xanh vì tình cờ.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

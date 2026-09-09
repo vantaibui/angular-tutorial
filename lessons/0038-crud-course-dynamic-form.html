@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 38 · CRUD Course bằng Dynamic Form</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8 · Bài 38 · Dashboard Admin</span>
+    <h1>CRUD Course bằng Dynamic Form</h1>
+    <p class="subtitle">
+      Bài 22 xây <code>DynamicFormComponent</code> như một bài tập độc lập. Bài này ráp nó vào
+      một màn hình admin THẬT — và hai hệ generic (schema Bài 22, CRUD Bài 10) hoá ra không tự
+      khớp nhau như tưởng.
+    </p>
+    <p class="meta-line">⏱ ~55 phút · 🎯 Mở Module 9 — tích hợp thật, không phải bài tập cô lập</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Ráp <code>DynamicFormComponent</code> vào một form CRUD thật, dùng chung cho cả TẠO MỚI và SỬA.</li>
+      <li>Giải thích vì sao <code>DynamicFormComponent</code> cần generic hoá, và cái giá phải trả khi làm vậy (rò kiểu vào template).</li>
+      <li>Bảo vệ route admin bằng <code>RoleGuard</code> đã xây từ Bài 14 — không viết guard mới.</li>
+      <li>Nhận diện đúng lúc nào cần <code>markForCheck()</code> để một <code>@Input</code> đổi giá trị THỰC SỰ lan xuống component con.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 22: <code>DynamicFormComponent</code> + <code>keyof</code>. Bài 10: <code>GenericApiService&lt;T&gt;</code>
+      với <code>create(data: Omit&lt;T,'id'&gt;)</code>. Bài 14: <code>RoleGuard</code> đọc
+      <code>route.data['roles']</code>. Bài 27: <code>:id</code> path param phân biệt route
+      TẠO MỚI và SỬA. Bài này là nơi cả bốn gặp nhau trong MỘT tính năng — và như mọi lần tích hợp
+      thật, có những chỗ không khớp hoàn hảo ngay từ đầu.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: một component, hai chế độ</h2>
+    <p>
+      Trang admin cần: danh sách khoá học, nút "Tạo mới", nút "Sửa" trên mỗi dòng. Cả tạo mới lẫn
+      sửa đều cùng MỘT bộ field (tiêu đề, giá, mô tả, trình độ) — khác nhau đúng một điều: sửa thì
+      form phải có sẵn dữ liệu cũ, tạo mới thì rỗng.
+    </p>
+    <p>
+      Route <code>/admin/courses/new</code> và <code>/admin/courses/:id/edit</code> cùng trỏ vào
+      MỘT <code>AdminCourseFormComponent</code> — phân biệt bằng việc <code>:id</code> có mặt hay
+      không (path param, Bài 27).
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Route admin — tái dùng nguyên xi <code>RoleGuard</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · admin-routing.module.ts</span>
+<pre><code><span class="kw">const</span> routes: Routes = [
+  {
+    path: <span class="str">'courses'</span>,
+    canActivate: [RoleGuard],       <span class="cmt">// y hệt Bài 14 — không viết guard mới</span>
+    data: { roles: [<span class="str">'admin'</span>] },
+    children: [
+      { path: <span class="str">''</span>, component: AdminCourseTableComponent },  <span class="cmt">// Bài 39 sẽ nâng cấp thành CDK Table</span>
+      { path: <span class="str">'new'</span>, component: AdminCourseFormComponent },
+      { path: <span class="str">':id/edit'</span>, component: AdminCourseFormComponent },
+    ],
+  },
+];</code></pre>
+    </div>
+    <p>
+      Đặt <code>canActivate: [RoleGuard]</code> ở route CHA (<code>'courses'</code>) — áp dụng cho
+      MỌI route con (danh sách, tạo mới, sửa) mà không cần lặp lại ở từng route con. Guard chạy
+      MỘT LẦN khi vào <code>/admin/courses</code> hoặc bất kỳ route con nào của nó.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Ráp <code>DynamicFormComponent</code> — và hố nứt đầu tiên</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/app/features/admin/admin-course-form/course-schema.ts</span>
+<pre><code><span class="kw">export const</span> courseSchema: FormFieldSchema&lt;Course&gt;[] = [
+  { name: <span class="str">'title'</span>, label: <span class="str">'Tiêu đề'</span>, type: <span class="str">'text'</span>, validators: [Validators.required] },
+  { name: <span class="str">'price'</span>, label: <span class="str">'Giá (USD)'</span>, type: <span class="str">'number'</span>, validators: [Validators.required, Validators.min(<span class="num">0</span>)] },
+  { name: <span class="str">'level'</span>, label: <span class="str">'Trình độ'</span>, type: <span class="str">'select'</span>, options: [...] },
+];</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi tôi verify bài này — <code>DynamicFormComponent</code> (Bài 22) không nhận được schema có kiểu</div>
+      <p>
+        Bài 22 khai <code>@Input() schema: FormFieldSchema[] = []</code> — KHÔNG generic. Gán
+        <code>courseSchema</code> (kiểu <code>FormFieldSchema&lt;Course&gt;[]</code>) vào đó ra lỗi
+        biên dịch thật: <strong><code>Course</code> không tự khớp <code>Record&lt;string,
+        unknown&gt;</code></strong> — một quirk TypeScript kinh điển: interface cụ thể không có
+        index signature thì KHÔNG được coi là tương thích với kiểu có index signature, dù về mặt
+        cấu trúc mọi field đều hợp lệ. Bài 22 chưa bao giờ thử gán một schema CÓ KIỂU thật vào
+        component, nên hố nứt này chưa từng lộ ra.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · sửa: generic hoá DynamicFormComponent</span>
+<pre><code><span class="kw">export class</span> DynamicFormComponent&lt;TModel = <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;&gt; <span class="kw">implements</span> OnInit, OnChanges {
+  <span class="fn">@Input</span>({ required: <span class="kw">true</span> }) schema: FormFieldSchema&lt;TModel&gt;[] = [];
+  ...
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Sửa xong lại lộ hố nứt THỨ HAI — kiểu rò vào template</div>
+      <p>
+        Generic hoá xong, <code>field.name</code> trong TEMPLATE có kiểu <code>keyof TModel</code>
+        — với <code>TModel</code> không ràng buộc, đó là <code>string | number | symbol</code>.
+        <code>form.get(field.name)</code> và <code>[formControlName]="field.name"</code> đều đòi
+        <code>string</code> thuần, không nhận <code>symbol</code> lẫn vào. Lỗi biên dịch TEMPLATE,
+        không phải class.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">TypeScript · lời giải: ép kiểu MỘT LẦN qua method, không rải rác trong template</span>
+<pre><code><span class="fn">fieldName</span>(field: FormFieldSchema&lt;TModel&gt;): <span class="kw">string</span> {
+  <span class="kw">return</span> field.name <span class="kw">as string</span>;
+}</code></pre>
+      <span class="code-label">HTML · template gọi qua method, KHÔNG đọc field.name trực tiếp</span>
+<pre><code>&lt;input [id]=<span class="str">"fieldName(field)"</span> [formControlName]=<span class="str">"fieldName(field)"</span> ... /&gt;</code></pre>
+    </div>
+    <p>
+      Đây là bài học thực dụng: generic mạnh mẽ ở chỗ khai báo (schema), nhưng khi generic đó
+      chưa ràng buộc gì (<code>TModel</code> không <code>extends</code> gì cả), phần dùng bên
+      trong (template) phải tự ép kiểu tường minh ở đúng MỘT chỗ, không để nó rò ra khắp nơi.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Hố nứt thứ ba: initialValue tới SAU, và <code>ngOnChanges</code></h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · admin-course-form.component.ts</span>
+<pre><code><span class="kw">export class</span> AdminCourseFormComponent <span class="kw">implements</span> OnInit {
+  <span class="kw">readonly</span> schema = courseSchema;
+  initialValue: <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt; = {};
+  <span class="kw">private</span> courseId: <span class="kw">string</span> | <span class="kw">null</span> = <span class="kw">null</span>;
+
+  <span class="fn">ngOnInit</span>(): <span class="kw">void</span> {
+    <span class="kw">this</span>.courseId = <span class="kw">this</span>.route.snapshot.paramMap.<span class="fn">get</span>(<span class="str">'id'</span>);
+    <span class="kw">if</span> (<span class="kw">this</span>.courseId) {
+      <span class="kw">this</span>.courseService.<span class="fn">getById</span>(<span class="kw">this</span>.courseId).<span class="fn">subscribe</span>((course) => {
+        <span class="kw">this</span>.initialValue = course <span class="kw">as unknown as</span> <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;;
+        <span class="kw">this</span>.cdr.<span class="fn">markForCheck</span>(); <span class="cmt">// xem callout dưới — quan trọng hơn bạn nghĩ</span>
+      });
+    }
+  }
+}</code></pre>
+    </div>
+    <p>
+      Ở chế độ SỬA, <code>initialValue</code> bắt đầu là <code>{}</code> (rỗng, lúc
+      <code>ngOnInit</code> chạy) rồi được GÁN LẠI sau khi <code>getById()</code> trả lời — bất
+      đồng bộ. <code>DynamicFormComponent</code> (Bài 22) chỉ dựng form MỘT LẦN ở
+      <code>ngOnInit</code> của CHÍNH NÓ — form con sẽ mãi mãi rỗng nếu không có thêm gì.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · thêm ngOnChanges vào DynamicFormComponent</span>
+<pre><code><span class="fn">ngOnChanges</span>(changes: SimpleChanges): <span class="kw">void</span> {
+  <span class="kw">if</span> (changes[<span class="str">'initialValue'</span>] &amp;&amp; <span class="kw">this</span>.form) {
+    <span class="kw">this</span>.form = <span class="kw">this</span>.<span class="fn">buildForm</span>(); <span class="cmt">// dựng LẠI form khi initialValue đổi giá trị SAU lần đầu</span>
+  }
+}</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥🔥 Phát hiện quan trọng nhất bài này — markForCheck() không chỉ ảnh hưởng view CỦA CHÍNH NÓ</div>
+      <p>
+        Verify KHÔNG có <code>markForCheck()</code> trong subscribe callback: <code>initialValue</code>
+        của <code>AdminCourseFormComponent</code> đúng giá trị (đọc field trực tiếp thấy dữ liệu
+        mới), NHƯNG <code>ngOnChanges</code> của <code>DynamicFormComponent</code> con
+        <strong>không hề được gọi</strong> — dù binding <code>[initialValue]="initialValue"</code>
+        vẫn còn đó. Đây là điều mới so với mọi phát hiện <code>markForCheck()</code> trước
+        (Bài 16/29/31/37): thiếu nó không chỉ khiến VIEW CỦA CHÍNH COMPONENT đứng yên — nó khiến
+        Angular KHÔNG LAN TRUYỀN được thay đổi <code>@Input</code> xuống CON, nên
+        <code>ngOnChanges</code> của con không chạy, dù property cha đã đúng 100%.
+      </p>
+      <p>
+        Xác minh bằng probe tối giản (host + child thuần, không HTTP/RxJS gì cả): gán thẳng
+        property cha rồi gọi <code>detectChanges()</code> lần hai → <code>ngOnChanges</code> của
+        con không chạy. Thêm đúng một dòng <code>markForCheck()</code> vào chỗ gán → chạy đúng
+        ngay. Quy tắc từ giờ: <strong>bất kỳ đâu bạn mutate một field được BIND xuống component
+        con từ một callback ngoài event template, markForCheck() không phải tuỳ chọn.</strong>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Hố nứt thứ tư (nhỏ hơn): submit mất kiểu ở ranh giới CRUD</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="fn">onSubmit</span>(value: <span class="fn">Record</span>&lt;<span class="kw">string</span>, <span class="kw">unknown</span>&gt;): <span class="kw">void</span> {
+  <span class="kw">const</span> request$ = <span class="kw">this</span>.courseId
+    ? <span class="kw">this</span>.courseService.<span class="fn">update</span>(<span class="kw">this</span>.courseId, value <span class="kw">as</span> <span class="fn">Partial</span>&lt;Course&gt;)
+    : <span class="kw">this</span>.courseService.<span class="fn">create</span>(value <span class="kw">as unknown as</span> <span class="fn">Omit</span>&lt;Course, <span class="str">'id'</span>&gt;);
+  request$.<span class="fn">subscribe</span>(() => <span class="kw">this</span>.router.<span class="fn">navigate</span>([<span class="str">'/admin/courses'</span>]));
+}</code></pre>
+    </div>
+    <p>
+      <code>keyof</code> (Bài 22) đảm bảo TÊN field trong schema đúng — nhưng giá trị component
+      EMIT ra khi submit vẫn là <code>Record&lt;string, unknown&gt;</code> trần. Ranh giới với
+      <code>GenericApiService&lt;Course&gt;.create()</code> (Bài 10, đòi <code>Omit&lt;Course,'id'&gt;</code>
+      đầy đủ) luôn cần một cú ép kiểu. Đây là đánh đổi CHƯA được liệt kê ở Bài 22 mục 5 ("khi nào
+      không nên dùng dynamic form") — chỉ lộ ra khi ráp dynamic form vào một CRUD service generic
+      khác. Với form CHỈ SỬA MỘT PHẦN field (như ở đây), cách thực tế nhất là chấp nhận ép kiểu có
+      kiểm soát tại đúng MỘT điểm nối, không lan ra toàn bộ component.
+    </p>
+  </section>
+
+  <section>
+    <h2>6. Chứng minh bằng test</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ AdminCourseListComponent — danh sách + xoá (Bài 38)
+  ✓ TC1 — ngOnInit gọi GET /api/courses, hiển thị danh sách
+  ✓ TC2 — remove(course) gọi DELETE /api/courses/:id rồi TỰ TẢI LẠI danh sách
+✓ AdminCourseFormComponent — tạo mới &amp; sửa (Bài 38)
+  ✓ TC3 — TẠO MỚI (không có :id): submit gọi POST /api/courses, không gọi getById trước đó
+  ✓ TC4 — SỬA (:id có sẵn): tải course qua getById, dùng markForCheck() để form con nhận initialValue MỚI
+  ✓ TC5 — SỬA: submit gọi PATCH /api/courses/:id, KHÔNG gọi POST
+
+Test Files  1 passed (1)
+     Tests  5 passed (5)
+
+✓ RoleGuard trên /admin/courses — tái dùng guard đã xây ở Bài 14 (Bài 38)
+  ✓ TC1 — admin: vào được /admin/courses
+  ✓ TC2 — student: bị đá về /forbidden, KHÔNG vào được /admin/courses
+  ✓ TC3 — chưa đăng nhập: bị đá về /login kèm returnUrl
+
+Test Files  1 passed (1)
+     Tests  3 passed (3)
+
+✓ DynamicFormComponent — ngOnChanges dựng lại form khi initialValue tới SAU (Bài 38)
+  ✓ TC3 — initialValue rỗng lúc đầu, cập nhật SAU (mô phỏng courseService.getById async) → form phản ánh giá trị mới
+  ✓ TC4 — 🔥 THIẾU markForCheck() ở cha: property cha đúng, nhưng ngOnChanges của con KHÔNG chạy
+
+Test Files  1 passed (1)
+     Tests  4 passed (4)</code></pre>
+    </div>
+    <p>
+      TC4 (bộ test <code>DynamicFormComponent</code>) là bài kiểm chứng ngược: cố tình KHÔNG gọi
+      <code>markForCheck()</code> ở host, khẳng định <code>ngOnChanges</code> của con không chạy
+      — bằng chứng trực tiếp cho phát hiện ở mục 4, không chỉ mô tả suông.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Vì sao <code>FormFieldSchema&lt;Course&gt;[]</code> không gán được vào <code>@Input() schema: FormFieldSchema[]</code> (không generic) dù cấu trúc dữ liệu hoàn toàn hợp lệ?</div>
+    <button class="opt" data-correct="false" data-explain="FormFieldSchema<Course>[] và FormFieldSchema[] (= FormFieldSchema<Record<string,unknown>>[]) là hai kiểu CỤ THỂ khác nhau — không phải vấn đề Angular decorator."><code>@Input</code> không hỗ trợ generic type, chỉ nhận kiểu cụ thể.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — quirk TypeScript kinh điển: một interface CỤ THỂ (như Course) không tự được coi là tương thích với một kiểu CÓ INDEX SIGNATURE (như Record<string, unknown>), dù mọi property của Course đều là string-keyed hợp lệ về mặt cấu trúc. TypeScript yêu cầu khai index signature TƯỜNG MINH mới chấp nhận, interface thường thì không.">TypeScript không tự coi một interface cụ thể (không có index signature) là tương thích với kiểu có index signature như <code>Record&lt;string, unknown&gt;</code> — dù cấu trúc dữ liệu khớp hoàn toàn.</button>
+    <button class="opt" data-correct="false" data-explain="FormFieldSchema<Course> và FormFieldSchema<Record<string,unknown>> đều CÓ property name — vấn đề không phải thiếu field."><code>FormFieldSchema&lt;Course&gt;</code> thiếu field <code>name</code> mà interface gốc yêu cầu.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Verify cho thấy: thiếu <code>markForCheck()</code> trong <code>AdminCourseFormComponent</code>, <code>this.initialValue</code> vẫn ĐÚNG giá trị (đọc field trực tiếp thấy dữ liệu mới) nhưng form con vẫn RỖNG. Vì sao?</div>
+    <button class="opt" data-correct="false" data-explain="courseService.getById() hoạt động đúng và trả dữ liệu thật — nếu sai, this.initialValue đã không có giá trị đúng ngay từ đầu."><code>courseService.getById()</code> trả về dữ liệu sai.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đây chính là phát hiện mới của bài này. markForCheck() không chỉ báo 'vẽ lại view CỦA CHÍNH TÔI' — thiếu nó, Angular không lan truyền được sự thay đổi @Input xuống component con trong lần detectChanges() kế tiếp, nên ngOnChanges() của con không hề chạy, dù property cha đã đúng 100%.">Thiếu <code>markForCheck()</code>, Angular không lan truyền được thay đổi <code>@Input</code> xuống <code>DynamicFormComponent</code> con — <code>ngOnChanges()</code> của con không được gọi, dù property của cha đã đúng.</button>
+    <button class="opt" data-correct="false" data-explain="ngOnChanges đã được thêm đúng vào DynamicFormComponent (mục 4) — vấn đề không phải thiếu code đó, mà là nó KHÔNG ĐƯỢC GỌI."><code>DynamicFormComponent</code> thiếu <code>ngOnChanges</code>, cần thêm vào.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>7. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — CRUD Course Admin</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — <code>/admin/courses</code> bảo vệ bằng <code>RoleGuard</code> (Bài 14), chỉ <code>admin</code> vào được.</li>
+        <li><strong>TC2</strong> — Danh sách gọi <code>GET /api/courses</code>, nút xoá gọi <code>DELETE</code> rồi tự tải lại.</li>
+        <li><strong>TC3</strong> — <code>DynamicFormComponent</code> generic hoá theo <code>TModel</code>, nhận được <code>FormFieldSchema&lt;Course&gt;[]</code> có kiểu mà không cần ép kiểu ở phía gọi.</li>
+        <li><strong>TC4</strong> — Chế độ TẠO MỚI (không <code>:id</code>): submit gọi <code>POST</code>, không gọi <code>getById</code> trước đó.</li>
+        <li><strong>TC5</strong> — Chế độ SỬA (<code>:id</code> có sẵn): tải dữ liệu qua <code>getById</code>, form con hiện đúng giá trị đã tải (không chỉ property component cha đúng).</li>
+        <li><strong>TC6</strong> — Submit ở chế độ sửa gọi <code>PATCH</code>, không gọi <code>POST</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Sửa <code>DynamicFormComponent</code> thành generic TRƯỚC (mục 3), chạy lại toàn bộ test Bài 22 cũ để chắc chắn không phá gì, rồi mới ráp vào admin.</p>
+    <p><strong>Hint 2 · API:</strong> <code>TestBed.createComponent&lt;DynamicFormComponent&lt;Record&lt;string,unknown&gt;&gt;&gt;(DynamicFormComponent)</code> khi test component generic trực tiếp (không qua host) — truyền class như giá trị không tự áp dụng default type parameter.</p>
+    <p><strong>Hint 3:</strong> Nếu TC5 đỏ dù <code>this.initialValue</code> (component cha) đúng giá trị, gần như chắc chắn thiếu <code>markForCheck()</code> — quay lại đọc kỹ mục 4.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi tích hợp được 2 hệ generic độc lập (schema Bài 22, CRUD Bài 10) và biết chính xác chỗ chúng KHÔNG tự khớp nhau.</li>
+      <li>Tôi hiểu rõ hơn generic component: mạnh ở khai báo, nhưng cần ép kiểu tường minh MỘT chỗ khi dùng trong template.</li>
+      <li>Tôi mở rộng đúng hiểu biết về <code>markForCheck()</code>: nó ảnh hưởng tới việc thay đổi có LAN TRUYỀN xuống con hay không, không chỉ vẽ lại view của chính nó.</li>
+      <li>Tôi tái dùng <code>RoleGuard</code> (Bài 14) mà không viết guard mới — đúng tinh thần "1 guard, mọi tổ hợp vai trò".</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Câu hỏi tư duy</h2>
+    <p>
+      Danh sách khoá học admin hiện dùng <code>GenericListComponent</code> (Bài 30) — hiển thị
+      dạng thẻ. Với dữ liệu quản trị (nhiều cột: tiêu đề, giá, trình độ, ngày tạo...), người dùng
+      quen với bảng có thể SẮP XẾP theo từng cột và LỌC nhanh — điều
+      <code>GenericListComponent</code> chưa hỗ trợ (nó chỉ lặp + hiển thị, không có khái niệm cột).
+    </p>
+    <p><strong>Angular CDK có công cụ headless (không giao diện sẵn) nào chuyên cho việc dựng BẢNG với cột động, tách biệt hoàn toàn với việc dữ liệu hiển thị NHƯ THẾ NÀO?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã dùng CDK cho Drag &amp; Drop (Bài 21) — một "hành vi không giao diện" khác. CDK có một bộ tương tự dành riêng cho cấu trúc bảng: cột, hàng, ô — không kèm theo màu sắc hay theming nào.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 39 · CDK Table — sort / filter / paginate</div>
+    <p class="nd">Nâng cấp danh sách admin từ thẻ sang bảng thật — cột động, sắp xếp, tái dùng nguyên xi debounce search từ Bài 29.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0037-progress-event-bus-rxjs.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0039-cdk-table-sort-filter-paginate.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi component + service + spec + output. TC5 (form con hiện đúng dữ liệu tải về) là bằng chứng quan trọng nhất — property component cha đúng KHÔNG đủ, phải thấy tận DOM.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

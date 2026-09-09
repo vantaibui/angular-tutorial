@@ -221,6 +221,10 @@ thay đổi ngoài lộ trình gốc, không âm thầm.
   tập chạy được trước khi học RxJS. Lesson 1.1 giữ nguyên phần kiến trúc Core/Shared/Feature.
 - Một số lesson gốc quá to cho "một bài dạy một thứ" → sẽ **tách** khi tới nơi
   (dự kiến: 3.2, 3.3, 9.1). Sẽ báo trước, không tách âm thầm.
+- **Bài 39 đổi tên "Material Table" → "CDK Table"** (2026-09-09): dùng `@angular/cdk/table`
+  (headless) thay vì Angular Material đầy đủ — tránh chi phí setup theming/font không cần thiết
+  cho một bài chỉ cần dạy sort/filter/paginate; Material/CDK sâu (theming, nhiều component) đã có
+  module riêng ở Phase 10.7. Logic/kết quả học được không đổi so với dự định gốc.
 
 ## Trình quản lý gói: pnpm (chốt 2026-08-19)
 Người học yêu cầu dùng **pnpm** thay npm. Đã verify TOÀN BỘ trên sandbox sạch
@@ -240,9 +244,9 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 `npx tsc`→`pnpm exec tsc` · `npx <pkg> <cmd>`→`pnpm dlx <pkg> <cmd>` (bỏ tên binary trùng).
 
 ## Trạng thái soạn bài
-- **Đã soạn: Bài 00–37** (hết Module 8 — Học bài & Progress). Người học đã HOÀN THÀNH Bài 00-04,
-  đang làm Bài 05. Module 5-8 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
-  (2026-09-07) rồi "tiếp tục soạn" (2026-09-08, ba lượt).
+- **Đã soạn: Bài 00–40** (hết Module 9 — Dashboard Admin). Người học đã HOÀN THÀNH Bài 00-04,
+  đang làm Bài 05. Module 5-9 soạn trước theo yêu cầu "chốt báo nhiều đó tiếp tục soạn bài"
+  (2026-09-07) rồi "tiếp tục soạn"/"tiếp tục" (2026-09-08/09, bốn lượt).
 - Người học yêu cầu (2026-08-27) soạn trước **TẤT CẢ** bài. Đã báo ràng buộc: từ Module 2 trở đi
   các bài phụ thuộc code lẫn nhau → phải dựng **app EduCommerce tham chiếu** trong sandbox rồi
   soạn bài từ đó, và đi **theo đúng thứ tự module**, không nhảy cóc.
@@ -278,7 +282,50 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/course-listing-cheatsheet.html` — Bài 28–31.
 - `reference/cart-checkout-cheatsheet.html` — Bài 32–35.
 - `reference/learn-progress-cheatsheet.html` — Bài 36–37.
-- Mốc kế tiếp: sau **Bài 40** HOẶC khi Module 9 xong.
+- `reference/admin-dashboard-cheatsheet.html` — Bài 38–40.
+- Mốc kế tiếp: sau **Bài 44** HOẶC khi Module 10 xong.
+
+### Phát hiện khi verify Module 9 (2026-09-09, đã đưa vào bài)
+Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `@angular/cdk@22.1.5` làm
+dependency thật (dùng `CdkTableModule` + `ScrollingModule`). Thêm `DynamicFormComponent` +
+`FormFieldSchema` (nền Bài 22, viết LẠI bằng cú pháp Classic đúng — xem mục dưới), `RoleGuard`
+(giống hệt Bài 14), `AdminModule` (list/table/form CRUD), `VirtualCourseListComponent`. Kết quả
+cuối: **74/74 test xanh** (19 file), `tsc --noEmit` sạch.
+
+- **🔴 ĐÃ PHÁT HIỆN, CHƯA SỬA — 9 bài (Module 4-5) dùng nhầm cú pháp control flow MỚI:** xem mục
+  "Cần theo dõi" cuối file. Khi viết `DynamicFormComponent` cho Bài 38, đã viết ĐÚNG bằng cú pháp
+  Classic (`*ngFor`/`[ngSwitch]`+`*ngSwitchCase`+`*ngSwitchDefault`/`*ngIf`) — bản này sẽ là cơ sở
+  để sửa lại Bài 22 khi dọn nợ đó.
+- **🔴 Generic component + template type-checking — hố nứt thật:** `DynamicFormComponent<TModel>`
+  cần generic để nhận `FormFieldSchema<Course>[]` (Bài 22 khai `FormFieldSchema[]` KHÔNG generic
+  → không nhận được `FormFieldSchema<Course>[]`, lỗi biên dịch thật — `Course` không tự khớp
+  `Record<string, unknown>` vì thiếu index signature, một quirk TypeScript kinh điển). Làm
+  component generic thì `field.name: keyof TModel` lại RÒ kiểu `string|number|symbol` ra
+  TEMPLATE, gây lỗi biên dịch template (`form.get(field.name)` không nhận). Sửa bằng method
+  `fieldName(field): string { return field.name as string; }`, template gọi qua method này thay
+  vì đọc `field.name` trực tiếp. Test tạo component generic qua `TestBed.createComponent()` cũng
+  cần khai rõ tham số generic (`TestBed.createComponent<DynamicFormComponent<Record<string,
+  unknown>>>(DynamicFormComponent)`) vì truyền class như GIÁ TRỊ không tự áp dụng default type
+  parameter của class.
+- **🔴🔴 REFINE quy tắc `markForCheck()` — quan trọng hơn mọi lần trước:** verify Bài 38 phát hiện
+  `ComponentFixture.detectChanges()` gọi lần 2 KHÔNG chỉ "không vẽ lại view của chính nó" nếu
+  thiếu markForCheck() (đã biết từ Bài 16/29/31/37) — nó còn KHÔNG LAN TRUYỀN được binding
+  `[input]` xuống component CON, tức `ngOnChanges()` của con hoàn toàn không được gọi, dù property
+  của cha đã đúng giá trị. Verify bằng probe tối giản (host + child thuần, không HTTP/RxJS liên
+  quan): gán thẳng property cha rồi `detectChanges()` lần 2 → `ngOnChanges` của con KHÔNG chạy;
+  thêm `markForCheck()` vào method gán → chạy đúng ngay. Quy tắc tổng quát hoá: trong Angular 22
+  zoneless + builder Vitest, **markForCheck() không chỉ ảnh hưởng view của chính component gọi nó
+  — nó là điều kiện để CD pass tiếp theo (dù gọi thủ công qua detectChanges()) thật sự đi xuống
+  toàn bộ cây con.** Áp dụng ngay vào `AdminCourseFormComponent.ngOnInit()`'s subscribe callback.
+- **🔴 jsdom không tính layout thật (`getBoundingClientRect` luôn trả 0):** `CdkVirtualScrollViewport`
+  cần chiều cao THẬT để tính "bao nhiêu dòng vừa khung nhìn" — ép qua `checkViewportSize()` sau khi
+  mock `getBoundingClientRect` VẪN không đủ (vẫn render 0 dòng). Kết luận: KHÔNG kiểm số dòng
+  render chính xác được trong jsdom cho virtual scroll — test Bài 40 chỉ xác nhận component dựng
+  đúng cấu trúc CDK + không throw với 500 item; "chỉ render dòng nhìn thấy" phải verify bằng mắt
+  trong trình duyệt thật (DevTools Elements), đã nói rõ trong bài thay vì giả vờ đã test được.
+- **Quyết định phạm vi Bài 39:** dùng `@angular/cdk/table` (headless) thay vì Angular Material
+  Table đầy đủ — tránh chi phí setup theming/font không cần thiết cho một bài giới thiệu
+  sort/filter/paginate; Material/CDK sâu (theming, nhiều component) học ở Phase 10.7 sau này.
 
 ### Phát hiện khi verify Module 8 (2026-09-08, đã đưa vào bài)
 Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `VideoPlayerComponent`
@@ -423,3 +470,26 @@ Sandbox: `<scratchpad>/final-verify/educommerce-ng-classic/`. Toàn bộ 25 test
 - [ ] Chốt lại Karma vs Vitest trước Phase 10.
 - [ ] Kiểm MSW hoạt động với Angular 22 dev server trước khi soạn Bài 09.
 - [ ] Bài 12 (lazy-load) phải quay lại chốt điểm "module eager gộp vào injector gốc" đã nêu ở Bài 07.
+- [ ] **🔴 SỬA TRƯỚC KHI HỌC VIÊN TỚI MODULE 4** (phát hiện 2026-09-08 khi soạn Bài 38, chưa sửa):
+  9 file dùng nhầm cú pháp control flow MỚI (`@if`/`@for`/`@switch`/`@case`/`@default`) thay vì
+  Classic (`*ngIf`/`*ngFor`/`[ngSwitch]`+`*ngSwitchCase`+`*ngSwitchDefault`) — vi phạm chính quy
+  tắc đã nêu rõ ở Bài 30 ("Stage 1 — Classic, cú pháp mới có chủ đích ở Phase 13"). Danh sách:
+  - `0015-reactive-forms-cross-field.html` dòng 178, 183 — `@if`
+  - `0017-rating-input-cva.html` dòng 49 (`@for`) + dòng 276 (hint text nhắc `@for`)
+  - `0018-tag-input-ng-validators.html` dòng 100 — `@for`
+  - `0019-formarray-dong.html` dòng 103 — `@for`
+  - `0020-nested-formarray-course-builder.html` dòng 87, 93 — `@for`
+  - `0021-cdk-drag-drop-formarray.html` dòng 87 — `@for`
+  - `0022-dynamic-form-schema.html` dòng 149-168 (`@for`/`@switch`/`@case`/`@default`/`@if`) +
+    dòng 309 (hint text nhắc `@switch`/`@case`/`@default`)
+  - `0023-async-validator.html` dòng 160, 163 — `@if`
+  - `0026-auth-state-behaviorsubject.html` dòng 147 — `@if`
+  Nguyên nhân: các bài này soạn trước khi quy ước "Classic-only tới Phase 13" được nói rõ ràng
+  (quy ước đó chỉ được phát biểu tường minh lần đầu ở Bài 30, Module 6). Cách sửa: đổi
+  `@if(cond){A}@else{B}` → `<ng-container *ngIf="cond; else b">A</ng-container><ng-template #b>B</ng-template>`;
+  `@for(x of xs; track x){...}` → `<ng-container *ngFor="let x of xs">...</ng-container>` (hoặc gắn
+  thẳng lên element cha nếu không cần wrapper); `@switch/@case/@default` →
+  `[ngSwitch]`+`*ngSwitchCase`+`*ngSwitchDefault`. Không đổi kết quả runtime, chỉ đổi cú pháp —
+  rủi ro thấp nhưng CẦN re-verify từng file bằng sandbox trước khi công bố đã sửa (đừng chỉ sed
+  hàng loạt rồi tin nó đúng). Quyết định hoãn sửa ngay (2026-09-08) để ưu tiên tiếp tục soạn
+  Module 9 theo yêu cầu người học — phải làm XONG việc này trước khi người học học tới Bài 15.

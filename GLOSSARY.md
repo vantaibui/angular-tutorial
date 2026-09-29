@@ -60,3 +60,15 @@ Chỉ nguồn ĐỨNG TRƯỚC `.pipe()` (nguồn chính) kích hoạt emission;
 `withLatestFrom(...)` (nguồn phụ) chỉ đóng vai trò cung cấp giá trị mới nhất, tự nó đổi
 không kích hoạt gì. Khác `combineLatest` — ở đó mọi nguồn đều bình đẳng, đổi nguồn nào cũng kích hoạt.
 _Avoid_: combineLatest một chiều
+
+**Suy luận kiểu generic (type inference)**:
+TypeScript tự xác định tham số kiểu `T` từ giá trị truyền vào lúc gọi hàm generic, không cần
+gõ tường minh `fn<Course>(...)`. Chỉ tin vào suy luận khi có test gán kết quả vào biến khai
+kiểu tường minh (`const t: string = ...`) — nếu suy luận sai, dòng đó đỏ ngay ở biên dịch.
+_Avoid_: TypeScript tự đoán kiểu (đúng nhưng mơ hồ, không nói rõ CƠ CHẾ suy luận từ đâu)
+
+**`@ts-expect-error` làm test canh gác cho KIỂU**:
+Mở rộng [[Test canh gác (guarding test)]] sang biên dịch: dòng có `@ts-expect-error` phải THẬT
+SỰ gây lỗi kiểu nếu xoá comment đi — không phải chỉ đặt cho có. Xác minh bằng cách xoá tạm
+`@ts-expect-error`, chạy `tsc --noEmit`, thấy lỗi đúng ở đúng dòng đó, rồi khôi phục lại.
+_Avoid_: test kiểu, kiểm tra kiểu tĩnh

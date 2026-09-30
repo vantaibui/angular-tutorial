@@ -71,4 +71,10 @@ _Avoid_: TypeScript tự đoán kiểu (đúng nhưng mơ hồ, không nói rõ 
 Mở rộng [[Test canh gác (guarding test)]] sang biên dịch: dòng có `@ts-expect-error` phải THẬT
 SỰ gây lỗi kiểu nếu xoá comment đi — không phải chỉ đặt cho có. Xác minh bằng cách xoá tạm
 `@ts-expect-error`, chạy `tsc --noEmit`, thấy lỗi đúng ở đúng dòng đó, rồi khôi phục lại.
+
+**Ràng buộc generic (`T extends {...}`)**:
+Giới hạn tham số kiểu generic phải có ÍT NHẤT các field khai trong `extends` — đổi lại, class/hàm
+được PHÉP đụng vào field đó (`item.id`). Bỏ ràng buộc thì mất quyền truy cập field, nhưng nhận
+lại được T rộng hơn (nhận cả object không có field đó) — một đánh đổi, không phải "càng chặt càng tốt".
+_Avoid_: generic có điều kiện (mơ hồ, không nói rõ ĐÁNH ĐỔI hai chiều)
 _Avoid_: test kiểu, kiểm tra kiểu tĩnh

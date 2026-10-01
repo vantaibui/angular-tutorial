@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 44 · Core Web Vitals cho Angular SPA — LCP/INP/CLS đo bằng Lighthouse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 44 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1>Core Web Vitals cho Angular SPA — LCP/INP/CLS đo bằng Lighthouse</h1>
+    <p class="subtitle">
+      Bài 43 kết bằng câu hỏi: "211KB" không nói lên người dùng thấy nhanh hay chậm. Đây là ba con
+      số Google dùng để biến "cảm giác" thành số đo được — và chạy thật trên build sandbox.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Đọc hiểu report Lighthouse thật, biết SPA có bẫy riêng gì với CWV</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích chính xác LCP/INP/CLS đo khoảnh khắc nào — không chỉ thuộc tên viết tắt.</li>
+      <li>Chạy Lighthouse CLI thật, đọc report JSON, không chỉ nhìn điểm số tổng.</li>
+      <li>Biết CHÍNH XÁC điểm khác biệt giữa đo CWV cho SPA (client-side routing) và trang web nhiều lần tải.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 43 đo được "bao nhiêu KB" (<code>stats.json</code>). Bài này đo "người dùng CẢM THẤY gì"
+      — hai thước đo độc lập: một app nhẹ KB vẫn có thể LCP chậm nếu ảnh lớn tải sau cùng; một app
+      nặng KB vẫn có thể LCP nhanh nếu phần quan trọng được ưu tiên tải trước.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Ba chữ viết tắt — đúng khoảnh khắc chúng đo</h2>
+    <table class="data">
+      <thead><tr><th>Chỉ số</th><th>Đo khoảnh khắc nào</th><th>Ngưỡng "Good" (Google)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>LCP</strong> (Largest Contentful Paint)</td><td>Lúc phần tử LỚN NHẤT (ảnh/khối text lớn nhất trong khung nhìn đầu) hiển thị xong</td><td>&le; 2.5s</td></tr>
+        <tr><td><strong>INP</strong> (Interaction to Next Paint)</td><td>Từ lúc người dùng TƯƠNG TÁC (click/gõ) tới lúc trình duyệt vẽ xong phản hồi</td><td>&le; 200ms</td></tr>
+        <tr><td><strong>CLS</strong> (Cumulative Layout Shift)</td><td>Tổng mức độ layout BỊ DỊCH CHUYỂN bất ngờ trong suốt vòng đời trang (ảnh load sau đẩy nội dung, font thay đổi kích thước...)</td><td>&le; 0.1</td></tr>
+      </tbody>
+    </table>
+    <div class="callout why">
+      <div class="ct">💡 INP thay thế FID — một thay đổi gần đây đáng biết khi phỏng vấn</div>
+      <p>
+        Google thay FID (First Input Delay — chỉ đo ĐỘ TRỄ trước khi bắt đầu xử lý) bằng INP (đo
+        TOÀN BỘ thời gian tới khi vẽ xong phản hồi, và lấy tương tác TỆ NHẤT trong cả phiên, không
+        chỉ cái đầu tiên). Một SPA xử lý tương tác nhanh ở lần đầu nhưng chậm dần khi state phình to
+        (chính là vấn đề Bài 40-42 giải quyết: <code>trackBy</code>/<code>OnPush</code>) sẽ bị INP
+        bắt được, còn FID cũ thì không.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Chạy Lighthouse thật trên build sandbox</h2>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code>$ ng build --configuration production
+$ python3 -m http.server 8926 --directory dist/cd-sandbox/browser &amp;
+$ lighthouse http://localhost:8926 \
+    --output=json --output-path=/tmp/lh-report.json \
+    --chrome-flags="--headless=new --no-sandbox" \
+    --only-categories=performance</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện khi verify: lần chạy đầu tiên FAIL với <code>NO_FCP</code></div>
+      <p>
+        Chạy thẳng trên <code>cd-sandbox</code> ban đầu (được tạo rỗng để verify Bài 41-42, xem
+        lại mục 1 các bài đó) → Lighthouse báo lỗi:
+      </p>
+      <div class="code-block">
+<pre><code>runtimeError: NO_FCP — "The page did not paint any content."</code></pre>
+      </div>
+      <p>
+        KHÔNG phải lỗi môi trường — <code>app.component.html</code> của sandbox đó bị để TRỐNG HOÀN
+        TOÀN (chủ đích, để cô lập thí nghiệm Change Detection). Lighthouse đúng: trang thực sự
+        không vẽ gì để đo. Phải thêm nội dung thật (<code>&lt;h1&gt;</code> + đoạn văn) rồi build
+        lại mới đo được — bài học thực dụng: <strong>Lighthouse không đo được "hiệu năng" của một
+        trang không hiển thị gì</strong>, một bẫy dễ gặp khi đo nhầm app chưa có nội dung.
+      </p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — sau khi thêm nội dung</span>
+<pre><code>Performance score: 98
+LCP:          2.1 s
+FCP:          2.0 s
+Speed Index:  2.0 s
+TBT:          0 ms
+CLS:          0</code></pre>
+    </div>
+    <p>
+      Score 98/100, nhưng LCP = 2.1s vẫn SÁT ngưỡng "Good" (2.5s) dù trang gần như không có gì —
+      chỉ 1 thẻ <code>&lt;h1&gt;</code> + 1 đoạn văn, không ảnh, không HTTP call. Đây là chi phí
+      CỐ ĐỊNH của việc tải/parse/thực thi bundle Angular (211KB từ Bài 43) TRƯỚC KHI bất kỳ nội
+      dung nào được vẽ — một SPA luôn trả giá này, khác hẳn một trang HTML tĩnh.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Bẫy riêng của SPA với Core Web Vitals</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 CLS/LCP chuẩn chỉ đo LẦN TẢI TRANG ĐẦU — client-side routing (Bài 33) thì sao?</div>
+      <p>
+        Lighthouse CLI mặc định chỉ đo một lần "tải trang" (navigation) — đúng cho lần vào
+        EduCommerce đầu tiên. Nhưng sau đó người dùng chuyển route (<code>/courses</code> →
+        <code>/cart</code> → <code>/checkout</code>) HOÀN TOÀN qua Angular Router, KHÔNG reload
+        trang — Lighthouse CLI mặc định KHÔNG đo được các lần chuyển route này, vì nó không phải
+        "navigation" theo nghĩa trình duyệt.
+      </p>
+      <p>
+        Công cụ đo CWV thật trong production (Chrome UX Report / <code>web-vitals</code> JS
+        library chạy trực tiếp trên trình duyệt người dùng thật) GIẢI QUYẾT đúng vấn đề này — nó
+        theo dõi CẢ các lần chuyển "trang" ảo bên trong SPA, không chỉ lần tải đầu. Lighthouse CLI
+        (bài này) chỉ là công cụ đo CỤC BỘ, một lần, dùng để DEBUG trong lúc phát triển — không
+        thay thế được đo thật trên người dùng production.
+      </p>
+    </div>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Chạy Lighthouse trên một trang Angular route rỗng (không nội dung), nhận lỗi <code>NO_FCP</code>. Nguyên nhân nào đúng nhất?</div>
+    <button class="opt" data-correct="false" data-explain="Đã verify: Lighthouse chạy đúng với --chrome-flags phù hợp trên cùng máy, cùng cấu hình — lỗi không phải do thiếu cấu hình môi trường.">Môi trường thiếu cấu hình Chrome headless đúng cách.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify trực tiếp: trang để trống hoàn toàn thì không có gì được vẽ (First Contentful Paint), Lighthouse báo đúng NO_FCP. Thêm nội dung thật thì đo được bình thường.">Trang thực sự không vẽ nội dung gì (do chủ đích để trống cho thí nghiệm CD) — không phải lỗi công cụ.</button>
+    <button class="opt" data-correct="false" data-explain="Server đã trả HTTP 200 bình thường (đã verify bằng curl trước khi chạy Lighthouse) — vấn đề không nằm ở việc phục vụ file tĩnh."><code>http.server</code> không phục vụ được file tĩnh cho Angular SPA.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. EduCommerce dùng Angular Router chuyển từ <code>/courses</code> sang <code>/cart</code> không reload trang. Lighthouse CLI chạy một lần trên <code>/courses</code> có đo được trải nghiệm LCP của lần chuyển sang <code>/cart</code> không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — Lighthouse CLI mặc định chỉ đo một lần navigation (tải trang qua trình duyệt), không theo dõi được các lần chuyển route ảo bên trong SPA.">Có — Lighthouse tự động theo dõi mọi lần Angular Router điều hướng trong suốt phiên đo.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Lighthouse CLI đo một lần 'navigation' trình duyệt duy nhất. Muốn đo CWV cho các lần chuyển route ảo bên trong SPA, cần thư viện web-vitals chạy trực tiếp trên production, theo dõi người dùng thật.">Không — Lighthouse CLI chỉ đo một lần tải trang (navigation); đo CWV cho chuyển route ảo cần thư viện <code>web-vitals</code> chạy trên production thật.</button>
+    <button class="opt" data-correct="false" data-explain="INP đã thay thế FID, nhưng điều đó không liên quan tới việc Lighthouse CLI có theo dõi được client-side routing hay không.">Không liên quan — vì INP đã thay thế FID từ lâu nên Lighthouse không đo route nữa.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — đo CWV thật cho EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Build production EduCommerce, serve local, chạy Lighthouse CLI, lưu report JSON.</li>
+        <li><strong>TC2</strong> — Đọc report, ghi lại LCP/CLS/TBT thật (không phải điểm tổng) vào <code>NOTES.md</code>.</li>
+        <li><strong>TC3</strong> — Xác định phần tử NÀO là LCP candidate thật (xem <code>audits['largest-contentful-paint-element']</code> trong report) — có phải phần tử bạn MONG ĐỢI không?</li>
+        <li><strong>TC4</strong> — Giải thích bằng từ ngữ của bạn: vì sao đo CWV production thật cần <code>web-vitals</code> thay vì chỉ chạy Lighthouse CLI định kỳ.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Trước khi chạy Lighthouse, xác nhận trang THỰC SỰ có nội dung hiển thị bằng cách mở trực tiếp trong trình duyệt — tránh lặp lại bẫy <code>NO_FCP</code> ở mục 2.</p>
+    <p><strong>Hint 2 · API:</strong> <code>lighthouse &lt;url&gt; --output=json --output-path=... --chrome-flags="--headless=new"</code> · field cần đọc: <code>report.audits['largest-contentful-paint']</code>, <code>...['cumulative-layout-shift']</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu Chrome không khởi động được, set biến môi trường <code>CHROME_PATH</code> trỏ đúng tới binary Chrome đã cài.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi phân biệt được LCP/INP/CLS đo đúng khoảnh khắc nào, không chỉ thuộc định nghĩa chung chung.</li>
+      <li>Tôi biết INP đã thay FID — và TẠI SAO điều đó quan trọng cho một SPA mà tương tác có thể chậm dần theo thời gian dùng.</li>
+      <li>Tôi gặp và giải quyết đúng một bẫy THẬT (<code>NO_FCP</code>) thay vì chạy công cụ mù quáng rồi báo cáo điểm số không hiểu gì.</li>
+      <li>Tôi biết giới hạn thật của Lighthouse CLI với SPA — không nhầm "đo 1 lần cục bộ" với "đo production thật qua nhiều lần chuyển route".</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy</h2>
+    <p>
+      LCP 2.1s cho một trang GẦN NHƯ RỖNG (mục 2) cho thấy: phần lớn thời gian đó là tải + parse +
+      thực thi bundle Angular, KHÔNG phải tải nội dung thật. Bài 43 đã biết 211KB chủ yếu là
+      framework. RxJS (Bài 01-04) cũng là một phần của bundle đó.
+    </p>
+    <p><strong>Nếu một component gọi lại CÙNG MỘT API nhiều lần không cần thiết (ví dụ: 2 chỗ trong template đều <code>| async</code> trên cùng một <code>Observable</code> gọi service), điều đó ảnh hưởng tới LCP/INP như thế nào — và RxJS có sẵn công cụ nào để CẮT bớt số lần gọi thừa đó không?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: Bài 03 đã dạy bạn phân biệt cold/hot Observable. Nghĩ xem "gọi 2 lần" có liên quan gì tới việc Observable đó là cold hay hot.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 45 · RxJS + Performance</div>
+    <p class="nd"><code>shareReplay</code> — nối lại Bài 01-04, cắt bớt HTTP request/computation thừa do subscribe nhiều lần vào cùng một nguồn cold.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0043-phan-tich-bundle.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0045-rxjs-sharereplay-performance.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi report Lighthouse JSON thật + LCP element tìm được (TC3). Đừng gửi chỉ điểm số tổng — điểm số không chứng minh bạn đã ĐỌC report.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

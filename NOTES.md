@@ -283,7 +283,55 @@ Bảng quy đổi dùng trong mọi bài: `npm test`→`pnpm test` · `npm start
 - `reference/cart-checkout-cheatsheet.html` — Bài 32–35.
 - `reference/learn-progress-cheatsheet.html` — Bài 36–37.
 - `reference/admin-dashboard-cheatsheet.html` — Bài 38–40.
-- Mốc kế tiếp: sau **Bài 44** HOẶC khi Module 10 xong.
+- `reference/change-detection-performance-cheatsheet.html` — Bài 41–48.
+- Mốc kế tiếp: sau khi Module 11 (Realtime WebSocket) xong.
+
+### Phát hiện khi verify Module 10 (2026-10-01, đã đưa vào bài)
+Sandbox cũ (`<scratchpad>/ref/educommerce-ng-classic/`) đã bị dọn (OS `/tmp` cleanup giữa 2 phiên
+làm việc) — tạo sandbox mới tối giản `<scratchpad>/ref/cd-sandbox/` (Angular 22.2.0 — **version đã
+trôi** từ 22.1.x dùng ở Module 8-9; Vitest 5.0.3, TypeScript ~6.0.2) chỉ cho Module 10, không dựng
+lại toàn bộ EduCommerce vì các bài CD/Performance phần lớn độc lập domain.
+
+- **🔴🔴 Phát hiện lớn nhất khoá: trong Angular zoneless (mặc định Angular 22, EduCommerce từ Bài
+  00), `OnPush` và `Default` strategy ĐỒNG NHẤT hành vi cho mutate tại chỗ.** Verify bằng 5 thực
+  nghiệm độc lập (component đơn, 2 sibling, host-dirty-không-kéo-theo-con, và kịch bản thật
+  click+push()/spread() với CẢ con OnPush lẫn con Default) — tất cả cho cùng kết quả: không có gì
+  "Default tự check vô điều kiện" nữa khi không có Zone.js. Sự khác biệt sách giáo khoa
+  (Default = check mọi zone turn, OnPush = check có điều kiện) CHỈ đúng khi CÓ Zone.js. Đưa vào
+  Bài 42 với cảnh báo rõ: phải biết CẢ HAI câu trả lời cho đúng ngữ cảnh phỏng vấn/codebase.
+- **`ApplicationRef.tick()` tự nó cũng bị chặn theo cờ dirty** — gọi trực tiếp không
+  `markForCheck()` trước đó thì KHÔNG cập nhật DOM. Không phải "quét toàn bộ cây vô điều kiện".
+  Verify ở Bài 41.
+- **Cờ dirty không lan ngang sang sibling** — `markForCheck()` trên component A không ảnh hưởng
+  component B (anh em, không liên quan) dù cùng một lần `tick()`. Verify ở Bài 41.
+- **`source-map-explorer` 2.5.3 KHÔNG tương thích với esbuild builder của Angular 22** — lỗi thật
+  `"generated column Infinity ... source only contains N column(s)"`, exit code 1. Nguyên nhân:
+  esbuild nén output gần 1 dòng, thư viện mapping viết cho Webpack (nhiều dòng) tính sai offset.
+  Thay bằng `ng build --stats-json` → file thật tên `browser-stats.json` (CẠNH thư mục `browser/`,
+  không phải bên trong — bẫy dễ đoán sai vị trí) → kéo vào `esbuild.github.io/analyze`.
+- **🔴 `@defer` KHÔNG code-split component khai qua `NgModule.declarations`** — verify bằng build
+  production thật: component chỉ dùng trong `@defer` block vẫn nằm nguyên trong `main.js`, không
+  có chunk riêng nào được tạo. `@defer` vẫn trì hoãn đúng THỜI ĐIỂM RENDER (verify bằng TestBed),
+  nhưng KHÔNG giảm bundle ban đầu trong project NgModule Classic này — cơ chế code-splitting của
+  `@defer` dựa vào mảng `imports` riêng của Standalone Component, không có tương đương cho
+  NgModule declarations. **Ảnh hưởng roadmap:** mô tả gốc của Bài 46 ("giảm bundle tải ban đầu")
+  chỉ đúng MỘT PHẦN — đã viết lại thành phát hiện thật trong bài, kèm một lý do cụ thể/đo được để
+  ưu tiên migration Standalone ở Phase 11 (không chỉ "Standalone là tương lai" mơ hồ).
+  ⚠️ Chưa tự verify chiều ngược lại (standalone component + standalone host THẬT SỰ tách chunk) —
+  tin theo tài liệu chính thức Angular cho chiều đó, có ghi rõ trong bài là "theo tài liệu, không
+  tự verify lại cơ chế compiler".
+- **Lighthouse CLI lần chạy đầu FAIL với `NO_FCP`** — nguyên nhân: `app.component.html` của
+  `cd-sandbox` bị để TRỐNG HOÀN TOÀN (chủ đích cho thí nghiệm CD mục trên), không phải lỗi môi
+  trường/công cụ. Thêm nội dung thật (`<h1>` + đoạn văn) rồi đo được bình thường: Performance 98,
+  LCP 2.1s, CLS 0, TBT 0ms — cho một trang GẦN NHƯ RỖNG, cho thấy chi phí cố định của riêng
+  framework Angular trước khi bất kỳ nội dung thật nào được vẽ.
+- **`shareReplay` giảm đúng số HTTP request** — verify qua `HttpTestingController`: không
+  `shareReplay`, 2 `subscribe()` vào cùng Observable cold ra 2 request thật; có `shareReplay(1)`,
+  2 `subscribe()` chỉ ra 1 request.
+- **`NgOptimizedImage` hoạt động bình thường với `standalone: false`** (import thẳng vào
+  `NgModule.imports` như mọi directive Standalone khác) — `priority` → `loading="eager"` +
+  `fetchpriority="high"`; mặc định → `loading="lazy"` + `fetchpriority="auto"`. Verify bằng
+  TestBed, đọc attribute DOM thật.
 
 ### Phát hiện khi verify Module 9 (2026-09-09, đã đưa vào bài)
 Sandbox tiếp tục dùng `<scratchpad>/ref/educommerce-ng-classic/`. Thêm `@angular/cdk@22.1.5` làm

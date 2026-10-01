@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 47 · NgOptimizedImage — tối ưu LCP cho ảnh khoá học/avatar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 47 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1><code>NgOptimizedImage</code> — tối ưu LCP cho ảnh khoá học/avatar</h1>
+    <p class="subtitle">
+      Bài 46 học cách TRÌ HOÃN tải thứ không cần ngay. Bài này làm NGƯỢC LẠI — ép trình duyệt tải
+      SỚM HƠN đúng một tấm ảnh quan trọng nhất, và lười tải MỌI ảnh còn lại.
+    </p>
+    <p class="meta-line">⏱ ~30 phút · 🎯 Dùng đúng <code>priority</code> — không phải "thêm cho chắc"</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Dùng <code>NgOptimizedImage</code> với component <code>standalone: false</code> — xác nhận hoạt động đúng trong project NgModule Classic này.</li>
+      <li>Giải thích chính xác <code>priority</code> đổi 2 attribute HTML nào, và vì sao đó là cơ chế native trình duyệt, không phải "phép màu" của Angular.</li>
+      <li>Biết đặt <code>priority</code> ĐÚNG MỘT ảnh — chính là ảnh LCP (Bài 44) — không phải ảnh "quan trọng" theo cảm tính.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 44 đo LCP = thời điểm phần tử LỚN NHẤT vẽ xong. Nếu phần tử đó là một tấm ảnh (ảnh bìa
+      khoá học, banner trang chủ), tốc độ load ảnh đó TRỰC TIẾP quyết định điểm LCP. Bài 46 vừa
+      dạy trì hoãn thứ KHÔNG cần ngay — bài này dạy kỹ thuật ĐỐI LẬP cho đúng MỘT phần tử: ảnh LCP
+      cần được ưu tiên tải SỚM HƠN bình thường, không phải trễ hơn.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Hai thuộc tính HTML native đứng sau mọi thứ</h2>
+    <p>
+      <code>NgOptimizedImage</code> không phát minh ra cơ chế tải ảnh mới — nó chỉ đặt ĐÚNG hai
+      thuộc tính HTML <strong>native</strong> mà trình duyệt đã hỗ trợ từ lâu, theo đúng kỷ luật,
+      thay vì để lập trình viên quên:
+    </p>
+    <table class="data">
+      <thead><tr><th>Attribute HTML native</th><th>Giá trị khi <code>priority</code></th><th>Giá trị mặc định (không <code>priority</code>)</th></tr></thead>
+      <tbody>
+        <tr><td><code>loading</code></td><td><code>eager</code> — tải ngay, không chờ gần viewport</td><td><code>lazy</code> — trình duyệt tự trì hoãn tới khi gần vào khung nhìn</td></tr>
+        <tr><td><code>fetchpriority</code></td><td><code>high</code> — ưu tiên băng thông cao hơn ảnh khác</td><td><code>auto</code> — trình duyệt tự quyết định</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Thực nghiệm — xác nhận đúng 2 attribute được set</h2>
+    <div class="code-block">
+      <span class="code-label">HTML · component standalone: false</span>
+<pre><code>&lt;img ngSrc=<span class="str">"/assets/course-thumb.jpg"</span> width=<span class="str">"300"</span> height=<span class="str">"200"</span> priority /&gt;</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — CÓ priority</span>
+<pre><code>loading attr:        eager
+fetchpriority attr:  high
+width/height:        300 200</code></pre>
+      <span class="code-label">bash · kết quả chạy thật — KHÔNG có priority (mặc định)</span>
+<pre><code>loading attr:        lazy
+fetchpriority attr:  auto</code></pre>
+    </div>
+    <p>
+      Xác nhận: <code>NgOptimizedImage</code> hoạt động bình thường khi import vào
+      <code>NgModule.imports</code> (bản thân nó là standalone directive, Angular cho phép NgModule
+      import thẳng standalone directive/component — tương thích ngược đã có từ nhiều phiên bản) —
+      không cần cả project phải Standalone mới dùng được, khác hẳn giới hạn thật vừa gặp ở Bài 46.
+    </p>
+  </section>
+
+  <section class="callout danger">
+    <div class="ct">🔥 Bẫy: đặt <code>priority</code> cho NHIỀU ảnh — hoặc SAI ảnh</div>
+    <p>
+      <code>fetchpriority="high"</code> yêu cầu trình duyệt ưu tiên BĂNG THÔNG — tài nguyên băng
+      thông luôn GIỚI HẠN. Đặt <code>priority</code> cho 10 ảnh trong cùng trang danh sách khoá học
+      (Bài 29) khiến trình duyệt KHÔNG còn phân biệt được ảnh nào thực sự quan trọng — hiệu ứng
+      "ai cũng VIP thì không ai VIP cả". Chỉ đặt <code>priority</code> cho ĐÚNG MỘT ảnh: ảnh THỰC
+      SỰ là LCP candidate (xác nhận bằng report Lighthouse Bài 44 mục
+      <code>audits['largest-contentful-paint-element']</code>, không phải đoán).
+    </p>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Vì sao KHÔNG nên đặt <code>priority</code> cho ảnh grid danh sách khoá học</div>
+    <p>
+      Trang <code>/courses</code> (Bài 29) hiển thị LƯỚI nhiều thumbnail — không có ảnh nào trong
+      lưới đó là LCP THẬT SỰ nếu phía trên còn có tiêu đề trang/banner lớn hơn. Mặc định
+      (<code>loading="lazy"</code>) đã ĐÚNG cho toàn bộ lưới: ảnh dưới scroll không cần tải ngay.
+      Chỉ trang chi tiết khoá học (Bài 31 — <code>CourseDetailComponent</code>) với MỘT ảnh bìa lớn
+      ở đầu trang mới là ứng viên hợp lý cho <code>priority</code>.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. <code>&lt;img ngSrc="..." width="300" height="200"&gt;</code> KHÔNG có <code>priority</code>. Trình duyệt tải ảnh này khi nào?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify trực tiếp: không có priority, loading mặc định là 'lazy', trình duyệt TRÌ HOÃN tải cho tới khi ảnh gần vào khung nhìn.">Ngay lập tức, cùng lúc với toàn bộ trang — Angular luôn ưu tiên mọi ảnh như nhau.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify (loading attr = 'lazy' khi không có priority). Đây là hành vi NATIVE của attribute loading='lazy' trong trình duyệt, không phải logic JavaScript tự viết.">Trì hoãn — mặc định <code>loading="lazy"</code>, trình duyệt tự tải khi ảnh gần vào khung nhìn.</button>
+    <button class="opt" data-correct="false" data-explain="NgOptimizedImage không throw lỗi khi thiếu priority — priority là optional, mặc định lazy là hành vi HỢP LỆ và thường ĐÚNG cho đa số ảnh.">Sẽ báo lỗi biên dịch vì thiếu thuộc tính bắt buộc <code>priority</code>.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Trang danh sách khoá học có lưới 20 thumbnail. Đặt <code>priority</code> cho CẢ 20 ảnh có giúp trang tải nhanh hơn không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — fetchpriority='high' tranh giành CÙNG một nguồn băng thông giới hạn. Áp cho cả 20 ảnh không tạo thêm băng thông, chỉ xoá bỏ sự phân biệt ưu tiên.">Có — càng nhiều ảnh <code>priority</code> thì trang càng tải nhanh hơn tổng thể.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. fetchpriority='high' yêu cầu ưu tiên băng thông — tài nguyên giới hạn. Đặt cho TẤT CẢ ảnh thì không ảnh nào thực sự được ưu tiên hơn ảnh nào, triệt tiêu tác dụng, có thể còn làm chậm ảnh LCP thật vì phải chia sẻ ưu tiên với 19 ảnh không liên quan.">Không — <code>fetchpriority="high"</code> tranh giành CÙNG một băng thông giới hạn; đặt cho mọi ảnh thì không ảnh nào thực sự được ưu tiên, có thể làm chậm ảnh LCP thật.</button>
+    <button class="opt" data-correct="false" data-explain="priority không liên quan gì tới kích thước ảnh được nén/resize — đó là việc của CDN/image loader, một chủ đề khác hoàn toàn."><code>priority</code> tự động nén ảnh nhỏ hơn, nên tải nhanh hơn.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>3. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — áp <code>NgOptimizedImage</code> đúng chỗ trong EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Đổi <code>&lt;img&gt;</code> thường thành <code>ngSrc</code> cho ảnh bìa trong <code>CourseDetailComponent</code> (Bài 31), thêm <code>priority</code>.</li>
+        <li><strong>TC2</strong> — Đổi <code>&lt;img&gt;</code> cho thumbnail trong lưới danh sách (Bài 29) sang <code>ngSrc</code>, KHÔNG thêm <code>priority</code>.</li>
+        <li><strong>TC3</strong> — Viết test (theo mẫu mục 2) xác nhận đúng 2 chỗ có 2 cấu hình <code>loading</code>/<code>fetchpriority</code> KHÁC NHAU.</li>
+        <li><strong>TC4</strong> — Chạy lại Lighthouse (Bài 44), đối chiếu <code>largest-contentful-paint-element</code> — xác nhận ảnh bạn gắn <code>priority</code> ĐÚNG LÀ phần tử LCP thật, không phải đoán.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> <code>NgOptimizedImage</code> BẮT BUỘC <code>width</code>/<code>height</code> (hoặc <code>fill</code>) — thiếu sẽ có cảnh báo console rõ ràng, không phải lỗi âm thầm.</p>
+    <p><strong>Hint 2 · API:</strong> import <code>NgOptimizedImage</code> từ <code>@angular/common</code>, thêm vào <code>imports</code> của NgModule chứa component dùng nó (như <code>CommonModule</code> đã quen thuộc).</p>
+    <p><strong>Hint 3:</strong> TC4 dùng ĐÚNG field <code>report.audits['largest-contentful-paint-element'].details.items</code> trong JSON Lighthouse — không chỉ nhìn số LCP tổng.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết <code>priority</code> đổi 2 attribute HTML NATIVE cụ thể — không coi nó là "phép màu Angular" mơ hồ.</li>
+      <li>Tôi biết đặt <code>priority</code> cho ĐÚNG MỘT phần tử dựa trên số liệu Lighthouse thật, không phải cảm tính "ảnh này trông quan trọng".</li>
+      <li>Tôi hiểu TẠI SAO đặt priority cho nhiều ảnh phản tác dụng — tư duy "tài nguyên giới hạn", không phải "càng nhiều cờ ưu tiên càng tốt".</li>
+      <li>Tôi nối đúng 2 bài liên tiếp (46 trì hoãn, 47 ưu tiên) như hai mặt của CÙNG một nguyên tắc: tải ĐÚNG THỨ, ĐÚNG LÚC — không phải "tải mọi thứ nhanh nhất có thể".</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. Câu hỏi tư duy</h2>
+    <p>
+      Module 10 tới đây đã đi qua: cơ chế Change Detection (41-42), bundle (43), đo lường (44),
+      RxJS (45), và 2 kỹ thuật tải tài nguyên đối lập (46-47). Còn một câu hỏi CHƯA trả lời:
+      làm sao biết CHÍNH XÁC đoạn code JavaScript nào đang chiếm CPU khi trang bị giật — không
+      phải đoán qua số liệu tổng hợp, mà nhìn thấy TỪNG HÀM đang chạy, mất bao lâu.
+    </p>
+    <p><strong>Công cụ nào có sẵn trong CHÍNH trình duyệt (không cần cài thêm gì) cho phép bạn "quay phim" toàn bộ hoạt động CPU/render trong vài giây, rồi xem lại từng frame để tìm đúng hàm gây giật?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn đã dùng tab này để xem HTML/CSS (Elements) và request mạng (Network) ở các bài trước. Còn một tab nữa trong DevTools chuyên cho CPU/rendering theo thời gian.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 48 · Chrome DevTools Performance</div>
+    <p class="nd">Đọc flame graph, tìm bottleneck thật trong EduCommerce — bài cuối Module 10.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0046-defer-deferred-loading.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0048-devtools-performance-flame-graph.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi kết quả TC4 (LCP element thật từ Lighthouse) đối chiếu với ảnh bạn gắn <code>priority</code>. Khớp đúng là bằng chứng quan trọng nhất — không phải chỉ "đã thêm priority".</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

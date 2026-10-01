@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheat-sheet · Change Detection &amp; Performance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lessons/lesson.css">
+<style>h2 { margin-top: 34px; } table.data td code, table.data th code { white-space: nowrap; }</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">📌 Reference · Bài 41–48</span>
+    <h1>Change Detection &amp; Performance — cheat-sheet</h1>
+    <p class="subtitle">Dirty-marking zoneless, OnPush/Default, bundle, Core Web Vitals, RxJS, @defer, NgOptimizedImage, DevTools.</p>
+    <p class="meta-line">Đã kiểm chứng: Angular 22.2.0 · Vitest 5.0.3 · TypeScript ~6.0.2 · Lighthouse 13.5.0</p>
+  </header>
+
+  <section>
+    <h2>1. Cơ chế dirty-marking (zoneless) — Bài 41</h2>
+    <table class="data">
+      <thead><tr><th>Thao tác</th><th>DOM có cập nhật không?</th></tr></thead>
+      <tbody>
+        <tr><td><code>appRef.tick()</code> KHÔNG <code>markForCheck()</code></td><td>❌ Không — <code>tick()</code> cũng bị chặn theo cờ dirty, không quét vô điều kiện</td></tr>
+        <tr><td><code>markForCheck()</code> + <code>fixture.detectChanges()</code></td><td>✅ Có</td></tr>
+        <tr><td><code>markForCheck()</code> + <code>appRef.tick()</code> trực tiếp</td><td>✅ Có</td></tr>
+        <tr><td><code>markForCheck()</code> trên A, mutate trực tiếp trên B (anh em)</td><td>❌ B không đổi — cờ dirty KHÔNG lan ngang sang sibling</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 EduCommerce (Angular 22, không có zone.js) chạy ZONELESS từ Bài 00</div>
+      <p>Không ai tự động gọi <code>tick()</code> khi state đổi ngoài luồng Angular theo dõi được — đó là lý do <code>markForCheck()</code> cần thiết từ Bài 16 trở đi, không phải quy ước tuỳ chọn.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. OnPush vs Default — hai câu trả lời, hai ngữ cảnh — Bài 42</h2>
+    <table class="data">
+      <thead><tr><th>Ngữ cảnh</th><th>Default</th><th>OnPush</th></tr></thead>
+      <tbody>
+        <tr><td>Codebase CÓ Zone.js (đa số production hiện tại)</td><td>Check lại MỌI lần zone phát hiện async bất kỳ đâu</td><td>Chỉ check theo 4 điều kiện (own event, <code>@Input</code> đổi ref, <code>markForCheck()</code>, async pipe)</td></tr>
+        <tr><td>Zoneless (Angular 22 mặc định, EduCommerce)</td><td colspan="2" style="text-align:center">❗ ĐỒNG NHẤT — đã verify: cả hai chỉ check khi có notification riêng cho view đó</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả verify thật — click host, mutate @Input array</span>
+<pre><code>click addMutate (push, cùng ref)      → OnPush child: KHÔNG đổi | Default child: KHÔNG đổi (giống hệt!)
+click addImmutable (spread, ref mới)  → OnPush child: đổi đúng</code></pre>
+    </div>
+    <p>Vẫn dùng <code>OnPush</code> ở mọi component mới: tài liệu hoá ý định + an toàn nếu tương lai bật lại Zone.js — không có chi phí đánh đổi trong app zoneless.</p>
+  </section>
+
+  <section>
+    <h2>3. Phân tích bundle — Bài 43</h2>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code>ng build --configuration production --stats-json
+<span class="cmt"># File thật: dist/&lt;project&gt;/browser-stats.json (CẠNH thư mục browser/, không phải bên trong)</span>
+<span class="cmt"># Kéo vào esbuild.github.io/analyze để xem treemap</span></code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 <code>source-map-explorer</code> KHÔNG dùng được với esbuild builder</div>
+      <p>Lỗi thật: <code>"generated column Infinity ... source only contains N column(s)"</code> → exit code 1. esbuild nén output gần 1 dòng, thư viện mapping viết cho Webpack (nhiều dòng) tính sai offset rồi crash. Dùng <code>--stats-json</code> thay thế.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Core Web Vitals — Bài 44</h2>
+    <table class="data">
+      <thead><tr><th>Chỉ số</th><th>Đo gì</th><th>Ngưỡng Good</th></tr></thead>
+      <tbody>
+        <tr><td>LCP</td><td>Phần tử LỚN NHẤT vẽ xong</td><td>≤ 2.5s</td></tr>
+        <tr><td>INP (thay FID)</td><td>Tương tác TỆ NHẤT cả phiên, tới lúc vẽ xong phản hồi</td><td>≤ 200ms</td></tr>
+        <tr><td>CLS</td><td>Tổng mức layout bị dịch chuyển bất ngờ</td><td>≤ 0.1</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code>lighthouse &lt;url&gt; --output=json --output-path=report.json \
+  --chrome-flags="--headless=new" --only-categories=performance</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Lighthouse CLI chỉ đo 1 lần "navigation" — không theo dõi client-side routing</div>
+      <p>Chuyển route qua Angular Router (không reload) KHÔNG được Lighthouse CLI đo. Đo CWV thật cho SPA cần thư viện <code>web-vitals</code> chạy trên production thật.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. RxJS — <code>shareReplay</code> — Bài 45</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript</span>
+<pre><code><span class="cmt">// KHÔNG shareReplay: 2 subscribe (template + TS, hoặc 2x | async) = 2 HTTP request</span>
+<span class="kw">const</span> courses$ = http.<span class="fn">get</span>(<span class="str">'/api/courses'</span>);
+
+<span class="cmt">// CÓ shareReplay: 2 subscribe = CHỈ 1 request</span>
+<span class="kw">const</span> courses$ = http.<span class="fn">get</span>(<span class="str">'/api/courses'</span>).<span class="fn">pipe</span>(<span class="fn">shareReplay</span>({ bufferSize: <span class="num">1</span>, refCount: <span class="kw">true</span> }));</code></pre>
+    </div>
+    <table class="data">
+      <thead><tr><th>Tình huống</th><th>Cần <code>shareReplay</code>?</th></tr></thead>
+      <tbody>
+        <tr><td>Chỉ 1 chỗ subscribe</td><td>Không</td></tr>
+        <tr><td>2+ chỗ subscribe cùng 1 Observable cold</td><td>Có</td></tr>
+        <tr><td><code>BehaviorSubject</code> (đã tự hot)</td><td>Không cần</td></tr>
+      </tbody>
+    </table>
+    <p><code>refCount: true</code> ngắt kết nối nguồn khi hết subscriber — tránh leak với stream sống lâu (interval, WebSocket).</p>
+  </section>
+
+  <section>
+    <h2>6. <code>@defer</code> — giới hạn thật trong project NgModule Classic — Bài 46</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Component khai qua <code>NgModule.declarations</code> KHÔNG được code-split bởi <code>@defer</code></div>
+      <p>Verify bằng build production thật: marker string của component chỉ dùng trong <code>@defer</code> vẫn nằm nguyên trong <code>main.js</code>, không có chunk riêng. <code>@defer</code> vẫn trì hoãn ĐÚNG thời điểm render/CD (có ích cho Bài 41-42), nhưng KHÔNG giảm bundle ban đầu trừ khi component là Standalone — một lý do cụ thể để ưu tiên migration Phase 11.</p>
+    </div>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>@defer (on viewport) {
+  &lt;app-heavy&gt;&lt;/app-heavy&gt;
+} @placeholder { &lt;div&gt;...&lt;/div&gt; } @loading { &lt;div&gt;Loading...&lt;/div&gt; }</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. <code>NgOptimizedImage</code> — Bài 47</h2>
+    <table class="data">
+      <thead><tr><th>Attribute</th><th>Có <code>priority</code></th><th>Mặc định</th></tr></thead>
+      <tbody>
+        <tr><td><code>loading</code></td><td><code>eager</code></td><td><code>lazy</code></td></tr>
+        <tr><td><code>fetchpriority</code></td><td><code>high</code></td><td><code>auto</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Chỉ đặt <code>priority</code> cho ĐÚNG MỘT ảnh — ảnh LCP thật</div>
+      <p>Đặt cho nhiều ảnh = tranh giành cùng băng thông giới hạn, không ảnh nào thực sự được ưu tiên. Xác nhận bằng <code>report.audits['largest-contentful-paint-element']</code> từ Lighthouse, không đoán.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>8. Chrome DevTools Performance — Bài 48</h2>
+    <table class="data">
+      <thead><tr><th>Màu</th><th>Loại việc</th></tr></thead>
+      <tbody>
+        <tr><td>🟨 Vàng</td><td>Scripting (JS — Angular CD, RxJS, hàm của bạn)</td></tr>
+        <tr><td>🟪 Tím</td><td>Rendering (style/layout)</td></tr>
+        <tr><td>🟩 Xanh lá</td><td>Painting</td></tr>
+      </tbody>
+    </table>
+    <p>Tam giác đỏ = Long Task (&gt;50ms liên tục, chặn mọi tương tác khác). <strong>Bottom-Up</strong> + sort theo <code>Self Time</code> = cách nhanh nhất tìm thủ phạm.</p>
+  </section>
+
+  <section>
+    <h2>9. Góc phỏng vấn</h2>
+    <table class="data">
+      <thead><tr><th>Câu hỏi</th><th>Trả lời gọn</th></tr></thead>
+      <tbody>
+        <tr><td>OnPush khác Default thế nào?</td><td>Có Zone.js: Default check mọi lần zone phát hiện async bất kỳ đâu, OnPush chỉ check theo 4 điều kiện. Zoneless: ĐỒNG NHẤT — cả hai chỉ check khi có notification riêng.</td></tr>
+        <tr><td><code>markForCheck()</code> dùng khi nào?</td><td>Sau mọi mutate state NGOÀI event template (<code>.subscribe()</code> thủ công, <code>setTimeout</code>) — zoneless không ai tự báo hộ.</td></tr>
+        <tr><td><code>@defer</code> luôn giảm bundle?</td><td>Không — chỉ đúng với Standalone component. NgModule-declared component vẫn nằm trong bundle chính, chỉ trì hoãn render.</td></tr>
+        <tr><td>LCP/INP/CLS đo gì?</td><td>LCP = phần tử lớn nhất vẽ xong; INP = tương tác tệ nhất tới lúc vẽ phản hồi (thay FID); CLS = tổng dịch chuyển layout bất ngờ.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="navbar" aria-label="Điều hướng">
+    <a href="admin-dashboard-cheatsheet.html">← Dashboard Admin</a>
+    <a href="../lessons/index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">📌 Mọi hành vi đã chứng minh bằng thực nghiệm thật trên Angular 22.2.0 (zoneless, không zone.js) — không chỉ chép lại tài liệu chính thức.</p>
+</div>
+</body>
+</html>

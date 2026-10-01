@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 46 · @defer — deferred loading views, và một giới hạn thật trong project NgModule Classic này</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 46 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1><code>@defer</code> — deferred loading views</h1>
+    <p class="subtitle">
+      Cú pháp mới nghe như sẽ giải quyết đúng bài toán Bài 43 để lại (code chỉ 1 route hiếm dùng
+      vẫn nằm trong bundle chính). Thực nghiệm hôm nay cho một kết quả KHÔNG như kỳ vọng ban đầu —
+      và đó chính xác là lý do verify trước khi dạy.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Biết CHÍNH XÁC <code>@defer</code> làm được gì trong project NgModule Classic này</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Viết đúng cú pháp <code>@defer</code>/<code>@placeholder</code>/<code>@loading</code> và các trigger phổ biến.</li>
+      <li>Xác nhận <code>@defer</code> hoạt động bình thường với component <code>standalone: false</code> (NgModule).</li>
+      <li>Biết CHÍNH XÁC giới hạn thật: trong project NgModule Classic này, <code>@defer</code> trì hoãn THỜI ĐIỂM RENDER, chứ KHÔNG giảm được bundle tải ban đầu như tài liệu mô tả cho Standalone.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 43 TC4 yêu cầu tìm "1 chỗ bundle initial chứa code chỉ dùng ở route hiếm — ứng viên cho
+      <code>@defer</code>". Bài này kiểm tra ĐÚNG giả định đó bằng build thật — và phát hiện ra nó
+      chỉ đúng một phần trong project NgModule Classic này.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Cú pháp cơ bản — hoạt động đúng với <code>standalone: false</code></h2>
+    <div class="code-block">
+      <span class="code-label">HTML</span>
+<pre><code>@defer (on timer(0ms)) {
+  &lt;div class=<span class="str">"heavy"</span>&gt;Heavy content loaded&lt;/div&gt;
+} @placeholder {
+  &lt;div class=<span class="str">"ph"</span>&gt;Placeholder&lt;/div&gt;
+} @loading {
+  &lt;div class=<span class="str">"loading"</span>&gt;Loading...&lt;/div&gt;
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — component standalone: false, khai trong NgModule bình thường</span>
+<pre><code>NGAY SAU detectChanges() đầu tiên:          loadPlaceholder
+SAU khi defer trigger (timer 0ms) + 50ms:   loadHeavy content loaded
+
+Test Files  1 passed (1)
+     Tests  1 passed (1)</code></pre>
+    </div>
+    <p>
+      Xác nhận: <code>@defer</code> không đòi hỏi component phải Standalone để HOẠT ĐỘNG VỀ MẶT
+      RENDER — placeholder hiện trước, nội dung thật hiện sau khi trigger kích hoạt, đúng cơ chế
+      quảng cáo, kể cả trong project NgModule Classic này.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Câu hỏi thật sự quan trọng: có giảm bundle ban đầu không?</h2>
+    <p>
+      Tài liệu Angular quảng cáo lợi ích LỚN NHẤT của <code>@defer</code> là CODE-SPLITTING — class
+      component bên trong defer block được tách thành CHUNK RIÊNG, chỉ tải khi trigger kích hoạt.
+      Kiểm tra bằng build production thật: tạo <code>HeavyMarkerComponent</code> (khai trong
+      <code>HeavyDemoModule</code>, một NgModule declarations bình thường như MỌI component khác
+      trong project này), chỉ dùng nó bên trong <code>@defer</code> của <code>app.component.html</code>.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · HeavyMarkerComponent — standalone: false, khai trong NgModule</span>
+<pre><code><span class="fn">@Component</span>({
+  standalone: <span class="kw">false</span>,
+  selector: <span class="str">'app-heavy-marker-xyz123'</span>,
+  template: <span class="str">`&lt;div&gt;MARKER_STRING_UNIQUE_HEAVY_CONTENT_9f8e7d&lt;/div&gt;`</span>,
+})
+<span class="kw">export class</span> HeavyMarkerComponent {}</code></pre>
+      <span class="code-label">HTML · app.component.html</span>
+<pre><code>@defer (on interaction) {
+  &lt;app-heavy-marker-xyz123&gt;&lt;/app-heavy-marker-xyz123&gt;
+} @placeholder {
+  &lt;button&gt;Bấm để tải thêm&lt;/button&gt;
+}</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả build production thật</span>
+<pre><code>$ ng build --configuration production
+
+Initial chunk files | Names         |  Raw size | ...
+main-XANA7YBT.js    | main          | 221.48 kB | ...
+                    | Initial total | 221.48 kB |
+
+$ find dist -type f -name "*.js"
+dist/cd-sandbox/browser/main-XANA7YBT.js    <span class="cmt">← CHỈ 1 file, KHÔNG có chunk riêng nào khác</span>
+
+$ grep -l "MARKER_STRING_UNIQUE_HEAVY_CONTENT_9f8e7d" dist/cd-sandbox/browser/*.js
+dist/cd-sandbox/browser/main-XANA7YBT.js    <span class="cmt">← marker string NẰM TRONG main.js, không phải chunk riêng</span></code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện: không có code-splitting thật trong project NgModule Classic này</div>
+      <p>
+        <code>HeavyMarkerComponent</code> VẪN nằm trong <code>main.js</code> dù CHỈ được dùng bên
+        trong <code>@defer</code> block — không có chunk riêng nào được tạo ra. <code>@defer</code>
+        vẫn trì hoãn ĐÚNG THỜI ĐIỂM RENDER (verify ở mục 1 — view không được tạo cho tới khi trigger
+        kích hoạt), nhưng <strong>KHÔNG giảm được số byte JavaScript tải về ban đầu</strong> — toàn
+        bộ code của <code>HeavyMarkerComponent</code> đã nằm sẵn trong <code>main.js</code> ngay từ
+        lần tải đầu.
+      </p>
+      <p>
+        Nguyên nhân (theo tài liệu chính thức Angular — phần này tin tài liệu, không tự verify lại
+        cơ chế compiler bên trong): cơ chế tách chunk của <code>@defer</code> dựa vào mảng
+        <code>imports</code> RIÊNG của từng Standalone Component — compiler phân tích "symbol này
+        CHỈ được tham chiếu bên trong defer block, không dùng ở đâu khác trong cùng file" rồi mới
+        an toàn rewrite thành <code>import()</code> động. Một component khai qua
+        <code>NgModule.declarations</code> (như MỌI component trong project này) được resolve theo
+        toàn bộ scope của NgModule — compiler không có cùng một cơ sở để tách riêng nó ra.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Vậy <code>@defer</code> vẫn CÓ ÍCH trong project này — chỉ ích khác dự kiến</div>
+    <ul class="checklist">
+      <li><strong>Trì hoãn RENDER, không trì hoãn TẢI:</strong> vẫn giảm được công việc Change Detection/DOM creation ban đầu (liên quan trực tiếp Bài 41-42) — component nặng không bị tạo view cho tới khi cần.</li>
+      <li><strong>Trigger linh hoạt</strong> (<code>on interaction</code>, <code>on viewport</code>, <code>on timer</code>) vẫn hữu ích để trì hoãn công việc TÍNH TOÁN, không chỉ tải mạng.</li>
+      <li><strong>Lợi ích bundle THẬT chỉ đến khi Phase 11 migrate sang Standalone</strong> — đây là một lý do CỤ THỂ, đo được, để ưu tiên migration đó (không chỉ "Standalone là tương lai" mơ hồ).</li>
+    </ul>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Trong project NgModule Classic này (mọi component <code>standalone: false</code>), dùng <code>@defer</code> cho một component nặng có giảm số KB tải về ở LẦN TẢI ĐẦU không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify trực tiếp bằng build production: marker string của component chỉ dùng trong @defer vẫn nằm trong main.js, không có chunk riêng nào được tạo ra.">Có — đây chính xác là lợi ích chính của <code>@defer</code> theo tài liệu Angular.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify bằng build thật: không có file chunk riêng nào xuất hiện, component vẫn nằm nguyên trong main.js. @defer chỉ trì hoãn thời điểm RENDER, không tách được code ra khỏi bundle chính trong NgModule mode.">Không — component vẫn nằm nguyên trong <code>main.js</code>, <code>@defer</code> chỉ trì hoãn THỜI ĐIỂM RENDER, không tách chunk trong NgModule mode.</button>
+    <button class="opt" data-correct="false" data-explain="@defer không throw lỗi với component NgModule-declared — nó biên dịch và chạy bình thường (đã verify ở mục 1), chỉ là không đạt được code-splitting."><code>@defer</code> sẽ báo lỗi biên dịch nếu dùng với component khai qua <code>NgModule.declarations</code>.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vậy dùng <code>@defer</code> trong project này (NgModule Classic) có lợi ích THẬT nào, nếu không giảm được bundle?</div>
+    <button class="opt" data-correct="false" data-explain="Đã verify: @defer vẫn hoạt động đúng về mặt RENDER TIMING trong NgModule mode (mục 1) — không phải vô dụng hoàn toàn, chỉ là thiếu MỘT lợi ích cụ thể (code-splitting)."><code>@defer</code> hoàn toàn vô dụng trong NgModule mode, nên bỏ qua không dùng.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. @defer vẫn trì hoãn đúng thời điểm TẠO VIEW/chạy Change Detection cho nhánh đó (verify mục 1) — lợi ích về công việc TÍNH TOÁN vẫn còn, chỉ thiếu lợi ích GIẢM BUNDLE (cần Standalone, verify mục 2).">Vẫn trì hoãn đúng thời điểm TẠO VIEW và chạy Change Detection cho nhánh đó — giảm công việc tính toán ban đầu, dù không giảm được số KB tải về.</button>
+    <button class="opt" data-correct="false" data-explain="Không liên quan — @defer không ảnh hưởng gì tới cách TypeScript kiểm tra kiểu, đây là tính năng runtime/bundler, không phải compile-time type checking."><code>@defer</code> giúp TypeScript kiểm tra kiểu chặt chẽ hơn cho component bên trong.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>3. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — tự verify lại kết luận này trên chính EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Áp <code>@defer (on viewport)</code> cho 1 component thật trong EduCommerce ít dùng ngay khi vào trang (ví dụ: 1 section review/comment nằm dưới cùng trang chi tiết khoá học).</li>
+        <li><strong>TC2</strong> — Viết test xác nhận placeholder hiện trước, nội dung thật hiện sau khi trigger (theo mẫu mục 1).</li>
+        <li><strong>TC3</strong> — Build production EduCommerce, dùng <code>stats.json</code> (Bài 43) xác nhận LẠI kết luận mục 2 trên chính component bạn vừa <code>@defer</code> — nó có nằm trong chunk riêng không, hay vẫn trong bundle chính?</li>
+        <li><strong>TC4</strong> — Ghi phát hiện của bạn (dù giống hay khác bài học) vào <code>NOTES.md</code> kèm bằng chứng.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Dùng đúng kỹ thuật mục 2 — đặt 1 chuỗi text ĐỘC NHẤT (dễ grep) vào component muốn kiểm tra, build xong grep trên toàn bộ <code>dist/</code>.</p>
+    <p><strong>Hint 2 · API:</strong> <code>@defer (on viewport)</code> · <code>@defer (on interaction)</code> · <code>@defer (on timer(Xms))</code> · <code>@placeholder</code> · <code>@loading</code> · <code>@error</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC3 cho kết quả "CÓ chunk riêng" khác với bài học — đừng vội cho là mình sai, đó có thể là một phát hiện thật đáng báo cáo (ví dụ Angular version mới hơn đã hỗ trợ thêm cho NgModule). Báo cáo kèm bằng chứng cụ thể.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết cú pháp <code>@defer</code>/<code>@placeholder</code>/<code>@loading</code> và các trigger phổ biến.</li>
+      <li>Tôi KHÔNG tin ngay quảng cáo "giảm bundle" của tài liệu — tôi tự build và grep bundle thật để kiểm chứng, và tìm ra giới hạn thật trong project cụ thể của mình.</li>
+      <li>Tôi phân biệt được HAI loại lợi ích khác nhau của <code>@defer</code>: trì hoãn RENDER (luôn đúng) vs giảm BUNDLE (chỉ đúng với Standalone) — không gộp chung thành một.</li>
+      <li>Tôi có thêm MỘT lý do cụ thể, đo được, để ủng hộ migration Standalone ở Phase 11 — không chỉ "vì nó mới hơn".</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa thấy <code>@defer</code> trì hoãn được THỜI ĐIỂM render một NHÁNH component. Nhưng
+      có một loại tài nguyên hoàn toàn khác đang tải NGAY LẬP TỨC dù không cần thiết: ảnh. Trang
+      danh sách khoá học (Bài 29) hiển thị ảnh thumbnail cho MỌI khoá học, kể cả những cái nằm dưới
+      scroll, chưa ai nhìn thấy.
+    </p>
+    <p><strong>Trình duyệt có cơ chế NATIVE nào để tự động "chỉ tải ảnh khi gần tới khung nhìn" mà không cần JavaScript tự viết logic theo dõi scroll — và Angular có directive nào bọc cơ chế đó lại, thêm luôn việc tối ưu LCP cho ẢNH ĐẦU TIÊN (ngược lại — ảnh KHÔNG nên trì hoãn)?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: thuộc tính HTML native này đã tồn tại trong trình duyệt từ lâu, tên là <code>loading</code>. Angular bọc nó lại cùng vài tối ưu khác.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 47 · <code>NgOptimizedImage</code></div>
+    <p class="nd">Tối ưu LCP cho ảnh khoá học/avatar — đối lập chính xác với <code>@defer</code>: ảnh LCP cần TẢI SỚM HƠN, không phải trễ hơn.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0045-rxjs-sharereplay-performance.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0047-ngoptimizedimage.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi kết quả TC3 (có chunk riêng hay không) kèm lệnh grep/find bạn dùng. Đây là bài DUY NHẤT mà "kết quả giống sách giáo khoa" KHÔNG phải điều tôi mong đợi — tôi mong đợi bạn tự kiểm chứng, dù kết quả giống hay khác bài học.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

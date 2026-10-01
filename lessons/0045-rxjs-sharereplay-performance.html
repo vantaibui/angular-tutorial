@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 45 · RxJS + Performance — shareReplay, tránh subscribe thừa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 45 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1>RxJS + Performance — <code>shareReplay</code>, tránh subscribe thừa</h1>
+    <p class="subtitle">
+      Nối lại Bài 01-04. Cùng một bug "gọi API thừa" bạn từng thấy ở dạng khác — giờ nhìn đúng tên
+      cơ chế đứng sau, và công cụ RxJS có sẵn để cắt nó.
+    </p>
+    <p class="meta-line">⏱ ~30 phút · 🎯 Biết CHÍNH XÁC khi nào cần <code>shareReplay</code>, khi nào KHÔNG</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Chứng minh bằng thực nghiệm: 2 <code>subscribe()</code> vào cùng một <code>Observable</code> cold → 2 HTTP request thật.</li>
+      <li>Dùng <code>shareReplay()</code> đúng chỗ để biến N request thừa thành 1.</li>
+      <li>Biết rủi ro thật của <code>shareReplay</code> không cấu hình đúng — leak vì giữ subscription sống mãi.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 03 dạy "cold Observable" = công thức nấu ăn — mỗi <code>subscribe()</code> chạy lại từ
+      đầu. Bài 01-02 dạy mỗi lần gọi <code>http.get()</code> là MỘT request riêng. Bài này ghép hai
+      sự thật đó lại: <strong><code>http.get()</code> trả về Observable CỐ MỖI lần subscribe là
+      một request HTTP mới</strong> — kể cả khi 2 chỗ subscribe đó đang hỏi CÙNG một câu hỏi.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Bài toán thật: 2 chỗ trong component, cùng 1 nguồn, 2 request</h2>
+    <p>
+      <code>CourseDetailComponent</code> (Bài 31) có thể có <code>courseDetail$</code> dùng ở CẢ
+      template (<code>| async</code>) LẪN một chỗ khác trong TypeScript (ví dụ: ghi log, hoặc
+      đẩy vào một service khác). Viết ngây thơ:
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · ❌ gọi API 2 lần mà không biết</span>
+<pre><code>courseDetail$ = <span class="kw">this</span>.courseService.<span class="fn">getById</span>(<span class="kw">this</span>.id); <span class="cmt">// http.get() bên trong — COLD</span>
+
+ngOnInit() {
+  <span class="kw">this</span>.courseDetail$.<span class="fn">subscribe</span>((c) => <span class="kw">this</span>.analytics.<span class="fn">logView</span>(c)); <span class="cmt">// subscribe #1</span>
+}
+<span class="cmt">// template: {{ (courseDetail$ | async)?.title }}                      // subscribe #2</span></code></pre>
+    </div>
+    <p>
+      Nhìn qua tưởng chỉ có MỘT nguồn dữ liệu — thực tế <code>courseDetail$</code> là cold, mỗi
+      <code>subscribe()</code> chạy lại <code>http.get()</code> TỪ ĐẦU. Hai chỗ subscribe = HAI
+      request HTTP riêng biệt tới cùng một endpoint, cùng tham số.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Chứng minh bằng thực nghiệm</h2>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/shareReplay-probe.spec.ts</span>
+<pre><code><span class="fn">it</span>(<span class="str">'KHÔNG shareReplay: 2 subscribe -> 2 HTTP request thật'</span>, () => {
+  <span class="kw">const</span> courses$ = http.<span class="fn">get</span>(<span class="str">'/api/courses'</span>); <span class="cmt">// cold</span>
+
+  courses$.<span class="fn">subscribe</span>();
+  courses$.<span class="fn">subscribe</span>(); <span class="cmt">// subscribe LẦN 2 vào CÙNG courses$</span>
+
+  <span class="kw">const</span> reqs = httpMock.<span class="fn">match</span>(<span class="str">'/api/courses'</span>);
+  <span class="fn">expect</span>(reqs.length).<span class="fn">toBe</span>(<span class="num">2</span>); <span class="cmt">// 2 REQUEST THẬT, không phải 1</span>
+});
+
+<span class="fn">it</span>(<span class="str">'CÓ shareReplay(1): 2 subscribe -> CHỈ 1 HTTP request duy nhất'</span>, () => {
+  <span class="kw">const</span> courses$ = http.<span class="fn">get</span>(<span class="str">'/api/courses'</span>).<span class="fn">pipe</span>(<span class="fn">shareReplay</span>(<span class="num">1</span>));
+
+  courses$.<span class="fn">subscribe</span>();
+  courses$.<span class="fn">subscribe</span>();
+
+  <span class="kw">const</span> reqs = httpMock.<span class="fn">match</span>(<span class="str">'/api/courses'</span>);
+  <span class="fn">expect</span>(reqs.length).<span class="fn">toBe</span>(<span class="num">1</span>); <span class="cmt">// CHỈ 1 request, dù subscribe 2 lần</span>
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>✓ KHÔNG shareReplay: 2 subscribe -> 2 HTTP request thật
+✓ CÓ shareReplay(1): 2 subscribe -> CHỈ 1 HTTP request duy nhất
+
+Test Files  1 passed (1)
+     Tests  2 passed (2)</code></pre>
+    </div>
+    <p>
+      <code>shareReplay(1)</code> biến Observable COLD thành HOT (dùng chung MỘT subscription nội
+      bộ tới nguồn gốc) VÀ "phát lại" (replay) giá trị cuối cho người subscribe SAU — người tới
+      muộn vẫn thấy giá trị, không phải kích hoạt lại request. Đúng tinh thần "cold vs hot" Bài 03,
+      áp dụng cho chính HTTP response.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Rủi ro thật — <code>shareReplay</code> không cấu hình đúng có thể leak</h2>
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy: <code>shareReplay</code> mặc định KHÔNG tự huỷ khi hết subscriber</div>
+      <p>
+        <code>shareReplay(1)</code> (không truyền config object) giữ subscription tới nguồn gốc
+        SỐNG MÃI ngay cả khi TẤT CẢ subscriber đã huỷ (<code>unsubscribe</code>) — vì nó không biết
+        "có nên ngắt kết nối nguồn khi không còn ai nghe" hay không. Với <code>http.get()</code>
+        (complete sau 1 lần phát) ít nguy hiểm vì request đã xong sẽ tự complete. Nhưng với một
+        stream SỐNG LÂU DÀI (WebSocket ở Phase 9, interval polling), đây là leak thật.
+      </p>
+      <p>
+        Cấu hình an toàn hơn: <code>shareReplay({ bufferSize: 1, refCount: true })</code> —
+        <code>refCount: true</code> khiến nó tự ngắt kết nối nguồn khi subscriber cuối cùng huỷ,
+        rồi kết nối lại từ đầu nếu có subscriber mới.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Khi nào DÙNG, khi nào KHÔNG cần <code>shareReplay</code></div>
+    <table class="data">
+      <thead><tr><th>Tình huống</th><th>Cần <code>shareReplay</code>?</th></tr></thead>
+      <tbody>
+        <tr><td>Chỉ 1 chỗ subscribe (ví dụ chỉ dùng <code>| async</code> MỘT lần trong template)</td><td>Không — không có gì để "chia sẻ"</td></tr>
+        <tr><td>2+ chỗ subscribe CÙNG một Observable (template + TypeScript, hoặc 2 pipe <code>async</code>)</td><td>Có — tránh gọi lại nguồn nhiều lần</td></tr>
+        <tr><td>Observable đã là state lâu dài qua <code>BehaviorSubject</code> (Bài 26 — auth state)</td><td>Không cần — <code>BehaviorSubject</code> đã TỰ hot, tự chia sẻ giá trị cho mọi subscriber</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Template dùng <code>{{ (data$ | async)?.x }}</code> VÀ <code>{{ (data$ | async)?.y }}</code> — hai lần <code>| async</code> trên CÙNG một biến <code>data$</code> chưa có <code>shareReplay</code>. Bao nhiêu HTTP request?</div>
+    <button class="opt" data-correct="false" data-explain="Mỗi | async trong template tự subscribe RIÊNG — đây CHÍNH LÀ kịch bản '2 subscribe vào cùng cold Observable' đã verify ở mục 2, ra 2 request.">1 — vì cùng một biến <code>data$</code> nên Angular tự hiểu chỉ cần gọi 1 lần.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify ở mục 2. Mỗi | async là MỘT subscribe độc lập; không có shareReplay, Observable cold chạy lại từ đầu mỗi lần, ra 2 request HTTP riêng biệt.">2 — mỗi <code>| async</code> tự subscribe riêng, không có <code>shareReplay</code> thì Observable cold chạy lại từ đầu mỗi lần.</button>
+    <button class="opt" data-correct="false" data-explain="async pipe không throw lỗi khi dùng 2 lần trên cùng biến — đây là cách dùng hợp lệ, chỉ là không tối ưu nếu thiếu shareReplay."><code>async</code> pipe sẽ throw lỗi vì dùng trùng biến 2 lần trong cùng template.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>BehaviorSubject</code> (Bài 26 — auth state) KHÔNG cần <code>shareReplay</code> dù nhiều component cùng subscribe vào nó?</div>
+    <button class="opt" data-correct="false" data-explain="BehaviorSubject hoàn toàn tương thích và thường dùng chung với shareReplay trong các pipe phức tạp hơn — không phải lý do nó không cần ở đây."><code>BehaviorSubject</code> không tương thích với <code>shareReplay</code>, dùng chung sẽ lỗi.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. BehaviorSubject TỰ THÂN đã là hot — nó không 'chạy lại từ đầu' khi có subscriber mới, chỉ phát giá trị HIỆN TẠI đang giữ. shareReplay giải quyết vấn đề của Observable COLD (như http.get()) — không áp dụng ở đây vì vấn đề không tồn tại."><code>BehaviorSubject</code> đã là HOT từ bản chất — không có 'chạy lại từ đầu' để cần tránh, mỗi subscriber mới chỉ nhận giá trị hiện tại đang giữ.</button>
+    <button class="opt" data-correct="false" data-explain="Không liên quan tới cú pháp inject() — vấn đề là bản chất cold/hot của Observable, không phải cách khai báo service."><code>BehaviorSubject</code> luôn được khai báo qua <code>inject()</code> nên tự động tối ưu.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — tìm và sửa ít nhất 1 chỗ subscribe thừa trong EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Viết lại 2 test như mục 2 (KHÔNG/CÓ <code>shareReplay</code>) cho MỘT service thật trong EduCommerce (không phải ví dụ giả).</li>
+        <li><strong>TC2</strong> — Tìm trong EduCommerce ít nhất 1 chỗ có khả năng subscribe thừa (2 <code>| async</code> cùng biến, hoặc subscribe cả template lẫn TypeScript) — áp <code>shareReplay</code>, test lại xác nhận giảm đúng số request.</li>
+        <li><strong>TC3</strong> — Viết test xác nhận <code>refCount: true</code> thật sự ngắt kết nối khi hết subscriber (gợi ý: dùng <code>interval</code>/<code>Subject</code> giả lập stream sống lâu, không phải HTTP một lần).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Soát lại các component có <code>| async</code> xuất hiện NHIỀU HƠN 1 lần trong cùng template trên cùng 1 biến — đó là ứng viên đầu tiên cho TC2.</p>
+    <p><strong>Hint 2 · API:</strong> <code>shareReplay(1)</code> (đơn giản) vs <code>shareReplay({ bufferSize: 1, refCount: true })</code> (an toàn hơn cho stream sống lâu).</p>
+    <p><strong>Hint 3:</strong> TC3 cần một nguồn KHÔNG tự complete (như <code>interval()</code>) — <code>http.get()</code> tự complete sau 1 lần nên không thể hiện rõ sự khác biệt <code>refCount</code>.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi chứng minh bằng thực nghiệm (không chỉ đọc doc) rằng cold Observable + nhiều subscribe = nhiều request thật.</li>
+      <li>Tôi biết dùng <code>shareReplay</code> ĐÚNG CHỖ — không rải nó khắp nơi "cho chắc", vì <code>BehaviorSubject</code>/stream chỉ-1-subscriber không cần.</li>
+      <li>Tôi biết rủi ro leak thật của <code>shareReplay</code> mặc định và cách phòng bằng <code>refCount: true</code>.</li>
+      <li>Tôi nối được Bài 03 (cold/hot) với một vấn đề HIỆU NĂNG cụ thể — không chỉ là lý thuyết RxJS trừu tượng.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa cắt được request THỪA bằng <code>shareReplay</code>. Nhưng có một loại lãng phí khác,
+      không phải THỪA REQUEST mà là TẢI TRƯỚC những thứ CHƯA CẦN DÙNG NGAY — ví dụ:
+      <code>AdminCourseTableComponent</code> (Bài 38-40) bị tải sẵn trong bundle CHÍNH dù 95% người
+      dùng EduCommerce không phải admin, không bao giờ vào trang đó.
+    </p>
+    <p><strong>Angular có cơ chế nào để nói "đừng tải code này CHO TỚI KHI thật sự cần" — không phải lazy-load cả ROUTE (đã biết), mà lazy-load một PHẦN NHỎ bên trong 1 trang?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: tên cú pháp này nghe giống một từ khoá JavaScript quen thuộc, nhưng là control-flow block mới của Angular template (giống <code>@if</code>/<code>@for</code> bạn ĐÃ BIẾT phải tránh dùng trong project Classic này).</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 46 · <code>@defer</code></div>
+    <p class="nd">Deferred loading views — giảm bundle tải ban đầu, đúng ứng viên đã nhắc ở Bài 43 TC4.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0044-core-web-vitals.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0046-defer-deferred-loading.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi service thật đã sửa (TC2) + 2 kết quả test trước/sau. Số request giảm đúng là bằng chứng quan trọng nhất.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 43 · Phân tích bundle — stats.json, esbuild analyze, vì sao source-map-explorer không còn dùng được</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 43 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1>Phân tích bundle — nhìn thấy THẬT những gì nằm trong production bundle</h1>
+    <p class="subtitle">
+      Build xong không có nghĩa là biết bundle đang chứa gì. Bài này mổ xẻ bundle thật của một app
+      Angular 22 — và phát hiện công cụ "chuẩn" nhiều năm nay (<code>source-map-explorer</code>)
+      không còn chạy được với builder mới.
+    </p>
+    <p class="meta-line">⏱ ~35 phút · 🎯 Đọc hiểu <code>stats.json</code> thật, không chỉ xem con số tổng</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Build production với <code>--stats-json</code>, tìm ĐÚNG vị trí file xuất ra (không nằm chỗ bạn nghĩ).</li>
+      <li>Đọc được <code>stats.json</code> để biết module NÀO đang chiếm bao nhiêu byte trong bundle.</li>
+      <li>Biết CHÍNH XÁC vì sao <code>source-map-explorer</code> — công cụ kinh điển cho Webpack — fail với builder esbuild của Angular 22.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 41-42 nhìn vào chi phí RUNTIME (bao nhiêu lần check lại). Bài này nhìn vào chi phí
+      TẢI TRANG lần đầu — bao nhiêu KB trình duyệt phải tải trước khi EduCommerce chạy được dòng
+      code đầu tiên. Hai loại chi phí hoàn toàn khác nhau, đo bằng công cụ khác nhau.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Build thật, số liệu thật</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — app rỗng, chỉ có router + App component</span>
+<pre><code>$ ng build --configuration production
+
+Initial chunk files | Names   |  Raw size | Estimated transfer size
+main-XCF7SOV6.js     | main    | 211.46 kB |                56.95 kB
+styles-5INURTSO.css  | styles  |   0 bytes |                 0 bytes
+                     | Initial total | 211.46 kB |          56.95 kB</code></pre>
+    </div>
+    <p>
+      App gần như RỖNG (không có feature nào của EduCommerce) đã nặng <strong>211KB raw / ~57KB
+      sau gzip</strong>. Đây không phải lỗi — đây là chi phí CỐ ĐỊNH của riêng Angular framework.
+      Câu hỏi thật sự cần trả lời: trong 211KB đó, cái gì chiếm nhiều nhất?
+    </p>
+  </section>
+
+  <section>
+    <h2>2. <code>--stats-json</code> — và một bẫy vị trí file dễ đoán sai</h2>
+    <div class="code-block">
+      <span class="code-label">bash</span>
+<pre><code>$ ng build --configuration production --stats-json</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy khi verify: file KHÔNG nằm trong thư mục <code>browser/</code></div>
+      <p>
+        Đoán tự nhiên: file xuất ra ở <code>dist/&lt;project&gt;/browser/stats.json</code> (cạnh
+        <code>main-*.js</code>). SAI. Kiểm tra thật bằng <code>find dist -iname "stats.json"</code>
+        → không thấy gì ở đó. File thật nằm ở:
+      </p>
+      <div class="code-block">
+<pre><code>dist/cd-sandbox/browser-stats.json   <span class="cmt">← CÙNG CẤP với thư mục browser/, không phải BÊN TRONG nó</span></code></pre>
+      </div>
+      <p>
+        Tên file là <code>browser-stats.json</code> (gạch nối, không phải thư mục) — dễ nhầm khi
+        gõ tắt <code>find . -path "*/browser/stats.json"</code> rồi kết luận nhầm "tính năng này
+        bị lỗi, không xuất ra gì".
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Đọc <code>stats.json</code> — định dạng esbuild metafile</h2>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — top 5 module nặng nhất</span>
+<pre><code>$ node -e "
+const s = require('./dist/cd-sandbox/browser-stats.json');
+Object.entries(s.inputs)
+  .sort((a,b) => b[1].bytes - a[1].bytes)
+  .slice(0,5)
+  .forEach(([k,v]) => console.log(v.bytes, 'B |', k));
+"
+
+764310 B | .../@angular/core/fesm2022/core.mjs        <span class="cmt">← @angular/core TỰ NÓ đã 764KB (trước minify)</span>
+170727 B | .../@angular/router/fesm2022/router.mjs
+135211 B | .../@angular/core/fesm2022/... (chunk khác)
+109501 B | .../@angular/core/fesm2022/... (chunk khác)
+ 99353 B | .../@angular/common/fesm2022/common.mjs</code></pre>
+    </div>
+    <p>
+      Số liệu này là kích thước TRƯỚC minify/tree-shaking cuối cùng (esbuild tính theo input
+      module, không phải output đã nén) — nhưng vẫn cho thấy đúng TỶ LỆ: phần lớn 211KB thành phẩm
+      là chính Angular framework (core + router + common), không phải code EduCommerce tự viết.
+      Đây là baseline PHẢI CHẤP NHẬN — không tối ưu được bằng cách sửa code app.
+    </p>
+    <div class="code-block">
+      <span class="code-label">JSON · cấu trúc thật của stats.json</span>
+<pre><code>{
+  <span class="str">"inputs"</span>: { <span class="str">"đường/dẫn/module.js"</span>: { <span class="str">"bytes"</span>: 12478, <span class="str">"imports"</span>: [...] }, ... },
+  <span class="str">"outputs"</span>: { <span class="str">"main-XCF7SOV6.js"</span>: { ... } }
+}</code></pre>
+    </div>
+    <p>
+      File này đúng định dạng <strong>esbuild metafile</strong> — kéo thả trực tiếp vào
+      <code>esbuild.github.io/analyze</code> (công cụ CHÍNH THỨC, do Angular CLI tự trỏ tới trong
+      <code>ng build --help</code>) để xem treemap trực quan, không cần cài thêm gì.
+    </p>
+  </section>
+
+  <section>
+    <h2>4. Vì sao <code>source-map-explorer</code> KHÔNG còn dùng được</h2>
+    <p>
+      <code>source-map-explorer</code> từng là công cụ chuẩn cho mọi hướng dẫn Angular Webpack
+      nhiều năm qua. Thử trực tiếp trên bundle vừa build (có <code>--source-map</code>):
+    </p>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>$ source-map-explorer dist/cd-sandbox/browser/main-*.js
+
+dist/cd-sandbox/browser/main-CKVFZ5G6.js
+  Your source map refers to generated column Infinity on line 1, but the source
+  only contains 4414 column(s) on that line.
+  Check that you are using the correct source map.
+
+$ echo $?
+1   <span class="cmt">← FAIL thật, không phải warning vô hại</span></code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Nguyên nhân: giả định output nhiều dòng, esbuild xuất 1 dòng duy nhất</div>
+      <p>
+        <code>source-map-explorer</code> (viết cho thời Webpack, bundle trải dài NHIỀU dòng) kỳ
+        vọng source map ánh xạ theo (dòng, cột) với số dòng output tương ứng số dòng input. Bundle
+        của esbuild (builder mặc định Angular 22) nén TOÀN BỘ output vào gần như MỘT dòng — khiến
+        thư viện mapping cũ tính sai offset cột, vượt quá số cột thật trên dòng đó, rồi crash.
+      </p>
+      <p>
+        Đây KHÔNG phải lỗi cấu hình có thể sửa bằng flag — là một giới hạn thật sự giữa một công
+        cụ viết cho kiến trúc bundler cũ và output của bundler mới. Dùng
+        <code>--stats-json</code> + <code>esbuild.github.io/analyze</code> (mục 3) thay thế hoàn
+        toàn, đây cũng chính là lý do Angular CLI tự trỏ người dùng tới công cụ đó thay vì
+        <code>source-map-explorer</code> trong <code>--help</code>.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Đọc treemap để làm gì trong EduCommerce thật</div>
+    <p>
+      Khi áp dụng lên EduCommerce thật (không phải sandbox rỗng), mục tiêu là phát hiện: (1) thư
+      viện ngoài nặng bất thường so với lợi ích nó mang lại (ví dụ: import cả một date-library lớn
+      chỉ để format 1 kiểu ngày), (2) code của CHÍNH BẠN vô tình lọt vào bundle initial dù chỉ
+      dùng ở một route hiếm khi vào (ứng viên tốt cho <code>@defer</code> — Bài 46), (3) duplicate
+      — cùng một thư viện bị bundle 2 lần do version lệch nhau giữa các dependency.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Chạy <code>ng build --stats-json</code> xong, bạn tìm trong <code>dist/&lt;project&gt;/browser/stats.json</code> mà không thấy. Kết luận nào đúng?</div>
+    <button class="opt" data-correct="false" data-explain="Đã verify trực tiếp: flag hoạt động đúng, chỉ là tên/vị trí file khác kỳ vọng — không phải tính năng bị lỗi."><code>--stats-json</code> bị lỗi ở Angular 22, cần dùng version cũ hơn.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify trực tiếp bằng find. File thật là browser-stats.json, nằm CẠNH thư mục browser/, không phải bên trong nó.">File thật tên là <code>browser-stats.json</code>, nằm CẠNH thư mục <code>browser/</code>, không phải bên trong.</button>
+    <button class="opt" data-correct="false" data-explain="--source-map chỉ ảnh hưởng việc xuất file .map cho debug, không liên quan tới --stats-json."><code>--stats-json</code> chỉ hoạt động khi kết hợp thêm <code>--source-map</code>.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Vì sao <code>source-map-explorer</code> crash với bundle esbuild nhưng từng chạy tốt với Webpack?</div>
+    <button class="opt" data-correct="false" data-explain="source-map-explorer không quan tâm build production hay dev — lỗi xảy ra ở cả hai vì nguyên nhân là cấu trúc output 1 dòng, không phải môi trường build.">Vì esbuild chỉ hỗ trợ development build, không hỗ trợ production.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify qua thông báo lỗi thật: 'generated column Infinity ... source only contains 4414 column(s)'. esbuild nén output gần như 1 dòng, source-map-explorer (viết cho Webpack, nhiều dòng) tính sai offset cột rồi crash.">esbuild nén toàn bộ output gần như MỘT dòng; thư viện mapping của <code>source-map-explorer</code> giả định nhiều dòng như Webpack, tính sai offset cột rồi crash.</button>
+    <button class="opt" data-correct="false" data-explain="Thiếu tsconfig không liên quan — lỗi xảy ra ở bước phân tích file .js đã build xong, không phải ở bước biên dịch TypeScript.">Vì thiếu cấu hình <code>tsconfig.json</code> phù hợp cho source map.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>5. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — phân tích bundle thật của EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Build production EduCommerce với <code>--stats-json</code>, xác nhận tìm đúng vị trí file xuất ra.</li>
+        <li><strong>TC2</strong> — Viết 1 script Node nhỏ (như mục 3) liệt kê top 10 module nặng nhất, lưu kết quả vào <code>NOTES.md</code> hoặc file riêng.</li>
+        <li><strong>TC3</strong> — Thử chạy <code>source-map-explorer</code> trên chính bundle EduCommerce, xác nhận lại cùng lỗi (hoặc khác — báo cáo nếu khác, vì đó sẽ là phát hiện mới đáng ghi lại).</li>
+        <li><strong>TC4</strong> — Chỉ ra ÍT NHẤT 1 chỗ trong EduCommerce mà bundle initial đang chứa code CHỈ dùng ở 1 route hiếm (ứng viên cho <code>@defer</code> ở Bài 46).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> <code>find dist -iname "*stats*"</code> để tìm đúng file, đừng đoán theo trực giác.</p>
+    <p><strong>Hint 2 · API:</strong> <code>ng build --configuration production --stats-json</code> · kéo file vào <code>esbuild.github.io/analyze</code> để xem treemap trực quan không cần cài gì.</p>
+    <p><strong>Hint 3:</strong> Với TC4, nhìn vào <code>inputs</code> trong <code>stats.json</code> rồi đối chiếu đường dẫn file với cấu trúc route của EduCommerce (Bài 33 routing) — module nào thuộc 1 feature hiếm dùng mà vẫn nằm trong bundle chính?</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết đọc <code>stats.json</code> thật — không chỉ nhìn con số tổng từ output <code>ng build</code>.</li>
+      <li>Tôi biết CHÍNH XÁC vì sao một công cụ "chuẩn mực nhiều năm" (<code>source-map-explorer</code>) có thể ngừng hoạt động khi hạ tầng build đổi (Webpack → esbuild) — không phải công cụ "bị hỏng", mà giả định nền tảng của nó không còn đúng.</li>
+      <li>Tôi phân biệt được chi phí "framework cố định" (Angular core/router/common — không sửa được) với chi phí "code tự viết" (sửa được, tối ưu được).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa thấy <strong>211KB</strong> cho một app gần như rỗng. Nhưng số đó chỉ là MỘT nửa câu
+      chuyện — "nặng bao nhiêu KB" không nói lên "người dùng THẤY trang chạy được nhanh hay chậm".
+      Hai app cùng 211KB có thể cho trải nghiệm tải trang HOÀN TOÀN khác nhau tuỳ cách chúng tải.
+    </p>
+    <p><strong>Nếu bundle size không phải thước đo trực tiếp trải nghiệm người dùng — vậy thước đo nào mới THẬT SỰ phản ánh "người dùng cảm thấy trang nhanh hay chậm"?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: nghĩ về CẢM GIÁC khi mở một trang web — khoảnh khắc nào khiến bạn nghĩ "web load xong rồi" so với "web vẫn đang tải"?</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 44 · Core Web Vitals</div>
+    <p class="nd">LCP/INP/CLS đo bằng Lighthouse — biến "cảm giác nhanh/chậm" thành con số đo được.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0042-onpush-thuc-chien.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0044-core-web-vitals.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi top-10 module nặng nhất (TC2) + 1 ứng viên <code>@defer</code> tìm được (TC4). Đây là bằng chứng bạn đọc được <code>stats.json</code> thật, không chỉ copy lệnh.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

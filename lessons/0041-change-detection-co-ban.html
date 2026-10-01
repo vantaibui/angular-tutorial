@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 41 · Change Detection cơ bản — Zone.js, dirty checking, ApplicationRef.tick()</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 41 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1>Change Detection cơ bản — Zone.js, dirty checking, <code>ApplicationRef.tick()</code></h1>
+    <p class="subtitle">
+      Mở hộp đen đứng sau <code>markForCheck()</code> — thứ bạn đã gõ ở năm bài liên tiếp
+      (Bài 16, 29, 31, 37, 38, 40) mà chưa thật sự biết nó nối tới đâu.
+    </p>
+    <p class="meta-line">⏱ ~45 phút · 🎯 Trả lời bằng THỰC NGHIỆM, không bằng lý thuyết suông</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Giải thích project EduCommerce từ Bài 00 đã chạy ZONELESS — không phải "zoneless là kỹ thuật nâng cao sẽ học sau", mà là THỨ BẠN ĐANG DÙNG TỪ ĐẦU.</li>
+      <li>Giải thích chính xác <code>ApplicationRef.tick()</code> làm gì — và chứng minh nó KHÔNG phải "quét toàn bộ cây component" một cách vô điều kiện.</li>
+      <li>Giải thích <code>markForCheck()</code> thực sự "đánh dấu" cái gì, và vì sao đánh dấu 1 nhánh không "cứu" nhánh anh em không liên quan.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Từ Bài 16 bạn đã được dặn: "mutate state trong <code>.subscribe()</code> thủ công thì phải
+      gọi <code>markForCheck()</code>". Bạn đã làm đúng việc đó ở Bài 16, 29, 31, 37, 38, 40 — và
+      nó luôn hoạt động. Nhưng CHƯA bài nào giải thích <code>markForCheck()</code> vận hành trên
+      cơ chế gì bên dưới. Bài này trả lời câu hỏi đó bằng thực nghiệm trực tiếp, không phải đọc
+      tài liệu rồi tin.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Sự thật đầu tiên: EduCommerce đã ZONELESS từ Bài 00</h2>
+    <p>
+      Kiểm tra <code>package.json</code> của project — không có dependency <code>zone.js</code>.
+      Kiểm tra <code>main.ts</code> — không có import <code>zone.js</code> ở đầu file. Đây không
+      phải thiếu sót, mà là MẶC ĐỊNH của Angular hiện đại: từ Angular 18, <code>ng new</code>
+      không còn tự thêm Zone.js nữa trừ khi bạn chủ động chọn.
+    </p>
+    <div class="callout why">
+      <div class="ct">💡 Vì sao điều này quan trọng — viết lại lịch sử 5 bài trước</div>
+      <p>
+        Mọi lần bạn gọi <code>markForCheck()</code> ở Bài 16/29/31/37/38/40 không phải vì "thói
+        quen tốt" hay "phòng hờ" — mà vì KHÔNG CÓ Zone.js đứng sau lưng bạn để tự động phát hiện
+        state đổi. Ở Angular Classic CÓ Zone.js (bản mô phỏng v12-16 gốc mà khoá này dựa theo),
+        <code>setTimeout</code>/Promise/sự kiện DOM đều bị Zone.js "vá" (monkey-patch) để tự động
+        gọi <code>ApplicationRef.tick()</code> sau mỗi tác vụ bất đồng bộ — bạn gần như KHÔNG BAO
+        GIỜ cần gọi <code>markForCheck()</code> tay. Angular 22 mặc định bỏ Zone.js → không ai tự
+        động gọi <code>tick()</code> hộ bạn khi state đổi ngoài luồng Angular theo dõi được (như
+        <code>.subscribe()</code> thủ công) → đó là lý do bạn phải tự gọi.
+      </p>
+    </div>
+    <table class="data">
+      <thead><tr><th></th><th>Angular Classic (có Zone.js)</th><th>EduCommerce — Angular 22 zoneless</th></tr></thead>
+      <tbody>
+        <tr><td>Ai gọi <code>tick()</code>?</td><td>Zone.js tự động, sau MỌI tác vụ async nó vá được</td><td>Angular's scheduler, CHỈ khi có "thông báo" state đổi</td></tr>
+        <tr><td><code>setTimeout</code> xong thì sao?</td><td>Zone.js tự phát hiện, tự <code>tick()</code></td><td>Không tự động — phải tự <code>markForCheck()</code></td></tr>
+        <tr><td>Chi phí mặc định</td><td>Check CẢ CÂY mỗi lần MỌI sự kiện async xảy ra ở BẤT KỲ đâu</td><td>Chỉ check nhánh đã được đánh dấu dirty</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Thực nghiệm 1 — <code>ApplicationRef.tick()</code> có phải "quét vô điều kiện"?</h2>
+    <p>
+      Giả thuyết cần kiểm: nếu <code>tick()</code> là một hàm "quét lại toàn bộ cây component",
+      thì gọi nó sau khi mutate một field bất kỳ — KHÔNG cần <code>markForCheck()</code> — DOM
+      vẫn phải cập nhật. Kiểm tra bằng probe tối giản, không Zone.js, không HTTP, không RxJS.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/cd-mechanism-probe.spec.ts</span>
+<pre><code><span class="fn">@Component</span>({ standalone: <span class="kw">false</span>, selector: <span class="str">'app-probe'</span>, template: <span class="str">`{{ count }}`</span> })
+<span class="kw">class</span> ProbeComponent {
+  count = <span class="num">0</span>;
+  <span class="kw">constructor</span>(<span class="kw">public</span> cdr: ChangeDetectorRef) {}
+}
+
+<span class="fn">it</span>(<span class="str">'appRef.tick() KHONG markForCheck co cap nhat DOM khong?'</span>, () => {
+  <span class="kw">const</span> fixture = TestBed.<span class="fn">createComponent</span>(ProbeComponent);
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="kw">const</span> appRef = TestBed.<span class="fn">inject</span>(ApplicationRef);
+
+  fixture.componentInstance.count = <span class="num">2</span>; <span class="cmt">// mutate THẲNG, không markForCheck</span>
+  appRef.<span class="fn">tick</span>();
+
+  <span class="fn">console</span>.<span class="fn">log</span>(fixture.nativeElement.textContent.<span class="fn">trim</span>()); <span class="cmt">// ?</span>
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>STEP2 text after appRef.tick() WITHOUT markForCheck: 0   <span class="cmt">← VẪN LÀ "0", không phải "2"</span>
+
+STEP3 text after markForCheck + fixture.detectChanges(): 3
+STEP4 text after markForCheck + appRef.tick() (không qua fixture.detectChanges()): 4
+
+Test Files  1 passed (1)
+     Tests  4 passed (4)</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Kết luận thực nghiệm — bác bỏ giả thuyết "tick() quét vô điều kiện"</div>
+      <p>
+        <code>ApplicationRef.tick()</code> gọi TRỰC TIẾP mà không có <code>markForCheck()</code>
+        trước đó KHÔNG cập nhật DOM (STEP2 = "0"). Nhưng có <code>markForCheck()</code> trước, dù
+        gọi qua <code>fixture.detectChanges()</code> (STEP3) hay gọi thẳng <code>appRef.tick()</code>
+        (STEP4), đều ra đúng giá trị mới. <strong><code>tick()</code> bản thân nó cũng bị "chặn
+        theo cờ dirty"</strong> — nó chỉ ghé thăm những view ĐÃ ĐƯỢC ĐÁNH DẤU, không phải quét mù
+        toàn bộ cây mỗi lần được gọi.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Thực nghiệm 2 — đánh dấu 1 nhánh có "cứu" nhánh anh em không liên quan?</h2>
+    <p>
+      Câu hỏi còn lại: <code>markForCheck()</code> trên component A có vô tình khiến component B
+      (anh em, không liên quan) cũng được vẽ lại trong cùng lần <code>tick()</code> không? Nếu có
+      — nghĩa là cờ dirty lan rộng hơn tưởng tượng. Kiểm bằng hai sibling độc lập dưới cùng 1 root.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/cd-sibling-probe.spec.ts</span>
+<pre><code><span class="cmt">// RootProbe chứa 2 con: ChildA và ChildB, KHÔNG liên quan gì nhau</span>
+childADebug.a = <span class="num">1</span>;
+childADebug.cdr.<span class="fn">markForCheck</span>(); <span class="cmt">// chỉ A được đánh dấu</span>
+childBDebug.b = <span class="num">1</span>; <span class="cmt">// B mutate thẳng, KHÔNG markForCheck</span>
+
+appRef.<span class="fn">tick</span>(); <span class="cmt">// 1 lần tick() DUY NHẤT cho cả 2</span></code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>ChildA text (markForCheck): A:1
+ChildB text (KHONG markForCheck, cung tick): B:0   <span class="cmt">← B KHÔNG đổi, dù cùng 1 lần tick()</span>
+
+Test Files  1 passed (1)
+     Tests  1 passed (1)</code></pre>
+    </div>
+    <p>
+      <code>markForCheck()</code> trên A không "cứu" B. Cờ dirty gắn CHÍNH XÁC vào view đã gọi, và
+      lan lên chuỗi TỔ TIÊN (để Angular biết "phải đi xuyên qua nhánh này mới tới được view dirty
+      bên dưới") — chứ không lan NGANG sang anh em. Đây là lý do mỗi component mutate state ngoài
+      template event đều phải tự gọi <code>markForCheck()</code> CỦA RIÊNG NÓ — không ai làm hộ.
+    </p>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Vậy "dirty checking" + "Zone.js" khác gì mô hình zoneless?</div>
+    <p>
+      Angular Classic (Zone.js): mỗi khi MỘT sự kiện bất đồng bộ bất kỳ (click, HTTP response,
+      <code>setTimeout</code>) xảy ra Ở BẤT KỲ ĐÂU trong app, Zone.js gọi <code>tick()</code>, và
+      <code>tick()</code> duyệt TOÀN BỘ cây component kiểm tra "binding nào đổi" (dirty checking
+      kiểu cũ — không có cờ, so sánh giá trị cũ/mới của MỌI binding). Tốn hơn, nhưng lập trình
+      viên không cần nghĩ về <code>markForCheck()</code>.
+    </p>
+    <p>
+      Angular zoneless (EduCommerce từ Bài 00): không ai vá <code>setTimeout</code>/Promise để tự
+      báo. Angular dùng cờ dirty gắn trên từng view + lan theo tổ tiên (Bài này vừa chứng minh) —
+      chỉ ghé thăm nhánh cần thiết. Rẻ hơn, nhưng đòi lập trình viên tự báo đúng lúc
+      (<code>markForCheck()</code>) ở MỌI chỗ Angular không tự theo dõi được.
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Gọi <code>ApplicationRef.tick()</code> trực tiếp, không gọi <code>markForCheck()</code> trước đó, sau khi mutate một field đang bind trong template. DOM có cập nhật không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify trực tiếp (STEP2 = '0'). tick() KHÔNG phải quét vô điều kiện, nó cũng bị chặn theo cờ dirty.">Có — <code>tick()</code> luôn quét lại toàn bộ cây bất kể cờ dirty.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify (STEP2 = '0', không đổi). tick() chỉ ghé thăm view đã được đánh dấu dirty, không phải quét mù toàn bộ cây mỗi lần gọi.">Không — <code>tick()</code> chỉ ghé thăm view đã được đánh dấu dirty, không quét mù toàn bộ cây.</button>
+    <button class="opt" data-correct="false" data-explain="tick() không throw trong trường hợp này — nó chạy bình thường, chỉ đơn giản là không có gì để cập nhật vì không có view nào được đánh dấu dirty."><code>tick()</code> sẽ throw lỗi vì gọi sai thứ tự.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Component A gọi <code>markForCheck()</code>, component B (anh em, không liên quan) mutate state cùng lúc nhưng không gọi. Cùng một lần <code>tick()</code> — B có được cập nhật không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify trực tiếp (ChildB vẫn là 'B:0'). Cờ dirty không lan ngang sang anh em."><code>Có</code> — vì cùng một lần <code>tick()</code>, cờ dirty lan ra toàn bộ cây đang được kiểm.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify (ChildB giữ nguyên 'B:0'). Cờ dirty gắn CHÍNH XÁC vào view gọi markForCheck() và lan lên tổ tiên, không lan ngang sang anh em.">Không — cờ dirty chỉ gắn vào view đã gọi <code>markForCheck()</code> và lan lên tổ tiên, không lan sang anh em.</button>
+    <button class="opt" data-correct="false" data-explain="Không liên quan tới thứ tự khai báo trong template — cờ dirty được xác định theo view nào THỰC SỰ gọi markForCheck(), không phải vị trí trong cây.">Có, nhưng chỉ nếu B được khai báo SAU A trong template.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — tự dựng lại cả 2 thực nghiệm trong sân tập</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Dựng probe 1 component, chứng minh <code>appRef.tick()</code> không <code>markForCheck()</code> KHÔNG cập nhật DOM.</li>
+        <li><strong>TC2</strong> — Cùng probe đó, thêm <code>markForCheck()</code> trước <code>tick()</code>, chứng minh DOM cập nhật đúng.</li>
+        <li><strong>TC3</strong> — Dựng probe 2 sibling (như mục 3), chứng minh <code>markForCheck()</code> trên 1 nhánh không ảnh hưởng nhánh kia.</li>
+        <li><strong>TC4</strong> — Viết 1 đoạn giải thích ngắn (comment hoặc markdown) bằng từ NGỮ CỦA BẠN: "zoneless nghĩa là gì, và vì sao <code>markForCheck()</code> cần thiết trong mô hình đó" — không chép lại nguyên văn bài học.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Dùng đúng cấu trúc probe tối giản như mục 2/3 — component rỗng, không HTTP, không RxJS. Nhiễu càng ít, kết luận càng chắc.</p>
+    <p><strong>Hint 2 · API:</strong> <code>ApplicationRef</code> từ <code>@angular/core</code>, <code>TestBed.inject(ApplicationRef)</code>, <code>ChangeDetectorRef.markForCheck()</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC1 vô tình "xanh" (DOM vẫn cập nhật dù không markForCheck) — kiểm tra lại bạn có đang gọi <code>fixture.detectChanges()</code> ở đâu đó hay không. <code>detectChanges()</code> trên fixture có hành vi khác <code>appRef.tick()</code> trần.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi biết EduCommerce (và Angular 22 mặc định) chạy ZONELESS — không phải một tuỳ chọn nâng cao, mà là baseline.</li>
+      <li>Tôi chứng minh được <code>tick()</code> không phải "quét vô điều kiện" — nó bị chặn theo cờ dirty, y hệt <code>fixture.detectChanges()</code>.</li>
+      <li>Tôi chứng minh được cờ dirty KHÔNG lan ngang sang component anh em — chỉ lan lên tổ tiên của chính view đã đánh dấu.</li>
+      <li>Tôi hiểu TẠI SAO 5 bài trước mình phải gọi <code>markForCheck()</code> — không phải "quy ước", mà là hệ quả trực tiếp của việc không có Zone.js.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy</h2>
+    <p>
+      Bài 40 đã bật <code>OnPush</code> cho <code>AdminCourseTableComponent</code> "miễn phí" vì
+      code đã tuân thủ đúng kỷ luật zoneless từ trước. Nhưng bài đó chỉ dừng ở MỘT component có
+      <code>@Input</code> đơn giản (thực ra không có <code>@Input</code> nào).
+    </p>
+    <p><strong>Khi một component CÓ <code>@Input</code> và cha truyền xuống một MẢNG, điều gì QUYẾT ĐỊNH OnPush có "thấy" được thay đổi bên trong mảng đó hay không — và tại sao `.push()` vào mảng cũ lại là một trong những bug OnPush phổ biến nhất khi phỏng vấn?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: bạn vừa thấy <code>markForCheck()</code> không lan ngang. Giờ nghĩ xem OnPush "nhìn" <code>@Input</code> đổi bằng tiêu chí gì — nội dung hay tham chiếu.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 42 · <code>OnPush</code> thực chiến</div>
+    <p class="nd">Điều kiện an toàn đầy đủ, trả nợ forward-reference Bài 06/18 — và bug <code>.push()</code> kinh điển vừa nhắc ở câu hỏi tư duy.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0040-trackby-onpush-virtual-scroll.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0042-onpush-thuc-chien.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi 2 file spec + output thật. TC3 (sibling không ảnh hưởng nhau) là bằng chứng quan trọng nhất — chứng minh bạn hiểu cờ dirty không lan ngang.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

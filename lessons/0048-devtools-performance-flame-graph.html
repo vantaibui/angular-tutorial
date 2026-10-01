@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 48 · Chrome DevTools Performance — đọc flame graph, tìm bottleneck thật</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 48 · Module 10 · Bài cuối — Change Detection &amp; Performance sâu</span>
+    <h1>Chrome DevTools Performance — đọc flame graph, tìm bottleneck thật</h1>
+    <p class="subtitle">
+      Bài cuối Module 10. Bạn đã HỌC cơ chế (Bài 41-42), ĐO được con số (Bài 43-45), và TỐI ƯU
+      được 2 loại tải tài nguyên (Bài 46-47). Bài này là lúc NHÌN THẤY mọi thứ đó đang chạy thật
+      trên 1 frame cụ thể — không cần cài thêm công cụ gì, chỉ cần trình duyệt.
+    </p>
+    <p class="meta-line">⏱ ~40 phút · 🎯 Tự ghi + đọc được 1 bản ghi Performance thật của EduCommerce</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Tự ghi một bản Performance recording thật trong DevTools khi thao tác với EduCommerce.</li>
+      <li>Đọc đúng ý nghĩa MÀU SẮC và CHIỀU SÂU trong flame chart ở track Main — không chỉ nhìn "có màu đỏ là xấu".</li>
+      <li>Tìm được MỘT function cụ thể (tên thật, trong code EduCommerce) đang chiếm nhiều thời gian nhất trong một thao tác chậm.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 41 chứng minh bằng <code>console.log</code> trong test rằng <code>markForCheck()</code>
+      + <code>tick()</code> quyết định view nào được vẽ lại. Bài này cho bạn thấy ĐÚNG lời gọi đó
+      — <code>refreshView</code>, <code>detectChangesInternal</code>, hàm bạn tự viết trong
+      <code>.subscribe()</code> — dưới dạng một THANH MÀU thật trên trục thời gian, với con số
+      mili-giây CỤ THỂ nó chiếm dụng.
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Quy trình ghi — chuẩn, lặp lại được</h2>
+    <ol>
+      <li>Mở EduCommerce bằng <code>pnpm start</code>, mở trang có thao tác bạn nghi ngờ chậm (ví dụ: gõ nhanh vào ô search Bài 01, hoặc trang Admin 500 dòng Bài 40).</li>
+      <li>DevTools → tab <strong>Performance</strong> → (khuyên dùng) tick <strong>"CPU: 4x slowdown"</strong> trong phần Throttling — máy dev thường quá mạnh để thấy rõ vấn đề người dùng máy yếu gặp phải.</li>
+      <li>Bấm nút tròn <strong>Record</strong> (hoặc Ctrl/Cmd+E) → thực hiện ĐÚNG thao tác nghi ngờ chậm → bấm Stop.</li>
+      <li>DevTools tự vẽ ra timeline — đây là "cuộn phim" đầy đủ mọi việc trình duyệt làm trong khoảng thời gian đó.</li>
+    </ol>
+    <div class="callout danger">
+      <div class="ct">🔥 Bẫy hay gặp: ghi quá dài, flame graph rối không đọc được</div>
+      <p>
+        Ghi 30 giây "lướt lung tung" cho ra một timeline dày đặc không thể đọc. Ghi ĐÚNG MỘT thao
+        tác (một lần gõ, một lần click) trong 2-3 giây — timeline ngắn, flame graph thưa, dễ xác
+        định CHÍNH XÁC đoạn nào ứng với thao tác bạn vừa làm.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Đọc track Main — flame graph nghĩa là gì</h2>
+    <p>
+      Track <strong>Main</strong> là nơi mọi JavaScript/style/layout/paint của TAB đó chạy. Mỗi
+      thanh ngang là MỘT lời gọi hàm; thanh NẰM TRÊN là hàm gọi RA thanh nằm dưới (call stack —
+      càng xuống sâu càng là hàm con). Màu sắc PHÂN LOẠI công việc, không phải "tốt/xấu":
+    </p>
+    <table class="data">
+      <thead><tr><th>Màu</th><th>Loại công việc</th><th>Liên quan bài nào đã học</th></tr></thead>
+      <tbody>
+        <tr><td>🟨 Vàng</td><td>Scripting — JavaScript thực thi (hàm của bạn, Angular CD, RxJS operator)</td><td>Bài 41-42 — đây là nơi <code>tick()</code>/<code>markForCheck()</code> xuất hiện</td></tr>
+        <tr><td>🟪 Tím</td><td>Rendering — tính toán style/layout (CSS, kích thước phần tử)</td><td>Bài 40 — virtual scroll giảm số node cần layout</td></tr>
+        <tr><td>🟩 Xanh lá</td><td>Painting — vẽ pixel thật lên màn hình</td><td>Bài 47 — ảnh lớn khiến painting tốn hơn</td></tr>
+        <tr><td>⬜ Xám</td><td>System/idle — trình duyệt rảnh hoặc việc nội bộ khác</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <div class="ct">🔥 Dấu hiệu quan trọng nhất: tam giác đỏ ở góc — Long Task</div>
+      <p>
+        Bất kỳ khối thực thi JavaScript LIÊN TỤC nào dài hơn <strong>50ms</strong> được DevTools tự
+        đánh dấu một <strong>tam giác đỏ</strong> ở góc trên bên phải khối đó. Đây CHÍNH LÀ ngưỡng
+        khiến người dùng CẢM NHẬN được độ trễ (liên quan trực tiếp INP — Bài 44): trình duyệt không
+        thể xử lý bất kỳ tương tác nào khác (click, scroll) trong lúc một Long Task đang chạy, vì
+        JavaScript là single-threaded.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Bottom-Up vs Call Tree — hai câu hỏi khác nhau</h2>
+    <table class="data">
+      <thead><tr><th>View (panel dưới timeline)</th><th>Trả lời câu hỏi</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Call Tree</strong></td><td>"Từ điểm BẮT ĐẦU, luồng thực thi đi qua những hàm nào, theo thứ tự gọi?" — tốt để hiểu LUỒNG.</td></tr>
+        <tr><td><strong>Bottom-Up</strong></td><td>"Hàm NÀO, TÍNH TỔNG trên mọi lần gọi (dù rải rác nhiều nhánh khác nhau), chiếm nhiều thời gian NHẤT?" — tốt để tìm THỦ PHẠM nhanh nhất.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Quy trình thực dụng khi không biết bắt đầu từ đâu: mở <strong>Bottom-Up</strong>, sắp xếp
+      theo cột <strong>Self Time</strong> (thời gian hàm đó tự chạy, KHÔNG tính hàm con gọi ra) —
+      hàng đầu tiên thường chính là thủ phạm.
+    </p>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Đối chiếu với những gì bạn đã học ở Bài 41-42</div>
+    <p>
+      Ghi lại một lần gõ vào ô search (Bài 01) hoặc một lần sort bảng Admin (Bài 39), rồi tìm trong
+      flame graph tên các hàm sau — chúng không còn là lý thuyết, mà là THANH MÀU THẬT bạn có thể
+      click vào xem đúng bao nhiêu mili-giây: <code>refreshView</code>, <code>detectChangesInternal</code>,
+      tên hàm xử lý sự kiện của CHÍNH BẠN (ví dụ <code>onSearchInput</code>, <code>onSort</code>).
+      Nếu bạn thấy hàm RxJS <code>subscribe</code> callback của mình kéo dài bất thường — đó là ứng
+      viên cho tối ưu ở Bài 45 (<code>shareReplay</code>) hoặc debounce (Bài 01).
+    </p>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Bạn thấy một khối màu vàng dài 120ms trong track Main, có tam giác đỏ ở góc. Điều gì đúng?</div>
+    <button class="opt" data-correct="false" data-explain="Màu vàng là Scripting (JavaScript), không phải Rendering. Rendering là màu tím.">Đây là công việc Rendering (tính layout CSS), không liên quan tới JavaScript.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Vàng = Scripting (JavaScript). Tam giác đỏ = Long Task (>50ms liên tục) — trong 120ms đó, trình duyệt KHÔNG thể xử lý bất kỳ tương tác nào khác của người dùng, ảnh hưởng trực tiếp tới INP.">Đây là JavaScript chạy liên tục >50ms (Long Task) — trong suốt 120ms đó trình duyệt không xử lý được tương tác nào khác của người dùng.</button>
+    <button class="opt" data-correct="false" data-explain="Tam giác đỏ không liên quan tới lỗi console.error — nó là cảnh báo Long Task riêng của DevTools Performance, dựa trên thời lượng thực thi, không phải log lỗi.">Đây là dấu hiệu có lỗi (error) ném ra trong console khi code chạy.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Bạn nghi ngờ một hàm RxJS callback đang chạy ở NHIỀU nơi rải rác trong luồng thực thi, muốn biết TỔNG thời gian hàm đó chiếm — dùng view nào?</div>
+    <button class="opt" data-correct="false" data-explain="Call Tree cho thấy LUỒNG gọi theo thứ tự thời gian — nếu hàm xuất hiện ở nhiều nhánh khác nhau, Call Tree không tự cộng dồn lại cho bạn ở một chỗ.">Call Tree — vì nó hiển thị đầy đủ thứ tự gọi hàm theo thời gian.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng. Bottom-Up cộng dồn TỔNG thời gian của một hàm trên MỌI lần gọi dù rải rác ở nhánh call stack khác nhau — sắp xếp theo Self Time cho ra ngay thủ phạm chiếm nhiều thời gian nhất.">Bottom-Up, sắp xếp theo cột Self Time — cộng dồn đúng tổng thời gian hàm đó chiếm trên toàn bộ bản ghi.</button>
+    <button class="opt" data-correct="false" data-explain="Network tab đo request mạng (đã dùng ở Bài 12), không đo thời gian CPU thực thi JavaScript trong Performance recording.">Network tab — vì RxJS thường liên quan tới HTTP request.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn — bài cuối Module 10</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — tự ghi và tìm 1 bottleneck thật trong EduCommerce</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Ghi 1 Performance recording khi gõ nhanh vào ô search (Bài 01) với "CPU 4x slowdown" bật.</li>
+        <li><strong>TC2</strong> — Tìm ít nhất 1 Long Task (tam giác đỏ) trong bản ghi đó — chụp màn hình hoặc mô tả đúng vị trí trên timeline.</li>
+        <li><strong>TC3</strong> — Dùng Bottom-Up, tìm hàm có Self Time cao nhất — ghi lại TÊN HÀM THẬT và số ms.</li>
+        <li><strong>TC4</strong> — Lặp lại với 1 thao tác KHÁC trong EduCommerce (sort bảng Admin Bài 39, hoặc chuyển trang pagination Bài 29) — so sánh: thao tác nào tốn Scripting (vàng) nhiều hơn, thao tác nào tốn Rendering (tím) nhiều hơn.</li>
+        <li><strong>TC5</strong> — Viết 2-3 câu kết luận: dựa trên bằng chứng flame graph, bạn sẽ ưu tiên tối ưu CÁI GÌ trước trong EduCommerce, và kỹ thuật nào từ Bài 40-47 áp dụng được.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Nếu timeline quá rối, ghi LẠI với thao tác NGẮN HƠN — 1 lần gõ, không phải gõ cả câu.</p>
+    <p><strong>Hint 2 · API:</strong> Panel dưới timeline có 3 tab: <strong>Bottom-Up</strong>, <strong>Call Tree</strong>, <strong>Event Log</strong> — click vào 1 khối màu trên timeline để tự động nhảy đúng tới nó trong cả 3 tab.</p>
+    <p><strong>Hint 3:</strong> Nếu không thấy tên hàm EduCommerce (chỉ thấy tên file build đã minify), bật <strong>source map</strong> trong Settings của DevTools (biểu tượng bánh răng) — cần build có <code>--source-map</code> như Bài 43.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway — tổng kết Module 10</div>
+    <ul class="checklist">
+      <li>Tôi tự ghi và đọc được 1 bản Performance recording thật — không chỉ biết TÊN công cụ, mà biết DÙNG nó để tìm bottleneck cụ thể.</li>
+      <li>Tôi nhìn thấy cơ chế Bài 41-42 (<code>tick()</code>, <code>markForCheck()</code>) không còn là lý thuyết — mà là thanh màu thật trên timeline, với số ms cụ thể.</li>
+      <li>Module 10 xong: hiểu CƠ CHẾ (41-42) → đo được BUNDLE (43) và TRẢI NGHIỆM (44) → tối ưu ĐÚNG CHỖ (45 RxJS, 46-47 tải tài nguyên) → XÁC NHẬN bằng công cụ thật (48) — một vòng khép kín từ lý thuyết tới bằng chứng.</li>
+      <li>Tôi không còn tối ưu theo "cảm giác" — mọi quyết định tối ưu từ giờ đều dựa trên SỐ ĐO cụ thể từ Lighthouse hoặc DevTools Performance.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy — kết Module 10, mở Phase 9</h2>
+    <p>
+      Suốt Module 10, mọi tối ưu đều xoay quanh một luồng dữ liệu "yên tĩnh": người dùng thao tác,
+      app phản hồi, xong. Nhưng EduCommerce sắp cần một loại dữ liệu HOÀN TOÀN khác — dữ liệu đến
+      TỪ SERVER, KHÔNG do người dùng thao tác kích hoạt (ví dụ: "có học viên mới vừa enroll khoá
+      học của bạn", cập nhật realtime).
+    </p>
+    <p><strong>Nếu HTTP request (Bài 01-04) là mô hình "hỏi rồi mới nhận được MỘT câu trả lời", vậy cần mô hình giao tiếp nào để SERVER có thể chủ động "nói" với trình duyệt BẤT KỲ LÚC NÀO, nhiều lần, không cần trình duyệt hỏi trước?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: đây là một giao thức tồn tại song song với HTTP, giữ kết nối MỞ liên tục thay vì đóng lại sau mỗi lần trao đổi.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Module tiếp theo</div>
+    <div class="nt">Module 11 · Phase 9 — Realtime với WebSocket</div>
+    <p class="nd">Bài 49 · <code>rxjs/webSocket</code> — kết nối, nhận message dạng Observable. Server chủ động "nói" với client, không cần client hỏi trước.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0047-ngoptimizedimage.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a class="disabled">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi TC3 (tên hàm + Self Time thật) và TC5 (kết luận của bạn). Đây là bài DUY NHẤT trong Module 10 không có "kết quả đúng/sai" cố định — tôi muốn xem BẠN đọc được gì từ chính EduCommerce của bạn.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>

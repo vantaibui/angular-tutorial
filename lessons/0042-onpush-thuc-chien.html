@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 42 · OnPush thực chiến — điều kiện an toàn, và một phát hiện lật ngược sách giáo khoa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lesson.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="lesson-tag">Phase 8.5 · Bài 42 · Module 10 · Change Detection &amp; Performance sâu</span>
+    <h1>OnPush thực chiến — điều kiện an toàn, và một phát hiện lật ngược sách giáo khoa</h1>
+    <p class="subtitle">
+      Trả nợ Bài 06/18 (nơi <code>OnPush</code> chỉ được NHẮC tên). Nhưng thực nghiệm hôm nay cho
+      ra một kết quả không khớp với sách giáo khoa — và cả hai đều ĐÚNG, chỉ là đúng ở hai thế giới khác nhau.
+    </p>
+    <p class="meta-line">⏱ ~50 phút · 🎯 Biết CẢ phiên bản sách giáo khoa LẪN phiên bản thực tế của project bạn</p>
+  </header>
+
+  <section class="callout tip">
+    <div class="ct">🎯 Sau bài này bạn phải làm được</div>
+    <ul class="checklist">
+      <li>Trả lời được câu hỏi phỏng vấn kinh điển "OnPush khác Default thế nào" — ĐÚNG theo nghĩa Zone.js cổ điển (nơi đa số codebase thật vẫn đang chạy).</li>
+      <li>Chứng minh bằng thực nghiệm: trong EduCommerce (zoneless), <code>OnPush</code> và Default hiện hành ĐỒNG NHẤT hành vi khi mutate tại chỗ — một phát hiện không có trong tài liệu phổ thông.</li>
+      <li>Giải thích tại sao bug "<code>.push()</code> vào mảng không re-render" vẫn xảy ra DÙ child không hề là <code>OnPush</code>.</li>
+    </ul>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🌉 Bắc cầu từ cái bạn đã biết</div>
+    <p>
+      Bài 06 và Bài 18 đều NHẮC <code>OnPush</code> như một kỹ thuật tối ưu sẽ học sau. Bài 40 bật
+      nó lần đầu cho <code>AdminCourseTableComponent</code> — "miễn phí" vì code đã đúng kỷ luật
+      zoneless từ trước. Bài 41 vừa chứng minh cờ dirty không lan ngang. Bài này tiếp tục đào sâu
+      đúng câu hỏi Bài 41 để lại: <strong><code>@Input</code> đổi reference quyết định gì, và mutate
+      tại chỗ hỏng ở đâu.</strong>
+    </p>
+  </section>
+
+  <section>
+    <h2>1. Phiên bản sách giáo khoa — ĐÚNG cho codebase có Zone.js</h2>
+    <p>
+      Đây là câu trả lời interviewer mong đợi, và đúng cho phần lớn codebase Angular production
+      hiện tại (built trước Angular 18, hoặc không chủ động tắt Zone.js):
+    </p>
+    <table class="data">
+      <thead><tr><th>Chiến lược</th><th>Check lại khi nào (có Zone.js)</th></tr></thead>
+      <tbody>
+        <tr><td><code>ChangeDetectionStrategy.Default</code></td><td>MỌI lần Zone.js phát hiện một tác vụ async kết thúc Ở BẤT KỲ ĐÂU trong app — không cần liên quan tới component này.</td></tr>
+        <tr><td><code>ChangeDetectionStrategy.OnPush</code></td><td>CHỈ khi: (a) một <code>@Input</code> đổi THAM CHIẾU, (b) sự kiện template của CHÍNH component, (c) <code>markForCheck()</code> gọi tường minh, (d) <code>async</code> pipe nhận giá trị mới.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Hệ quả kinh điển hay bị hỏi: <code>this.items.push(x)</code> (mutate, giữ nguyên tham chiếu)
+      trên component CHA truyền <code>[items]</code> xuống con <code>OnPush</code> → con KHÔNG
+      re-render, vì tham chiếu không đổi. Phải <code>this.items = [...this.items, x]</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>2. Thực nghiệm trong EduCommerce — kịch bản thật, trigger thật</h2>
+    <p>
+      Dựng lại đúng kịch bản trên nhưng với trigger THẬT (click thật qua DOM, không mutate field
+      trực tiếp từ test) để tránh nhiễu đã gặp ở Bài 41: Host có 2 nút — <code>mutate</code>
+      (<code>push()</code>, giữ reference) và <code>immutable</code> (spread, reference mới) — con
+      là <code>OnPush</code>.
+    </p>
+    <div class="code-block">
+      <span class="code-label">TypeScript · src/playground/onpush-click-propagation-probe.spec.ts</span>
+<pre><code><span class="fn">@Component</span>({ standalone: <span class="kw">false</span>, changeDetection: ChangeDetectionStrategy.OnPush,
+  template: <span class="str">`&lt;li *ngFor="let i of items"&gt;{{ i }}&lt;/li&gt;`</span> })
+<span class="kw">class</span> OnpList { <span class="fn">@Input</span>() items: <span class="kw">number</span>[] = []; }
+
+<span class="cmt">// Host: addMutate() push() CÙNG reference · addImmutable() spread() reference MỚI</span>
+<span class="fn">it</span>(<span class="str">'click addMutate (push, cùng reference)'</span>, () => {
+  fixture.nativeElement.<span class="fn">querySelector</span>(<span class="str">'button.mutate'</span>).<span class="fn">click</span>(); <span class="cmt">// click DOM thật</span>
+  fixture.<span class="fn">detectChanges</span>();
+  <span class="cmt">// so &lt;li&gt;: ?</span>
+});</code></pre>
+    </div>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật</span>
+<pre><code>sau click mutate (push, cùng ref)      - số &lt;li&gt;: 2   <span class="cmt">← KHÔNG tăng, đúng dự đoán sách giáo khoa</span>
+sau click immutable (spread, ref MỚI)  - số &lt;li&gt;: 3   <span class="cmt">← tăng đúng</span>
+
+Test Files  1 passed (1)
+     Tests  2 passed (2)</code></pre>
+    </div>
+    <p>
+      Khớp HOÀN TOÀN với sách giáo khoa: click là notification thật cho HOST (đã verify ở Bài 41),
+      host được check, đi xuống con <code>OnPush</code> — Angular so <code>items</code> MỚI với
+      <code>items</code> CŨ bằng <strong>tham chiếu</strong>. Mutate → cùng tham chiếu → bỏ qua.
+      Immutable → tham chiếu khác → check con.
+    </p>
+  </section>
+
+  <section>
+    <h2>3. Phát hiện lật ngược — chạy LẠI y hệt thí nghiệm, con là Default (không OnPush)</h2>
+    <p>
+      Câu hỏi chưa ai đặt ra trong sách giáo khoa cho app ZONELESS (không Zone.js, như EduCommerce
+      từ Bài 00): nếu con KHÔNG phải <code>OnPush</code> mà là Default — Default có "tự check vô
+      điều kiện" khi host đã được visit không? Dựng lại Y HỆT thí nghiệm mục 2, chỉ đổi con sang
+      Default.
+    </p>
+    <div class="code-block">
+      <span class="code-label">bash · kết quả chạy thật — con là DEFAULT, không phải OnPush</span>
+<pre><code>Default child, mutate cùng ref, host được click thật - số &lt;li&gt;: 2   <span class="cmt">← Y HỆT OnPush!</span>
+</code></pre>
+    </div>
+    <div class="callout danger">
+      <div class="ct">🔥 Phát hiện: Default và OnPush ĐỒNG NHẤT hành vi trong app zoneless</div>
+      <p>
+        Component <code>Default</code> (không khai <code>changeDetection</code>) cũng KHÔNG re-render
+        khi <code>@Input</code> mutate tại chỗ — dù host được click thật, dù con không hề là
+        <code>OnPush</code>. Trong Angular zoneless (mặc định từ Angular 18+, là baseline của
+        EduCommerce), <strong>không có "Default luôn check mọi thứ" nữa</strong> — MỌI chiến lược
+        đều phụ thuộc vào thông báo (notification) tới ĐÚNG view đó: sự kiện template của chính nó,
+        <code>markForCheck()</code>, hoặc <code>@Input</code> đổi tham chiếu. Sự khác biệt "Default
+        check toàn bộ mỗi zone turn" CHỈ tồn tại khi CÓ Zone.js.
+      </p>
+      <p>
+        Đã verify 3 lần độc lập ở Bài 41-42 (component đơn lẻ, 2 sibling không lan ngang, host dirty
+        không "kéo theo" con) — không phải trùng hợp ngẫu nhiên của 1 test.
+      </p>
+    </div>
+    <div class="callout why">
+      <div class="ct">💡 Vậy phải trả lời câu phỏng vấn "OnPush khác Default" thế nào cho ĐÚNG NGỮ CẢNH</div>
+      <p>
+        Hai câu trả lời, cả hai đều đúng — khác NGỮ CẢNH: <strong>"Trong codebase Classic có
+        Zone.js (đa số production hiện tại), Default check lại MỌI LẦN zone phát hiện async bất kỳ
+        đâu; OnPush chỉ check theo 4 điều kiện cụ thể."</strong> VÀ <strong>"Trong Angular zoneless
+        (mặc định từ v18, baseline của app này), khác biệt đó biến mất — cả hai đều cần notification
+        riêng cho view đó."</strong> Trả lời chỉ MỘT nửa trong phỏng vấn — nhất là nếu công ty dùng
+        codebase cũ — là trả lời sai ngữ cảnh.
+      </p>
+    </div>
+  </section>
+
+  <section class="callout why">
+    <div class="ct">💡 Vậy dùng <code>OnPush</code> ở app zoneless để làm gì, nếu Default "cũng vậy"?</div>
+    <ul class="checklist">
+      <li><strong>Tài liệu hoá ý định:</strong> <code>OnPush</code> tuyên bố rõ "component này được viết đúng kỷ luật immutable" — Default không nói lên điều đó.</li>
+      <li><strong>An toàn khi quay lại Zone.js:</strong> nếu một ngày project bật lại Zone.js (ví dụ tích hợp thư viện cũ), component <code>OnPush</code> vẫn giữ nguyên hành vi tối ưu — Default sẽ ĐỔI hành vi ngầm (quay về "check mọi thứ").</li>
+      <li><strong>Không có chi phí đánh đổi:</strong> đã verify Default không "rẻ hơn" trong app zoneless — không có lý do THỰC TẾ để không dùng OnPush ở mọi component mới.</li>
+    </ul>
+  </section>
+
+  <section class="quiz">
+    <h3>🧠 Kiểm tra mental model</h3>
+    <div class="q">Câu 1. Trong một codebase Angular Classic CÓ Zone.js, component cha gọi <code>setTimeout</code> ở một nơi HOÀN TOÀN không liên quan tới component con Default. Con Default có bị check lại không?</div>
+    <button class="opt" data-correct="true" data-explain="Đúng — đây là hành vi Zone.js cổ điển: MỌI tác vụ async bất kỳ đâu trong app đều kích hoạt Zone.js gọi tick(), và Default strategy check lại TOÀN BỘ các view Default bất kể có liên quan hay không.">Có — Zone.js kích hoạt <code>tick()</code> cho MỌI tác vụ async bất kỳ đâu, và Default check lại dù không liên quan.</button>
+    <button class="opt" data-correct="false" data-explain="Sai cho ngữ cảnh CÓ Zone.js — đây là hành vi zoneless (đã verify ở Bài 41-42), không phải hành vi Zone.js cổ điển mà câu hỏi đang hỏi.">Không — Default chỉ check khi có notification trực tiếp tới nó, giống hệt OnPush.</button>
+    <button class="opt" data-correct="false" data-explain="Ngược lại hoàn toàn — Zone.js chính là thứ khiến setTimeout BẤT KỲ ĐÂU cũng kích hoạt kiểm tra lại."><code>setTimeout</code> không bao giờ kích hoạt change detection, dù có Zone.js hay không.</button>
+    <div class="feedback"></div>
+
+    <div class="q" style="margin-top:26px;">Câu 2. Trong EduCommerce (zoneless), component con chiến lược Default, cha click thật (notification hợp lệ cho cha) rồi <code>this.items.push(x)</code>. Con Default có re-render không?</div>
+    <button class="opt" data-correct="false" data-explain="Ngược lại — đã verify trực tiếp (mục 3): Default child giữ nguyên số <li>, KHÔNG re-render, giống hệt OnPush trong cùng kịch bản.">Có — Default luôn check vô điều kiện khi cha được visit, bất kể <code>@Input</code> có đổi tham chiếu hay không.</button>
+    <button class="opt" data-correct="true" data-explain="Đúng — đã verify trực tiếp. Trong zoneless, Default và OnPush ĐỒNG NHẤT: cả hai chỉ check khi @Input đổi THAM CHIẾU, không phải khi nội dung đổi.">Không — zoneless khiến Default và OnPush đồng nhất: cả hai chỉ check khi <code>@Input</code> đổi THAM CHIẾU.</button>
+    <button class="opt" data-correct="false" data-explain="Sai — click trên CHA là notification HỢP LỆ cho CHA (đã verify ở Bài 41 mục template event), cha chắc chắn được check. Vấn đề nằm ở input binding không đổi tham chiếu khi truyền xuống con.">Không — vì click trên cha không phải notification hợp lệ trong zoneless.</button>
+    <div class="feedback"></div>
+  </section>
+
+  <section>
+    <h2>4. 🎯 Your turn</h2>
+    <div class="callout tip">
+      <div class="ct">🛠 Task — tự dựng cả 2 kịch bản, Default VÀ OnPush, trong cùng 1 file</div>
+      <strong>Tiêu chí (Definition of Done)</strong>
+      <ul class="checklist">
+        <li><strong>TC1</strong> — Host với 2 nút (mutate/immutable) + con <code>OnPush</code> nhận <code>@Input() items</code>. Verify: mutate → không đổi DOM; immutable → đổi đúng.</li>
+        <li><strong>TC2</strong> — Y hệt TC1 nhưng con là Default (không khai <code>changeDetection</code>). Verify kết quả GIỐNG HỆT TC1 — bằng chứng cho phát hiện mục 3.</li>
+        <li><strong>TC3</strong> — Viết 1 đoạn giải thích ngắn bằng từ ngữ của bạn: "nếu phỏng vấn hỏi OnPush khác Default thế nào, bạn trả lời ra sao để đúng với CẢ hai loại codebase (Zone.js và zoneless)".</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="callout bridge">
+    <div class="ct">🧩 Hint ladder</div>
+    <p><strong>Hint 1:</strong> Trigger bằng <code>button.click()</code> thật qua DOM (như mục 2), KHÔNG mutate field trực tiếp từ test — nếu không sẽ gặp lại nhiễu "không ai được notify" của Bài 41.</p>
+    <p><strong>Hint 2 · API:</strong> <code>@Input()</code> · <code>ChangeDetectionStrategy.OnPush</code> · <code>fixture.nativeElement.querySelector(...).click()</code>.</p>
+    <p><strong>Hint 3:</strong> Nếu TC2 (Default) ra kết quả KHÁC TC1 (OnPush) — rất có thể bạn đang chạy Angular có Zone.js hoặc test sai cách trigger. Đối chiếu lại với kết quả đã verify trong bài.</p>
+  </section>
+
+  <section class="callout tip">
+    <div class="ct">✅ Senior takeaway</div>
+    <ul class="checklist">
+      <li>Tôi trả lời được câu hỏi OnPush kinh điển ĐÚNG CHO CẢ hai ngữ cảnh — Zone.js và zoneless — thay vì chỉ thuộc một câu trả lời chung chung.</li>
+      <li>Tôi chứng minh bằng thực nghiệm (không phải đọc blog) rằng zoneless khiến Default/OnPush đồng nhất hành vi cho mutate tại chỗ.</li>
+      <li>Tôi biết lý do THỰC DỤNG để vẫn dùng <code>OnPush</code> dù "không có lợi về hiệu năng trong app này ngay bây giờ" — tài liệu hoá ý định + an toàn nếu tương lai quay lại Zone.js.</li>
+      <li>Tôi không bị cám dỗ kết luận quá đà "OnPush vô dụng" — chỉ đúng trong app zoneless, và vẫn phải biết bản Zone.js cho phỏng vấn/codebase khác.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Câu hỏi tư duy</h2>
+    <p>
+      Bạn vừa thấy toàn bộ cơ chế dirty-marking vận hành ở tầng COMPONENT. Nhưng có một thứ hoàn
+      toàn khác đang chờ ở cuối khoá (Phase 11+): <strong>Signals</strong>. Một signal được đọc
+      trong template không cần <code>markForCheck()</code>, không cần <code>OnPush</code>, không
+      cần <code>@Input</code> đổi tham chiếu — nó TỰ cập nhật đúng view, chính xác đến từng binding.
+    </p>
+    <p><strong>Nếu signal tự động làm được điều mà bạn vừa phải viết thủ công (markForCheck) suốt 6 bài qua — vậy signal "biết" view nào cần cập nhật bằng cơ chế gì khác với dirty-flag-theo-component bạn vừa học?</strong></p>
+    <div class="callout why">
+      <div class="ct">🧠 Đừng tra Google vội</div>
+      <p>Gợi ý: dirty-flag bạn vừa học granularity là CẢ COMPONENT. Signal granularity là gì — thử đoán trước khi học tới Phase 11.</p>
+    </div>
+  </section>
+
+  <aside class="next-box">
+    <div class="nl">→ Bài tiếp theo</div>
+    <div class="nt">Bài 43 · Phân tích bundle</div>
+    <p class="nd"><code>source-map-explorer</code> — nhìn thấy THẬT những gì đang nằm trong bundle production của EduCommerce.</p>
+  </aside>
+
+  <nav class="navbar" aria-label="Điều hướng bài học">
+    <a href="0041-change-detection-co-ban.html">← Trước</a>
+    <a href="index.html">🏠 Mục lục</a>
+    <a href="0043-phan-tich-bundle.html">Sau →</a>
+  </nav>
+
+  <p class="try-it">💬 <strong>Tôi là người dạy của bạn.</strong> Gửi 2 file spec (OnPush + Default) + output thật. TC2 (chứng minh Default = OnPush trong zoneless) là bằng chứng quan trọng nhất của bài này.</p>
+</div>
+<script src="lesson-enhance.js"></script>
+</body>
+</html>
